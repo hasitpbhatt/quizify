@@ -37,9 +37,53 @@ export function App() {
   const [progress, setProgress] = useState<JourneyProgress>({ stage: 'fetch', label: 'Reading the source…' });
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const { load: loadSessions } = useSessionStore();
+  const { load: loadSessions, currentId } = useSessionStore();
 
-  useEffect(() => { loadSessions(); }, [loadSessions]);
+  // Restore canvas page on tab reload, and always load sessions on mount
+  useEffect(() => {
+    const savedPage = sessionStorage.getItem('quizify:page');
+    const savedId = sessionStorage.getItem('quizify:currentId');
+    const needsRestore = savedPage === 'canvas' && savedId;
+
+    (async () => {
+      await loadSessions();
+      if (needsRestore) {
+        const { select } = useSessionStore.getState();
+        await select(savedId);
+        if (useSessionStore.getState().currentId) {
+          setPage('canvas');
+        }
+      }
+    })();
+  }, [loadSessions]);
+
+  // Persist page to sessionStorage (skip 'progress' — can't resume mid-flight)
+  useEffect(() => {
+    if (page === 'progress') return;
+    if (page === 'canvas') {
+      sessionStorage.setItem('quizify:page', 'canvas');
+    } else {
+      sessionStorage.removeItem('quizify:page');
+    }
+  }, [page]);
+
+  // Persist currentId to sessionStorage for crash-recovery
+  useEffect(() => {
+    if (currentId) {
+      sessionStorage.setItem('quizify:currentId', currentId);
+    } else {
+      sessionStorage.removeItem('quizify:currentId');
+    }
+  }, [currentId]);
+
+  // Re-hydrate sessions when the tab becomes visible (handles stale IDB connection)
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState === 'visible') loadSessions();
+    };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, [loadSessions]);
 
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();

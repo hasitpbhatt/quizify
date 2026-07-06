@@ -43,8 +43,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   loaded: false,
 
   load: async () => {
-    const all = await sessionsDb.getAllSessions();
-    set({ sessions: sortByUpdatedDesc(all), loaded: true });
+    try {
+      const all = await sessionsDb.getAllSessions();
+      set({ sessions: sortByUpdatedDesc(all), loaded: true });
+    } catch (err) {
+      console.error('[sessionStore] failed to load sessions:', err);
+      set({ loaded: true });
+    }
   },
 
   create: async ({ url, hostname, persona }) => {
