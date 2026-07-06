@@ -210,7 +210,7 @@ export async function runPipeline(
   }
 
   const { updateCurrent } = useSessionStore.getState();
-  updateCurrent({ nodes: allNodes, edges, updatedAt: Date.now() });
+  await updateCurrent({ nodes: allNodes, edges, updatedAt: Date.now() });
 
   notify('done', 'Canvas ready!');
   return { nodes: allNodes, edges };
