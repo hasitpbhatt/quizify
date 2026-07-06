@@ -50,12 +50,16 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<
         const ac = new AbortController();
         const combinedSignal = anySignal(userSignal, AbortSignal.timeout(timeoutMs), ac.signal);
 
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        if (cfg.requiresApiKey) {
+          headers.Authorization = `Bearer ${apiKey}`;
+        }
+
         const res = await fetch(apiBase, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
+          headers,
           body: JSON.stringify(body),
           signal: combinedSignal,
         });

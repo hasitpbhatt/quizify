@@ -16,10 +16,12 @@ export function useWelcomeState() {
   const { apiKey, persona, provider, setApiKey, setPersona, setProvider } = useSettingsStore();
   const [url, setUrl] = useState('');
 
-  const submitEnabled = apiKey.length > 0 && persona !== null && url.trim().length > 0;
+  const cfg = PROVIDERS[provider];
+  const keyOk = !cfg.requiresApiKey || apiKey.length > 0;
+  const submitEnabled = keyOk && persona !== null && url.trim().length > 0;
 
   const submitDisabledReason =
-    !apiKey ? `Add your ${PROVIDERS[provider].apiKeyLabel} above` :
+    !keyOk ? `Add your ${cfg.apiKeyLabel} above` :
     !persona ? 'Pick a profile above' :
     !url.trim() ? 'Paste a URL' : null;
 

@@ -1,7 +1,7 @@
 # Quizify — Product Specification
 
 > **Status:** v1 (MVP) scope
-> **Last updated:** 2025-07-05
+> **Last updated:** 2026-07-05
 > **Owner:** Product
 
 ---
@@ -56,7 +56,7 @@ These are deferred but architecture should not preclude them — see §9.
 | Canvas | Infinite pannable + zoomable, touch-friendly (pinch/drag) and pointer-friendly (drag/wheel) |
 | Accounts | None — fully local |
 | Persistence | Browser storage (IndexedDB recommended) — multiple named sessions |
-| AI provider | Mistral (user-supplied API key, stored locally). Swappable to multi-provider later. |
+| AI provider | Three providers: Quizify Default (proxy-managed, no key needed, experimental), Mistral or NVIDIA (user-supplied API key, stored locally). Selected via buttons in Welcome modal. |
 | Content fetching | App fetches URL content server-side-ish via a lightweight function/edge route and streams to LLM. Unknown/un-fetchable URLs fall back to LLM's own knowledge. |
 
 ---
@@ -76,9 +76,9 @@ Selection is saved locally as `persona` and reused on every generation until the
 
 ### 4.2 API key setup
 
-Same welcome modal (or a follow-up step) asks the user to paste a **Mistral API key**. Stored in localStorage, sent only to Mistral's API from the browser. Key field is masked and has a "show/hide" toggle.
+Same welcome modal asks the user to select a provider. For Mistral or NVIDIA, the user pastes the corresponding **API key** (stored in localStorage, sent only to the selected provider's API). For the default "Quizify (Default)" provider, no API key is needed — requests go through a server-side proxy (experimental, may not always work). When a key-requiring provider is selected, the key field is masked with a "show/hide" toggle.
 
-If no key is entered, theGenerate button is disabled with a tooltip: *"Add your Mistral API key in settings."*
+If no key is entered when required, the Generate button is disabled with a tooltip: *"Add your API key in settings."*
 
 ---
 
@@ -93,30 +93,18 @@ Before any canvas is generated:
 
 ### 5.2 Layout
 
-- Nodes are placed automatically by Quizify into a **column-first grid**:
-  - Column height: **4 concepts per column** (concept node + its immediately-following quiz node).
-  - Fill top→bottom, then move to the next column to the right.
-  - Reading order: down the first column, then down the next, etc.
-- A **final summary quiz node** is rendered at the bottom of the last column, spanning appropriately, after all concept-quiz pairs.
+- Nodes are placed by Quizify in a **horizontal chain**:
+  - Concept 1 → Quiz 1 → Concept 2 → Quiz 2 → ... → Summary.
+  - All nodes sit on a single horizontal line, spaced by estimated width + gap.
+  - Reading order: left to right.
+- A **final summary node** is placed after the last quiz node.
 
 ```
-┌───────────┐ ┌───────────┐
-│ Concept 1 │ │ Concept 5 │
-│  Quiz 1   │ │  Quiz 5   │
-├───────────┤ ├───────────┤
-│ Concept 2 │ │ Concept 9 │
-│  Quiz 2   │ │  Quiz 9   │
-├───────────┤ ├───────────┤
-│ Concept 3 │ │ Concept…  │
-│  Quiz 3   │ │  Quiz…    │
-├───────────┤ ├───────────┤
-│ Concept 4 │ │ Summary   │
-│  Quiz 4   │ │   Quiz    │
-└───────────┘ └───────────┘
+Concept 1 → Quiz 1 → Concept 2 → Quiz 2 → … → Concept N → Quiz N → Summary
 ```
 
-- Nodes are fully **draggable**; connectors re-route. Auto-layout is the default; once the user manually moves a node it stays where placed for that session.
-- Standard canvas controls: zoom (wheel/pinch), pan (drag background / two-finger), fit-to-view button, zoom-to-100% button, reset-layout button.
+- Nodes are fully **draggable**; connectors re-route. Initial positions are a starting layout — once the user moves a node it stays where placed.
+- Standard canvas controls: zoom (wheel/pinch), pan (drag background / two-finger), fit-to-view button, zoom-to-100% button.
 
 ### 5.3 Node types
 
@@ -133,7 +121,7 @@ Before any canvas is generated:
 
 ### 5.5 Generation UX
 
-- While generating, nodes are **streamed onto the canvas live** as each concept+quiz pair completes. The user sees the canvas physically fill up column by column.
+- While generating, nodes are **streamed onto the canvas live** as each concept+quiz pair completes. The user sees the canvas physically fill up left to right.
 - Each node animates in (fade/scale up).
 - A small status chip in the corner shows: *"Generating concept 3 of ~12…"*
 - The URL field / Generate button is disabled until generation completes (with a "Cancel" option that stops further node generation and keeps what's already been produced).
@@ -189,7 +177,7 @@ After answering, the quiz node shows a **state badge** (e.g. ✓ Correct, ✗ Tr
 ### 8.1 First-time user
 1. Open Quizify → welcome modal.
 2. Pick a persona card (one click).
-3. Paste Mistral API key → confirm.
+3. Select provider (Default / Mistral / NVIDIA), paste API key if needed → confirm.
 4. Paste URL → **Generate**.
 5. Watch canvas stream in (~10–15 concepts). 
 6. Open concept 1 → read → answer quiz 1 → see feedback. Repeat.
@@ -209,13 +197,13 @@ Via top-right settings gear → re-shows persona cards and API key field. Change
 
 Design so these later changes are low-cost:
 
-- **AI provider abstraction** — wrap LLM calls behind a single `generateConcepts(url, persona)` and `gradeAnswer(...)` interface, so swapping Mistral → OpenAI/Anthropic/Gemini/Ollama later is config-only.
+- **AI provider abstraction** — already done: `chat.ts` is provider-agnostic, `providers.ts` defines per-provider config. Adding OpenAI/Anthropic/Gemini/Ollama is a one-file config addition. The default provider (`'default'`) shows how to add a proxy-based provider with `requiresApiKey: false`.
 - **Auth/sync later** — keep `sessions[]` shape server-ready; an optional `/sessions` REST endpoint could mirror local state.
 - **Other input types later** — input pipeline should accept a generic "source" object `{ type: 'url' | 'topic' | 'file' | 'book', payload }`; only `type='url'` is wired in v1.
 - **Node-level regeneration later** — store per-node generation inputs separately so a single concept can be re-rolled without re-running the whole pipeline.
 - **SRS later** — store per-concept last-attempt timestamp + score; an SRS scheduler can read this without schema changes.
 
-Recommended stack: a lightweight client-side framework (React + a canvas library such as **React Flow**), IndexedDB via a thin wrapper, a Mistral SDK call from the browser, and a small edge function (or `<allorigins>`-style proxy) for URL content fetching to avoid CORS and to strip noise before sending to the LLM.
+Recommended stack: React + **React Flow** canvas, IndexedDB via **idb**, LLM calls via raw `fetch` to the selected provider's API (Default / Mistral / NVIDIA), Vite dev-proxy for CORS-free development.
 
 ---
 

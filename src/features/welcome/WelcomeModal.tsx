@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, GraduationCap, Briefcase, Microscope, Eye, EyeOff, ArrowRight, ChevronDown, Key, Cpu } from 'lucide-react';
+import { Sparkles, GraduationCap, Briefcase, Microscope, Eye, EyeOff, ArrowRight, ChevronDown, Key, Cpu, Globe } from 'lucide-react';
 import { PersonaCard } from './PersonaCard';
 import { useWelcomeState, EXAMPLE_CHIPS } from './useWelcomeState';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
@@ -155,39 +155,43 @@ export function WelcomeModal({ onGenerate, error, onClearError }: WelcomeModalPr
                       onClick={() => setProvider(p.name)}
                       type="button"
                     >
-                      {p.name === 'nvidia' ? <Cpu size={14} /> : <Sparkles size={14} />}
+                      {p.name === 'default' ? <Globe size={14} /> : p.name === 'nvidia' ? <Cpu size={14} /> : <Sparkles size={14} />}
                       {p.label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className={styles.field}>
-                <label className={styles.fieldLabel}>{PROVIDERS[provider].apiKeyLabel}</label>
-                <div className={styles.inputWrapper}>
-                  <input
-                    className={styles.monoInput}
-                    type={showKey ? 'text' : 'password'}
-                    placeholder={PROVIDERS[provider].apiKeyPlaceholder}
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                  <button
-                    className={styles.toggleBtn}
-                    onClick={() => setShowKey((v) => !v)}
-                    aria-label={showKey ? 'Hide key' : 'Show key'}
-                    type="button"
-                  >
-                    {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
+              {PROVIDERS[provider].requiresApiKey ? (
+                <div className={styles.field}>
+                  <label className={styles.fieldLabel}>{PROVIDERS[provider].apiKeyLabel}</label>
+                  <div className={styles.inputWrapper}>
+                    <input
+                      className={styles.monoInput}
+                      type={showKey ? 'text' : 'password'}
+                      placeholder={PROVIDERS[provider].apiKeyPlaceholder}
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <button
+                      className={styles.toggleBtn}
+                      onClick={() => setShowKey((v) => !v)}
+                      aria-label={showKey ? 'Hide key' : 'Show key'}
+                      type="button"
+                    >
+                      {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <p className={styles.fieldHint}>
+                    Stored only on this device. Get a free key from{' '}
+                    <a className={styles.mutedLink} href={PROVIDERS[provider].signupUrl} target="_blank" rel="noopener noreferrer">{PROVIDERS[provider].signupUrl.replace(/^https?:\/\//, '')}</a>.
+                  </p>
                 </div>
-                <p className={styles.fieldHint}>
-                  Stored only on this device. Get a free key from{' '}
-                  <a className={styles.mutedLink} href={PROVIDERS[provider].signupUrl} target="_blank" rel="noopener noreferrer">{PROVIDERS[provider].signupUrl.replace(/^https?:\/\//, '')}</a>.
-                </p>
-              </div>
+              ) : (
+                <p className={styles.fieldHint}>{PROVIDERS[provider].apiKeyHint}</p>
+              )}
 
               <div className={styles.field}>
                 <label className={styles.fieldLabel}>

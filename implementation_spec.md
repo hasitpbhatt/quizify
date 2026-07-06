@@ -4,7 +4,7 @@
 > **Last updated:** 2025-07-05
 > **Companion to:** `product_spec.md`, `design_spec.md`
 > **Owner:** Engineering
-> **Constraint:** Only runtime cost is the user-supplied Mistral API key. Zero backend, zero paid infra, fully static deploy.
+> **Constraint:** Only runtime cost is the user-supplied LLM API key (Mistral or NVIDIA), unless using the default Quizify-managed provider (zero-config, experimental). Minimal backend: one Cloudflare Pages Function `/api/chat` for the default provider path.
 
 ---
 
@@ -14,16 +14,16 @@
 
 Quizify is a **pure static SPA**. There is no server we own. The only network egress from the browser goes to:
 
-1. **Mistral API** (`api.mistral.ai`) — for concept generation, quiz generation, and LLM grading. Paid by user via their own API key.
+1. **LLM API** — Mistral, NVIDIA, or a Quizify-managed proxy (`/api/chat` on Cloudflare Pages). For Mistral/NVIDIA, the user supplies their own API key. The default provider proxies through a Pages Function using a server-side Mistral key (experimental; may not always be available).
 2. **r.jina.ai Reader** (`https://r.jina.ai/<url>`) — primary free service that fetches a URL server-side and returns cleaned, readable Markdown text (handles CORS, dynamic pages, and PDFs). Zero infrastructure on our side.
 3. **Fallback CORS proxies** (allorigins / corsproxy / cors.eu.org) — only used when Jina is rate-limited or down. Returns raw HTML which we strip in-browser (see §7).
-4. **Optional Jina bearer token** — Strategy B in §7.3. Lifts the anonymous 20 RPM cap for power users. Free, user-supplied, stored locally alongside their Mistral key.
+4. **Optional Jina bearer token** — Strategy B in §7.3. Lifts the anonymous 20 RPM cap for power users. Free, user-supplied, stored locally alongside the API key.
 
 **Note on rate limits in our architecture:** every request originates from the user's own browser (there is no backend). Public proxies apply their limit per-IP:
 - **Jina anonymous tier** (no token): request is bucketed by `<user's IP>`. On a home NAT this is fine (you alone). On corporate / dorm / shared Wi-Fi everyone on that IP shares the ~20 RPM pool — they can collide.
 - **Jina with free token** (Strategy B): Jina buckets by the *token*, not the IP. The user has their own private quota independent of who else shares their NAT. This is the only mode where "client-side" truly means "isolated limit."
 
-In practice, even the anonymous IP limit is rarely hit for v1: each generation is **1 fetch call per canvas** (the ~24 sequential calls are to Mistral, which doesn't touch the proxy tier). The fallback chain in §7.3 absorbs the rare anonymous-tier edge cases (NAT sharing, bursts); adding a free Jina token in Settings eliminates them entirely.
+In practice, even the anonymous IP limit is rarely hit for v1: each generation is **1 fetch call per canvas** (the ~24 sequential calls are to the LLM provider, which doesn't touch the proxy tier). The fallback chain in §7.3 absorbs the rare anonymous-tier edge cases (NAT sharing, bursts); adding a free Jina token in Settings eliminates them entirely.
 
 Everything else runs in the browser: routing, state, persistence (IndexedDB), canvas rendering.
 
@@ -33,24 +33,24 @@ Everything else runs in the browser: routing, state, persistence (IndexedDB), ca
 ┌────────────────────────── Browser (SPA) ──────────────────────────┐
 │                                                                   │
 │  React (Vite build)                                               │
-│   ├─ Welcome flow (persona + API key + URL input)                 │
+│   ├─ Welcome flow (persona + API key + URL input + provider)      │
 │   ├─ Top toolbar (sessions, settings)                             │
 │   ├─ React Flow canvas (concepts, quizzes, notes, summary)        │
 │   ├─ Generation pipeline (orchestrator)                          │
 │   │    ├─ fetchSourceContent(url) → r.jina.ai Reader              │
-│   │    ├─ generateOutline(content, persona) → Mistral              │
-│   │    ├─ for each concept: generateConcept → Mistral             │
-│   │    ├─ for each quiz:    generateQuiz    → Mistral             │
-│   │    └─ gradeAnswer(quiz, answer) → Mistral (on submit only)    │
+│  │    ├─ chat(outline prompt) → LLM (default / Mistral / NVIDIA) │
+│  │    ├─ for each concept:                                       │
+│  │    │   └─ chat(content prompt, combined detail+quiz) → LLM    │
+│  │    └─ gradeAnswer(quiz, answer) → LLM (on submit only)        │
 │   ├─ Persistence layer (IndexedDB via idb)                        │
 │   └─ Theme + tokens                                               │
 │                              │                                    │
 └──────────────────────────────┼────────────────────────────────────┘
                                │ HTTPS
-              ┌────────────────┴───────┐
-              ▼                        ▼
-     https://r.jina.ai/             https://api.mistral.ai/v1
-     (free Reader proxy)            (Mistral chat + embeddings)
+                ┌────────────────┴────────────────────────────────────┐
+                ▼                                                   ▼
+       https://r.jina.ai/             Mistral / NVIDIA API / /api/chat
+       (free Reader proxy)            (selected by user or default proxy)
 ```
 
 ### 1.3 Why these choices
@@ -60,11 +60,11 @@ Everything else runs in the browser: routing, state, persistence (IndexedDB), ca
 | **Vite + React + TS** | Spec-recommended; fast HMR; static build; matches React Flow ecosystem; huge hiring/learning surface. |
 | **React Flow (`@xyflow/react`)** | MIT, mature infinite pan/zoom, custom nodes, custom edges — exactly the spec's canvas model. |
 | **r.jina.ai Reader** | Free, no auth, fetches readable content + PDFs, returns Markdown pre-cleaned for LLMs, returns CORS-friendly headers — fits "zero infra" perfectly. |
-| **Mistral SDK (`@mistralai/mistralai` or fetch directly)** | One provider for v1; abstracted behind `llmClient` so swapping is config-only (product_spec §9). |
+| **LLM providers (default / Mistral / NVIDIA)** | Three providers via `providers.ts` config and provider-agnostic `chat()` in `chat.ts`. The default provider uses a server-side proxy (`/api/chat`) with no API key required; Mistral and NVIDIA use direct browser-to-API calls with user-supplied keys. |
 | **IndexedDB via `idb`** | Spec-mandated multi-session persistence with potentially large canvases; `idb` is 1kb Promises wrapper. |
 | **Cloudflare Pages** | Free unlimited static hosting on a global CDN, no build-minute caps that matter; one-command deploy. |
-| **No backend, even on Pages Functions** | Mistral + Jina are both CORS-enabled for browser clients, so even serverless functions are unnecessary. Pages still gives us a free preview-on-PR path. |
-| **Client-direct fetches (no proxy of our own)** | A server-side proxy concentrates all users' traffic onto our single IP, exhausting Jina's per-IP shared limit faster under load. Client-direct spreads requests across each user's own IP, so per-IP buckets never collide at our scale — *strictly better* than a backend proxy while we're on anonymous/free tiers. See §7.1 for rationale and §1 for the rate-limit model. |
+| **Minimal Pages Function for default provider** | One function at `functions/api/chat.ts` proxies chat requests to Mistral using a server-side API key. Only active when the user selects the "Quizify (Default)" provider — Mistral/NVIDIA paths remain direct. |
+| **Client-direct fetches (Mistral/NVIDIA paths)** | A server-side proxy concentrates all users' traffic onto our single IP. For Mistral/NVIDIA we use client-direct fetches. The default provider's proxy is intentionally single-tenant (one server-side key) and marked experimental. |
 
 ### 1.4 Non-goals (v1)
 
@@ -83,7 +83,7 @@ Everything else runs in the browser: routing, state, persistence (IndexedDB), ca
     "react-dom": "^18.3.1",
     "@xyflow/react": "^12.3.5",        // React Flow v12 (MIT)
     "idb": "^8.0.0",                   // IndexedDB Promises wrapper
-    "@mistralai/mistralai": "^1.1.0",  // optional — see §6.1
+
     "clsx": "^2.1.1",
     "lucide-react": "^0.453.0"
   },
@@ -111,29 +111,30 @@ Everything else runs in the browser: routing, state, persistence (IndexedDB), ca
 
 ```
 quizify/
+├─ functions/
+│  └─ api/
+│     └─ chat.ts                   # Pages Function for default provider proxy
 ├─ public/
 │  └─ fonts/                       # Caveat + Inter self-hosted (see §11)
 ├─ src/
 │  ├─ main.tsx                     # bootstrap
 │  ├─ app/
 │  │  ├─ App.tsx                   # shell: routes between welcome/canvas
-│  │  ├─ AppShell.tsx              # top toolbar + canvas container
+│  │  ├─ ProgressScreen.tsx        # generation progress display
 │  │  ├─ theme.ts                  # token resolve + system preference
 │  │  ├─ useTheme.ts
 │  │  └─ useToast.ts
 │  ├─ features/
 │  │  ├─ welcome/
-│  │  │  ├─ WelcomeModal.tsx        # persona cards + API key + URL
+│  │  │  ├─ WelcomeModal.tsx        # persona cards + provider + API key + URL
 │  │  │  ├─ PersonaCard.tsx
 │  │  │  └─ useWelcomeState.ts
 │  │  ├─ sessions/
-│  │  │  ├─ SessionsDropdown.tsx
-│  │  │  ├─ useSessions.ts          # CRUD wrapper over db
-│  │  │  └─ sessionsDb.ts           # IndexedDB shape, see §5
-│  │  ├─ settings/
-│  │  │  └─ SettingsSheet.tsx       # persona re-pick, API key, theme
+│  │  │  └─ ... (deferred until needed)
+│  │  ├─ toolbar/
+│  │  │  └─ Toolbar.tsx
 │  │  ├─ canvas/
-│  │  │  ├─ CanvasView.tsx          # React Flow wrapper
+│  │  │  ├─ CanvasPage.tsx          # React Flow wrapper
 │  │  │  ├─ nodes/
 │  │  │  │  ├─ ConceptNode.tsx
 │  │  │  │  ├─ QuizNode.tsx
@@ -141,53 +142,67 @@ quizify/
 │  │  │  │  └─ SummaryNode.tsx
 │  │  │  ├─ edges/
 │  │  │  │  └─ WigglyEdge.tsx       // hand-drawn SVG path edge
-│  │  │  ├─ layout/
-│  │  │  │  └─ autoGridLayout.ts    // 4-per-column logic
-│  │  │  ├─ GenerationStatusChip.tsx
-│  │  │  ├─ CanvasControls.tsx
-│  │  │  └─ useCanvasState.ts
-│  │  ├─ generation/
-│  │  │  ├─ pipeline.ts             // orchestrator (see §4)
-│  │  │  ├─ fetchSourceContent.ts   // r.jina.ai Reader call
-│  │  │  ├─ llmClient.ts            // Mistral client wrapper (see §6)
-│  │  │  ├─ prompts/
-│  │  │  │  ├─ outline.ts
-│  │  │  │  ├─ concept.ts
-│  │  │  │  ├─ quiz.ts
-│  │  │  │  └─ grade.ts
-│  │  │  ├─ parsers.ts             // JSON → typed node shapes, with fallbacks
-│  │  │  └─ useGenerate.ts          // hook: progress state, cancellation
-│  │  └─ quiz/
-│  │     ├─ QuizInteraction.tsx      // per-format affordances (see §8)
-│  │     ├─ useQuizAnswer.ts
-│  │     └─ formats/
-│  │        ├─ MultipleChoice.tsx
-│  │        ├─ TrueFalse.tsx
-│  │        ├─ ShortAnswer.tsx
-│  │        ├─ FreeText.tsx
-│  │        ├─ FillBlank.tsx
-│  │        └─ Ordering.tsx
+│  │  │  ├─ MobileFocusView.tsx     // mobile single-node focus
+│  │  │  └─ MobileFocusView.module.css
+│  │  ├─ quiz/
+│  │  │  ├─ QuizInteraction.tsx      // per-format affordances (see §8)
+│  │  │  └─ formats/
+│  │  │     ├─ MultipleChoice.tsx
+│  │  │     ├─ TrueFalse.tsx
+│  │  │     ├─ ShortAnswer.tsx
+│  │  │     ├─ FreeText.tsx
+│  │  │     ├─ FillBlank.tsx
+│  │  │     └─ Ordering.tsx
+│  ├─ lib/
+│  │  ├─ pipeline.ts               // orchestrator (see §4)
+│  │  ├─ fetchSourceContent.ts     // r.jina.ai Reader + fallbacks + LLM knowledge
+│  │  ├─ truncate.ts               // paragraph-aware content truncation
+│  │  ├─ db/
+│  │  │  ├─ db.ts                   // IndexedDB setup
+│  │  │  ├─ sessionsDb.ts           // session CRUD
+│  │  │  └─ sourceCache.ts          // source content cache
+│  │  ├─ llm/
+│  │  │  ├─ chat.ts                 // provider-agnostic LLM client
+│  │  │  ├─ providers.ts            // default + Mistral + NVIDIA config
+│  │  │  ├─ errors.ts               // AuthError, RateLimitError, NetworkError
+│  │  │  ├─ outlineParser.ts
+│  │  │  ├─ contentParser.ts        // combined detail+quiz parser
+│  │  │  ├─ summaryParser.ts
+│  │  │  ├─ gradeParser.ts
+│  │  │  └─ tts.ts                  // Voxtral TTS with Web Speech fallback
+│  │  └─ prompts/
+│  │     ├─ outline.ts
+│  │     ├─ content.ts              // combined detail+quiz prompt
+│  │     ├─ summary.ts
+│  │     └─ grade.ts
 │  ├─ shared/
-│  │  ├─ types.ts                   // Session, NodeData, Persona, etc.
-│  │  ├─ tokens.css                 // CSS variables (design_spec §3)
+│  │  ├─ types.ts                   // Session, NodeData, Persona, LlmProvider, etc.
+│  │  ├─ stores/
+│  │  │  ├─ sessionStore.ts         // sessions + currentId, backed by IDB
+│  │  │  └─ settingsStore.ts        // apiKey, jinaToken, persona, theme, provider
 │  │  ├─ Button.tsx / Input.tsx / etc.
-│  │  └─ icons.ts                   // Lucide re-exports
-│  └─ styles/
-│     ├─ reset.css
-│     ├─ global.css
-│     └─ canvas.css
+│  │  └─ useMediaQuery.ts
+│  ├─ styles/
+│  │  ├─ reset.css
+│  │  ├─ global.css
+│  │  ├─ tokens.css                 // CSS variables (design_spec §3)
+│  │  └─ canvas.css
 ├─ tests/
-│  ├─ unit/                         // co-located vitest
-│  └─ e2e/                           // minimal, deferred or out-of-scope
+│  ├─ setup.ts
+│  ├─ truncate.test.ts
+│  └─ useMediaQuery.test.ts
 ├─ index.html
 ├─ vite.config.ts
 ├─ tsconfig.json
 ├─ package.json
-├─ .eslintrc.cjs
+├─ eslint.config.js
 ├─ .prettierrc
-├─ WRANGLER.toml                    # Cloudflare Pages config (optional, for cf-pages adapter)
-├─ _redirects                       # SPA fallback: /* /index.html 200
-└─ README.md
+├─ AGENTS.md
+├─ design_spec.md
+├─ eng_decisions.md
+├─ implementation_spec.md
+├─ product_spec.md
+└─ .env.example                    # MISTRAL_API_KEY for default provider dev proxy
 ```
 
 A `_redirects` file at `public/_redirects` ensures SPA deep-link fallback:
@@ -205,41 +220,40 @@ The pipeline is the heart of the app. It must:
 - Stream nodes onto the canvas as each concept + quiz pair is ready.
 - Be cancellable.
 - Survive partial failures (a node that fails to generate doesn't block the rest).
-- Cost the user only Mistral tokens.
+- Cost the user only LLM API tokens (Mistral or NVIDIA).
 
 ### 4.1 High-level flow
 
 ```
-input: { url, persona, model: 'mistral-medium' }
+input: { url, persona, apiKey, provider: 'default' | 'mistral' | 'nvidia' }
                 │
                 ▼
        ┌──────────────────┐
        │ fetchSourceContent│  HTTP GET https://r.jina.ai/<url>
-       │   (Jina Reader)  │  → cleaned Markdown text (or empty on failure)
+       │   (Jina Reader)  │  → cleaned Markdown text (or fallback chain)
        └────────┬─────────┘
                 │  { content, fetched: bool }
                 ▼
-       ┌──────────────────┐       Mistral call #1
-       │ generateOutline  │       prompt → JSON: 10-15 concept titles + 1-line summaries
+       ┌──────────────────┐       LLM call #1 (selected provider)
+       │ chat(outline)    │       prompt → JSON: 10-15 concept titles + 1-line summaries
        └────────┬─────────┘
                 │  ConceptOutline[]
                 ▼
        ┌──────────────────────────────────────────────┐
-       │  for each concept (await sequentially):      │  Mistral call #2..N (serialized)
-       │    1. generateConcept(outline, persona, src) │     - faster than parallel: cheaper,
-       │       → ConceptNode (full explanation)        │       token limit-safe, simpler rate-limit handling
-       │    2. generateQuiz(concept, persona)         │
-       │       → QuizNode (random format)             │
-       │    3. emit node to canvas (stream-in)        │
-       │    4. persist node to IndexedDB              │
+       │  for each concept (await sequentially):      │  LLM call #2..N (serialized)
+       │    1. push concept shell with "Loading..."   │     - each: combined detail+quiz in one prompt
+       │    2. chat(content prompt, responseFormat)   │     - positions assigned with fixed widths
+       │       → { detail: ConceptData, quizzes[] }   │     - concept then quiz(zes) placed horizontally
+       │    3. hydrate concept + push quiz nodes      │     - 2s delay between concepts (rate-limit safety)
+       │    4. emit + persist to IndexedDB            │
        │    5. yield on cancel token if requested     │
        └──────────────────────────────────────────┘
                 │
                 ▼
-       ┌──────────────────────────┐    Mistral call #N+1
-       │ generateSummary(concepts)│    → 4-6 recap bullets + 5-8 mixed-format summary quiz
+       ┌──────────────────────────┐    LLM call #N+1
+       │ chat(summary prompt)     │    → 4-6 recap bullets + 5-8 mixed-format summary quiz
        └────────┬─────────────────┘
-                │  SummaryNode
+                │  SummaryNode (placed at cursorX end of chain)
                 ▼
              persist + emit
                 │
@@ -256,8 +270,8 @@ The orchestrator accepts an `AbortController`. Before every LLM call it checks `
 | Stage | Failure | Response |
 |---|---|---|
 | Jina fetch | network error / 4xx / 5xx | Log to console + telemetry toast. Continue with `content = ""`, `fetched = false` — outline prompt notes "URL unavailable, use your knowledge". |
-| Outline | Mistral auth (401) | Stop pipeline. Surface an inline error on the welcome modal: *"That API key didn't work."* Do not retry. |
-| Outline | Mistral non-200 | Retry once after 800ms. If still fails, stop with toast *"Couldn't start generation. Try again."* |
+| Outline | LLM auth (401) | Stop pipeline. Surface an inline error on the welcome modal: *"That API key didn't work."* Do not retry. |
+| Outline | LLM non-200 | Retry once after 800ms. If still fails, stop with toast *"Couldn't start generation. Try again."* |
 | Outline | Invalid JSON | Use `parsers.ts` lenient extractor (regex for `{...}` block, then `JSON.parse`, then JSON5 if needed). On total failure: stop with toast. |
 | Individual concept | Any error | Increment failure counter on the status chip, render a **placeholder node** with title "Concept N unavailable" + Retry button. Continue pipeline. Never abort the whole canvas for one concept. |
 | Individual quiz | Any error | Render concept node fully; render quiz node in `error` state with Retry button. Continue. |
@@ -275,20 +289,20 @@ The orchestrator accepts an `AbortController`. Before every LLM call it checks `
 
 ### 4.5 Token budget per canvas
 
-Mistral `mistral-medium-latest` (~125k context, ~8k output). Per canvas, rough envelope:
+Models vary by provider (e.g. Mistral `mistral-large-latest` ~125k context, NVIDIA `nemotron-3-super` ~128k context). Per canvas, rough envelope:
 
 - Outline: ~1 call, ~1500 tokens out.
-- Concept + Quiz: ~2 calls × 12 = 24 calls, ~600 tokens out each ≈ 14,400 out.
+- Concept + Quiz (combined in one call): ~1 call × 12 = 12 calls, ~800 tokens out each ≈ 9600 out.
 - Summary: ~1 call, ~1500 out.
 - Grading (later, on demand): ~2-4 calls per session, ~500 out.
 
-**Per canvas generation ≈ 17,400 output tokens + proportional inputs.** At Mistral medium tier (~$1/M out tokens), this is well under $0.05 per full canvas — clearly acceptable for an MVP. We **do not** implement client-side rate limits, but we *do* show token usage on the settings sheet ("~17k tokens used in this session") so users can self-monitor.
+**Per canvas generation ≈ 17,400 output tokens + proportional inputs.** At typical LLM pricing (~$1/M out tokens), this is well under $0.05 per full canvas — clearly acceptable for an MVP. We **do not** implement client-side rate limits, but we *do* show token usage on the settings sheet ("~17k tokens used in this session") so users can self-monitor.
 
 ### 4.6 Sequential vs parallel fat-pipe trade-off
 
 Per concept, we **await** the concept call before issuing the quiz call (the concept informs the quiz prompt). Across concepts, we run sequentially too:
 
-- Pros: simplest, lowest risk of rate-limit hits on the free tier of Mistral (some keys have low RPM), nodes stream in stable order matching the column reading order, simplest UI animation.
+- Pros: simplest, lowest risk of rate-limit hits on free tiers (some providers have low RPM), nodes stream in stable order matching the reading order, simplest UI animation.
 - Cons: slower (`~12 × 2 × ~3s = 70s` total ~ realistic).
 - Optimization to consider: parallelize **2 at a time** (Promise pool of size 2) and re-order emits based on position. Defer to v1.1; out of scope for MVP.
 
@@ -394,76 +408,105 @@ export interface Session {
 }
 ```
 
-### 5.3 Auto-layout enforced at write-time
+### 5.3 Layout assigned at write-time (horizontal chain)
 
-When the pipeline emits a new concept+quiz pair, `autoGridLayout.ts` computes the (x, y) position *given the existing nodes*. We keep a counter of completed concept pairs and apply:
+Layout is computed inline in `pipeline.ts` using fixed estimated widths — no separate layout module. A cursor `cursorX` advances rightward as each node is created:
 
 ```
-const COLUMN_GAP = 48;
-const PAIR_GAP = 40;
-const CONCEPT_QUIZ_GAP = 8;
-const NODE_W = 280;
-const CONCEPT_H = ~200;             // approximate; React Flow lets us measure
-const QUIZ_H = ~120;                // approximate; refined via measureNode
+const ESTIMATED_WIDTH = { concept: 260, quiz: 240, summary: 300 };
+const GAP_X = 120;
+const Y = 100;
+let cursorX = 100;
 
-position.concept = {
-  x: columnIndex * (NODE_W + COLUMN_GAP),
-  y: (i % 4) * (CONCEPT_H + QUIZ_H + PAIR_GAP)
-};
-position.quiz = {
-  x: concept.x + 24,                // 24px indent per design spec §4.5
-  y: concept.y + CONCEPT_H + CONCEPT_QUIZ_GAP
-};
+// For each concept:
+position = { x: cursorX, y: Y };         // concept
+cursorX += ESTIMATED_WIDTH.concept + GAP_X;
+
+// Then for each quiz of that concept:
+position = { x: cursorX, y: Y };         // quiz
+cursorX += ESTIMATED_WIDTH.quiz + GAP_X;
+
+// Summary sits at final cursorX position:
+position = { x: cursorX, y: Y };         // summary
 ```
 
-`columnIndex = floor(pairIndex / 4)`. Summary node sits at `(columnIndex + 1) * (NODE_W + COLUMN_GAP)`, `y = 0` of the new column or fills into the last partial column's bottom slot.
+Result: all nodes sit on a single horizontal line (`y = 100`), spaced by `ESTIMATED_WIDTH + GAP_X`. Users can drag nodes freely; the initial positions are a starting layout, not enforced after creation.
 
 ### 5.4 Draggable-override contract
 
-If user moves a node, we set `node.data.userMoved = true`. Reset Layout button clears all `userMoved` flags and re-runs auto-layout. New streamed nodes from a retry/resume honor their precomputed positions unless a user-moved node occupies that slot (in which case we nudge down by `PAIR_GAP`).
+Nodes are fully draggable from first paint. There is no "Reset Layout" button in v1 — nodes stay where the user puts them. New streamed nodes from retry/resume get fresh positions on the same horizontal line.
 
 ---
 
 ## 6. LLM client
 
-### 6.1 Two options, with recommendation
+### 6.1 Multi-provider design
 
-- **Option A (recommended): raw `fetch` to `https://api.mistral.ai/v1/chat/completions`.** ~30 lines, full control over retries/timeouts/abort, zero SDK dependency.
-- **Option B: `@mistralai/mistralai` npm SDK.** More conveniences but adds bundle weight and a layer to debug.
+Quizify supports three LLM providers, selected by the user in the Welcome modal:
 
-We use **Option A**. The client is one file ~120 lines.
+| Provider | Base URL | Default model | Fallback model | API key |
+|---|---|---|---|---|
+| **Quizify (Default)** | `/api/chat` (same-origin Pages Function) | `mistral-large-latest` | `mistral-medium-latest` | Server-side (no user key needed) |
+| **Mistral** | `https://api.mistral.ai/v1/chat/completions` | `mistral-large-latest` | `mistral-medium-latest` | User-supplied |
+| **NVIDIA** | `https://integrate.api.nvidia.com/v1/chat/completions` | `nvidia/nemotron-3-super-120b-a12b` | `meta/llama-3.3-70b-instruct` | User-supplied |
 
-### 6.2 `llmClient.ts` interface
+The client uses raw `fetch` (no SDK) — ~140 lines across all providers.
+
+### 6.2 `chat.ts` interface
 
 ```ts
 export interface ChatOptions {
-  model?: string;                    // default 'mistral-medium-latest'
+  model?: string;                    // default from provider config
   apiKey: string;
-  temperature?: number;              // per-call defaults below
-  responseFormat?: 'json';          // sets response_format: { type: 'json_object' }
+  provider?: LlmProvider;           // 'mistral' | 'nvidia' — default 'mistral'
+  temperature?: number;
+  responseFormat?: 'json';
   signal?: AbortSignal;
   maxTokens?: number;
 }
 
-export async function chat(messages: Message[], opts: ChatOptions): Promise<string>;
+export async function chat(messages: Message[], opts: ChatOptions): Promise<ChatResponse>;
 ```
 
 Internals:
-- Use `fetch` POST with body including `stream: false` (we don't open up SSE visual streaming in v1; node-by-node emission is the spec'd UX).
-- Retry once on 5xx / 429 with exponential backoff: 800ms, 1600ms. No retries on 4xx (auth/validation).
-- On 401 throw `AuthError`; on rate-limit throw `RateLimitError`; on parse failure throw `ParseError`. Pipeline maps these to UI behavior per §4.3.
+- Reads `provider` from `ChatOptions`, resolves config via `getProviderConfig(provider)`.
+- Dynamic `baseUrl`/`model` based on provider.
+- When `requiresApiKey === false` (default provider), the `Authorization` header is omitted from the fetch call.
+- Retry loop: tries `defaultModel` then `fallbackModel` (if default fails with 429/5xx).
+- Each model attempt retries up to **3 times** with exponential backoff: `1s × 2^attempt`.
+- 60s timeout via `AbortSignal.timeout` merged with user's cancel signal.
+- On 401/403 throw `AuthError`; on rate-limit throw `RateLimitError`; on network failure throw `NetworkError`.
+- Returns `{ content: string, model: string, usage?: { promptTokens, completionTokens, totalTokens } }`.
 
-### 6.3 Model selection
+### 6.3 Provider config
 
-- **Default generation model**: `mistral-medium-latest`. Best price/quality for this task.
-- **Grading model**: `mistral-small-latest` (cheaper; grading is a constrained task and small handles it well).
-- Stored as constants in `llmClient.ts`, overridable in Settings sheet via a "Developer options" disclosure (post-MVP polish, but expose the toggle in v1 since it's free).
+`src/lib/llm/providers.ts` defines per-provider `ProviderConfig`:
+
+```ts
+export interface ProviderConfig {
+  name: LlmProvider;
+  label: string;
+  apiBase: string;
+  defaultModel: string;
+  fallbackModel: string;
+  gradingModel: string;        // cheaper model used for grading
+  requiresApiKey: boolean;     // false for the default proxy provider
+  apiKeyLabel: string;
+  apiKeyHint: string;
+  apiKeyPlaceholder: string;
+  signupUrl: string;
+}
+```
+
+Helper functions `getApiBase(provider)` and `getGradingModel(provider)` allow the grading pipeline to use the provider's designated grading model without hardcoding.
 
 ### 6.4 Settings storage
 
-- `apiKey` -- localStorage `quizify:apiKey` (plaintext, in browser only; warn in the settings sheet UI).
-- `persona` -- IndexedDB `settings` store, key `persona`.
-- `theme` -- IndexedDB `settings` store, key `theme`.
+- `apiKey` — localStorage `quizify:apiKey` (plaintext, in browser only).
+- `jinaToken` — localStorage `quizify:jinaToken`.
+- `persona` — localStorage `quizify:persona`.
+- `provider` — localStorage `quizify:provider` (`'default' | 'mistral' | 'nvidia'`).
+- `theme` — localStorage `quizify:theme`.
 
 Why API key in localStorage not IndexedDB: simpler sync reads across the app, smaller, fine for a non-sensitive local-only key.
 
@@ -571,10 +614,10 @@ Return STRICT JSON:
 For zero-cost + zero-infra we depend on free public proxies. They all rate-limit (mostly per-IP, anonymous tier). Our approach combines three mitigations:
 
 - **Strategy A — multi-proxy fallback chain**: try Jina first, silently fall back to allorigins → corsproxy → LLM-knowledge.
-- **Strategy B — optional Jina bearer token**: a free Jina API key (one click at `jina.ai/apikey`) lifts the 20 RPM anonymous cap. Surfaced as an optional Settings field, same UX as the Mistral key.
+- **Strategy B — optional Jina bearer token**: a free Jina API key (one click at `jina.ai/apikey`) lifts the 20 RPM anonymous cap. Surfaced as an optional Settings field.
 - **Strategy C — IndexedDB content cache** keyed by `sha256(url)`, TTL 24h. Repeat views of a saved canvas skip the network entirely.
 
-Each fetch costs ~1 Jina hit per canvas, and Mistral calls (sequential, ~24 per canvas) don't touch the proxy tier, so even the anonymous tier is well within limits for normal use. The fallback chain covers NAT-shared IPs and bursts.
+Each fetch costs ~1 Jina hit per canvas, and LLM calls (sequential, ~12 per canvas with combined detail+quiz) don't touch the proxy tier, so even the anonymous tier is well within limits for normal use. The fallback chain covers NAT-shared IPs and bursts.
 
 ### 7.2 IndexedDB source cache (new store)
 
@@ -688,10 +731,11 @@ const tryJina = async (url: string, token: string | undefined, signal?: AbortSig
 
 ### 7.4 Settings sheet — optional Jina token
 
-Add a Jina API key field to `SettingsSheet.tsx` (placed *after* Mistral key):
+Add a Jina API key field to `SettingsSheet.tsx`:
 
 ```
-Mistral API key   [ ******** ]  (show)   ← existing, required
+LLM API key       [ ******** ]  (show)   ← existing, required
+Provider          ○ Mistral  ● NVIDIA   ← existing
 Jina Reader key   [ optional ]  (show)  ← new, optional, lifts 20 RPM limit
                                   "Get a free key at jina.ai/apikey"
 ```
@@ -706,7 +750,7 @@ Jina Reader key   [ optional ]  (show)  ← new, optional, lifts 20 RPM limit
 Update the privacy section to:
 
 > - The URL you paste is sent to r.jina.ai (and, only on Jina failure, to one of allorigins / corsproxy / cors.eu.org) for content retrieval. These are third parties. If you provide a Jina API key it's sent only to Jina as a bearer token.
-> - Your Mistral API key is sent only to api.mistral.ai. It never touches any other service.
+> - Your API key is sent only to the selected provider's endpoint (api.mistral.ai or integrate.api.nvidia.com). It never touches any other service.
 > - All other data (your sessions, notes, quiz scores) lives only in your browser's IndexedDB.
 > - We have no server, no database, no analytics. Nothing leaves your browser except the two items above.
 
@@ -731,7 +775,7 @@ For locally graded formats (`multipleChoice`, `trueFalse`, `fillBlank`, `orderin
 
 ### 8.3 LLM grading path
 
-For `shortAnswer` and `freeText`, on submit we POST to Mistral with the grade prompt (§6.5). Show a small inline spinner ("Grading…"). On 401, fall back to local fuzzy grading (`given.trim().toLowerCase() === ideal.trim().toLowerCase()` plus length check) and toast "Couldn't reach the grader — used rough local grading."
+For `shortAnswer` and `freeText`, on submit we POST to the selected LLM provider with the grade prompt (§6.5). Show a small inline spinner ("Grading…"). On 401, fall back to local fuzzy grading (`given.trim().toLowerCase() === ideal.trim().toLowerCase()` plus length check) and toast "Couldn't reach the grader — used rough local grading."
 
 ### 8.4 Attempt history & state badge logic
 
@@ -818,7 +862,7 @@ Mitigations:
 - React Flow is split-loaded only when CanvasView mounts (route-level lazy).
 - `roughjs` (~30kb gzipped) is imported only by WigglyEdge; thin edge is bundled with CanvasView anyway.
 - WelcomeModal/PersonaQuizGeneration code-paths live eagerly (typical first run).
-- The Mistral SDK would push us to ~350kb; the raw fetch approach keeps us under 250kb.
+- An LLM SDK would push us to ~350kb; the raw fetch approach keeps us under 250kb.
 - Every node component is wrapped in `React.memo` with `areEqual` comparing only the `data` field (React Flow bumps `selected`/`position` independently — we don't want to re-render on transient state).
 
 ---
@@ -827,12 +871,11 @@ Mitigations:
 
 Even in MVP we keep these boundaries clean (costs nothing extra):
 
-1. `generators/<kind>.ts` functions accept `(input, ctx)` where `ctx` includes the LLM client — so node-level retry calls into the same function. Spec'd in product_spec §9; the **Retry button** on failed nodes already uses it.
-2. `fetchSourceContent` returns a `Source[] {... }` interface ready for `{ type: 'topic' | 'file' | 'book' }` post-MVP.
-3. `llmClient.chat` is provider-agnostic — adding OpenAI/Anthropic is a new client with the same signature, switched via a `LLMProvider` setting.
-4. The `scores{}` map on Session already stores `best`/`attempts` per question — an SRS scheduler can plug in unchanged.
-5. The `nodes[]` slot in Session is server-mirroring-ready — a future `/sessions` endpoint mirrors this shape.
-6. `populateFromSource(content)` lets us later add "paste the text directly" as an alternative input without touching the pipeline below.
+1. `fetchSourceContent` returns a `Source[] {... }` interface ready for `{ type: 'topic' | 'file' | 'book' }` post-MVP.
+2. **Multi-provider already implemented** — `chat.ts` is provider-agnostic and the `LlmProvider` type in `providers.ts` makes adding OpenAI/Anthropic a one-file change.
+3. The `scores{}` map on Session already stores `best`/`attempts` per question — an SRS scheduler can plug in unchanged.
+4. The `nodes[]` slot in Session is server-mirroring-ready — a future `/sessions` endpoint mirrors this shape.
+5. `populateFromSource(content)` lets us later add "paste the text directly" as an alternative input without touching the pipeline below.
 
 ---
 
@@ -840,7 +883,7 @@ Even in MVP we keep these boundaries clean (costs nothing extra):
 
 ### 13.1 Unit tests (vitest) — must-have scope
 
-- `autoGridLayout.ts` — verify positions for n=1..15 concepts, summary placement, column regeneration after Reset Layout.
+- `pipeline.ts` layout logic — verify positions for n=1..15 concepts, summary placement at chain end, spacing between nodes.
 - `parsers.ts` — feed malformed JSON, missing fields, extras, comments; verify lenient extraction works.
 - `prompts/*.ts` — snapshot tests of constructed prompt strings for two personas and two source types (fetched vs not).
 - `llmClient.ts` — fetch mocked; cover 200 happy path, 401 → AuthError, 429 retry path, 5xx retry path, abort signal task.
@@ -858,7 +901,7 @@ Even in MVP we keep these boundaries clean (costs nothing extra):
 
 ### 13.3 E2E
 
-Out of scope for MVP. The Mistral key requirement makes E2E brittle (we'd need a key in CI). Document manual smoke steps in `README.md`.
+Out of scope for MVP. API key requirement makes E2E brittle (we'd need a key in CI). Document manual smoke steps in `README.md`.
 
 ### 13.4 Lint/format
 
@@ -892,7 +935,7 @@ npm run build
 2. Framework preset: **Vite**.
 3. Build command: `npm run build`
 4. Output directory: `dist`
-5. Environment variables: **none** in v1. (No API keys to manage server-side.)
+5. Environment variables: `MISTRAL_API_KEY` required for the default provider's Pages Function (set in Cloudflare Pages dashboard). Not needed for Mistral/NVIDIA direct use.
 6. `_redirects` in `public/_redirects` (copy to `dist/_redirects` via build) ensures SPA deep links load.
 
 ### 14.3 Local development
@@ -905,14 +948,14 @@ npm run lint
 npm test -- --run            # unit + component tests
 ```
 
-No `.env` file required for v1 — the API key comes from the welcome modal/state. If a developer wants to pre-fill a key locally, they can `localStorage.setItem('quizify:apiKey', '...')` once.
+A `.env` file with `MISTRAL_API_KEY` is required to use the default provider via the Vite dev proxy at `/api/chat`. For Mistral/NVIDIA providers, the API key still comes from the Welcome modal. Local dev: `MISTRAL_API_KEY=... npm run dev` or populate `.env` from `.env.example`.
 
 ### 14.4 README requirements
 
 - Stack & rationale (one paragraph).
 - Local dev commands.
 - Build & deploy docs linking to Cloudflare Pages.
-- Privacy note: URL → r.jina.ai, API key → Mistral (browser → Mistral direct; never touches our infrastructure because we have none).
+- Privacy note: URL → r.jina.ai, API key → selected LLM provider (browser → provider direct for Mistral/NVIDIA; default provider proxies through `/api/chat` on Cloudflare Pages using a server-side key, so your prompts pass through our infrastructure).
 - Token-cost estimate per canvas (so users aren't surprised).
 - Troubleshooting: API key errors, fetch failures, partial node failures with retry.
 
@@ -946,7 +989,7 @@ The implementation is intentionally staged to keep a buildable artifact end-to-e
 ### Phase 4 — Canvas scaffold (4-6h)
 - React Flow integration.
 - ConceptNode + placeholder data (manual mock).
-- WigglyEdge + autoGridLayout.
+- WigglyEdge + horizontal chain layout.
 - Just render mock concepts into a grid.
 
 ### Phase 5 — Generation pipeline end-to-end (6-8h)
@@ -986,21 +1029,21 @@ The implementation is intentionally staged to keep a buildable artifact end-to-e
 ## 16. Open questions / risk list
 
 - [ ] **r.jina.ai rate limits / uptime** — if Jina throttles, we silently fall back to LLM knowledge. We should add a fallback chain: Jina → if-other-public-proxy-configured-in-settings → LLM knowledge. Defer to v1.1.
-- [ ] **Mistral model availability** — `mistral-medium-latest` aliases update over time; freeze the actual model tag (e.g. `mistral-medium-2311`) on production builds to avoid behavior drift.
+- [ ] **LLM model availability** — model aliases update over time; consider freezing actual model tags on production builds to avoid behavior drift.
 - [ ] **Quiz format distribution** — currently random per node. After validation, we may want to bias the per-concept quiz to alternate formats to ensure variety (no canvas should have all `trueFalse`). Post-MVP.
-- [ ] **Token estimates for grading** — confirm `mistral-small-latest` handles grade prompts reliably; if not, fall back to `mistral-medium-latest`.
+- [ ] **Token estimates for grading** — confirm the provider's designated grading model handles grade prompts reliably; if not, fall back to the main generation model.
 - [ ] **Cross-session alarm when localStorage API key cleared** — if user clears browser data, we should show the welcome modal on next launch. Already handled by "no apiKey → show welcome".
 - [ ] **PDF source UX** — r.jina.ai handles PDFs via inline extraction; verify output quality on a test set of 3 PDFs (research paper, white paper, e-book chapter) before launch.
-- [ ] **CSP** — set a strict Content-Security-Policy header in `_headers` (Cloudflare Pages supports per-path headers) allowing only Mistral and r.jina.ai as connect-src. **Strong recommendation for v1**, near-zero cost.
+- [ ] **CSP** — set a strict Content-Security-Policy header in `_headers` (Cloudflare Pages supports per-path headers) allowing only the selected LLM provider endpoints and r.jina.ai as connect-src. **Strong recommendation for v1**, near-zero cost.
 - [ ] **Bundle size of roughjs** — confirm <40kb after gzip; if it balloons, hand-roll a simpler wiggly SVG path generator (a quadratic bezier with seeded pseudo-random control points).
 
 ---
 
 ## 17. Acceptance criteria — MVP is done when
 
-✅ A new visitor with a fresh Mistral key + URL can:
-1. See the welcome modal, pick a persona, paste a key, paste a URL, click Generate.
-2. See nodes stream onto the canvas (10-15 concepts + per-concept quizzes + 1 summary quiz node) in the column-first grid.
+✅ A new visitor with a fresh API key + URL can:
+1. See the welcome modal, pick a persona and provider (Default / Mistral / NVIDIA), paste a key if required, paste a URL, click Generate.
+2. See nodes stream onto the canvas (10-15 concepts + per-concept quizzes + 1 summary quiz node) in a horizontal chain layout.
 3. Click any quiz node, answer it, see immediate inline feedback with rationale.
 4. Take the final summary quiz sequentially, see mastery %.
 5. Refresh and find their canvas restored (no session loss), can rename or delete it.
@@ -1009,7 +1052,7 @@ The implementation is intentionally staged to keep a buildable artifact end-to-e
 8. Have a failed node show Retry; clicking Retry regenerates that single node.
 
 ✅ Cost
-9. No paid infrastructure for the project. Single dependency is the user's own Mistral key.
+9. Zero cost when using user-supplied Mistral/NVIDIA keys. The default provider requires a server-side Mistral API key (cost borne by the Quizify project, no user cost).
 
 ✅ Quality
 10. `npm run typecheck && npm run lint && npm test -- --run && npm run build` all pass.

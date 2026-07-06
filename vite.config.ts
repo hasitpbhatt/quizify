@@ -8,6 +8,47 @@ function devProxyPlugin(): import('vite').Plugin {
   return {
     name: 'dev-proxy',
     configureServer(server) {
+      server.middlewares.use('/api/chat', async (req: IncomingMessage, res: ServerResponse, next) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end('Method not allowed');
+          return;
+        }
+
+        const mistralApiKey = process.env.MISTRAL_API_KEY;
+        if (!mistralApiKey) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'MISTRAL_API_KEY not set in environment' }));
+          return;
+        }
+
+        let body = '';
+        for await (const chunk of req) {
+          body += chunk;
+        }
+
+        try {
+          const mistralResponse = await fetch('https://api.mistral.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${mistralApiKey}`,
+            },
+            body,
+          });
+
+          const text = await mistralResponse.text();
+          res.setHeader('Content-Type', 'application/json');
+          res.statusCode = mistralResponse.status;
+          res.end(text);
+        } catch {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Proxy fetch failed' }));
+        }
+      });
+
       server.middlewares.use('/__proxy', async (req: IncomingMessage, res: ServerResponse, next) => {
         const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
         const target = url.searchParams.get('url');

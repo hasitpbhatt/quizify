@@ -2,7 +2,7 @@ export type Persona = 'curious' | 'student' | 'professional' | 'expert';
 
 export type Theme = 'light' | 'dark' | 'auto';
 
-export type LlmProvider = 'mistral' | 'nvidia';
+export type LlmProvider = 'default' | 'mistral' | 'nvidia';
 
 export type QuizFormat =
   | 'multipleChoice'

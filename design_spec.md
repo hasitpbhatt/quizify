@@ -1,7 +1,7 @@
 # Quizify — Design Specification
 
 > **Status:** v1 (MVP)
-> **Last updated:** 2025-07-05
+> **Last updated:** 2026-07-05
 > **Companion to:** `product_spec.md`
 > **Owner:** Design
 
@@ -154,7 +154,7 @@ None. No hero illustrations, no patterns, no gradients. The handwriting + wiggly
 | Pan/zoom canvas | 0ms (immediate; hand-tracked) | — |
 | "Saved ✓" chip fade | 160ms | `ease-out` |
 
-Nodes stream in with a subtle `opacity 0→1` + `translateY(6px→0)` + `scale(0.98→1)`. Stagger **80ms** between consecutive nodes so a column visibly *builds* top-to-bottom.
+Nodes stream in with a subtle `opacity 0→1` + `translateY(6px→0)` + `scale(0.98→1)`. Stagger **80ms** between consecutive nodes so the chain visibly *builds* left-to-right.
 
 ---
 
@@ -179,7 +179,9 @@ Nodes stream in with a subtle `opacity 0→1` + `translateY(6px→0)` + `scale(0
 │   │analogies │ │exam     │ │cal   │ │edge  ││
 │   └─────────┘ └─────────┘ └──────┘ └──────┘│
 │                                             │
-│   Paste a Mistral API key                   │ ← h2, Inter
+│   Provider: ○ Quizify  ○ Mistral  ● NVIDIA  │ ← caption Inter, seg buttons
+│                                             │
+│   Paste API key                             │ ← h2, Inter
 │   ┌─────────────────────────┐  [show]       │
 │   │ ••••••••••••••••••••••  │               │ ← mono, masked
 │   └─────────────────────────┘               │
@@ -214,14 +216,14 @@ Nodes stream in with a subtle `opacity 0→1` + `translateY(6px→0)` + `scale(0
 
 - Masked by default (`type=password`-style dots but with JetBrains Mono).
 - "show" link toggles plain text.
-- Validation: only check *non-empty* in v1 (no live key check — confirm on first Generate). On Generate failure with 401, surface inline error under the field: *"That key didn't work. Check it at console.mistral.ai →"*.
+- Validation: only check *non-empty* in v1 (no live key check — confirm on first Generate). On Generate failure with 401, surface inline error under the field: *"That key didn't work. Check your API provider's console →"*.
 
 **URL field:**
 
 - Placeholder: `Paste a URL — article, blog, Wikipedia, or PDF`.
 - Enter submits. Generate button is primary (accent bg), disabled until URL + key present.
 - Below the field: **2 example chip-links**: `Wikipedia: photosynthesis`, `Article: Why async/await`. Clicking fills the field.
-- Generate is disabled and reads `Add API key` with the tooltip *"Add your Mistral API key above"* until a key is entered. Once present, button reads `Generate`.
+- Generate is disabled and reads `Add API key` with the tooltip *"Add your API key above"* until a key is entered. Once present, button reads `Generate`.
 
 **Button to use:** primary accent; on disabled, gray border, gray text, no fill (do not tope the accent for disabled states).
 
@@ -242,7 +244,7 @@ Nodes stream in with a subtle `opacity 0→1` + `translateY(6px→0)` + `scale(0
   - Inline rename via double-click on name in the **breadcrumb**, Enter to save, Esc to cancel.
 - **Canvas name** center-left: editable text. Subtle underline on hover.
 - **Save chip** (right of name): `Saved ✓` (success, caption) — appears on save, fades after 1.5s.
-- **Settings gear**: opens a 320px right-side sheet with: persona reselect (4 buttons, current marked), API key field, theme toggle (Auto / Light / Dark), and an "About" link.
+- **Settings gear**: opens a 320px right-side sheet with: persona reselect (4 buttons, current marked), provider selector (Default / Mistral / NVIDIA buttons), API key field (hidden when Default selected), theme toggle (Auto / Light / Dark), and an "About" link.
 
 ### 4.3 Floating canvas controls
 
@@ -252,7 +254,7 @@ Bottom-right cluster, vertical stack, borderless circular buttons (32px, `--bg-e
 - `[−]` Zoom out
 - `[⊡]` Fit-to-view
 - `[1:1]` Zoom to 100%
-- `[↺]` Reset layout (only enabled if user has moved nodes)
+- `[↺]` Reset layout (reserved for future — fixed-width layout at creation time means no "reset" needed in v1)
 
 On mobile, this cluster collapses to a single `[map]` button (see §5.4).
 
@@ -276,7 +278,7 @@ Example: a concrete, real-world instance.   ← body, Caveat, secondary color
 source reference                            ← caption, Inter, tertiary, with 🔗 icon
 ```
 
-- **Number counter** (`01`…`15`) in the top-left helps wayfinding the grid.
+- **Number counter** (`01`…`15`) in the top-left helps wayfinding the chain.
 - **Source reference**: a one-line quote or anchored citation to the source URL. Clicking expands to the exact snippet; a small `↗` opens the source URL in a new tab. If the URL wasn't fetchable (LLM fallback), this row reads `from model knowledge` in tertiary.
 - **Interactive states:** hover → subtle `--bg-subtle` plate behind content; selected (clicked) → accent outline at 2px with `--accent-subtle` fill and a small `↑/↓/⇄/✎` handle bar at the top.
 - **Drag affordance:** entire node is draggable from anywhere within its bounds; drag cursor = `grab` / `grabbing`.
@@ -331,7 +333,7 @@ Attempts: 2 · Best: ✓ · [Retake] [Next] ← caption Inter
 
 ### 4.6 Summary node
 
-Same borderless treatment as concept, but visually distinct: **2x width** (max-width 480px desktop), placed in the next available grid slot after the last concept-quiz pair.
+Same borderless treatment as concept, but visually distinct: **slightly wider** (max-width 480px desktop, default estimated 300px at creation), placed after the last quiz node in the horizontal chain.
 
 ```
               ◆  Summary                ← h1, Caveat, with ✦ glyph accent
@@ -399,18 +401,19 @@ When the welcome modal is dismissed or no canvas exists:
 | `tablet` | 640–1024 | Same canvas behavior as desktop, tighter node sizes |
 | `desktop` | ≥1024px | Multi-column canvas, full multi-node view |
 
-### 5.2 Desktop canvas grid
+### 5.2 Desktop canvas layout
 
-- Per `product_spec.md §5.2`: **4 concept-quiz pairs per column**, fill top→bottom then right.
-- Concept node `max-width: 280px`. Quiz node `max-width: 280px`, indented 24px from concept.
-- Inter-column gap: **48px**. Inter-row gap (concept→its quiz): **8px**. Inter-row gap pair→next pair: **40px**.
-- Summary node satisfies its own width requirement and may overflow into the next column slot — it always sits at the very bottom-right corner of the columns it occupies.
+- Per `product_spec.md §5.2`: **horizontal chain** — concept → quiz → concept → quiz → … → summary.
+- All nodes sit at `y = 100` (single horizontal line).
+- Estimated widths assigned at creation: concept ~260px, quiz ~240px, summary ~300px.
+- Gap between nodes: **120px**.
+- Users drag nodes freely; initial positions are a starting layout, not enforced after creation.
 
 ### 5.3 Connectors & routing
 
 - **Hand-drawn wiggly** lines (Excalidraw's `roughjs` style) between:
-  - each concept node → its quiz node (8px short vertical wiggly link with subtle accent at 60% opacity),
-  - concept nodes in reading order within a column (very faint `--text-tertiary` wiggly line at 40% alpha as "flow guide"),
+  - each concept node → its quiz node (horizontal wiggly link with subtle accent at 60% opacity),
+  - concept nodes in reading order (very faint `--text-tertiary` wiggly line at 40% alpha as "flow guide"),
   - notes → their linked concept (paperclip icon at midpoint).
 - The "flow guide" connectors can be toggled off in settings (default on).
 - When the user drags a node the connector to its quiz / parent / linked note naturally re-routes; wiggly segments regenerate but stay consistent in style.
@@ -478,7 +481,7 @@ Shortcuts appear as small caption hints at the bottom of modals ("Esc to close",
 - **Incorrect quiz answer:** the danger badge appears with a 40ms × 3 horizontal jitter (subtle, no audio).
 - **Summary results screen:** mastery % counts up from 0 over 800ms, the rest of the stats fade in 80ms staggered.
 - **Save indicator:** `Saved ✓` fades in 120ms, holds 1.5s, fades out 160ms. Only triggers on actual write to IndexedDB.
-- **Node stream-in stagger:** 80ms between consecutive nodes so a column visibly builds top-to-bottom (per design principle 5).
+- **Node stream-in stagger:** 80ms between consecutive nodes so the chain visibly builds left-to-right (per design principle 5).
 
 ---
 
@@ -506,7 +509,7 @@ All from Lucide (1.5px stroke, 20px default unless specified).
 | Zoom in / out | `Plus` / `Minus` |
 | Fit-to-view | `Maximize2` |
 | 100% | `Scan` |
-| Reset layout | `RotateCcw` |
+| Reset layout (reserved) | `RotateCcw` |
 | Add note | `StickyNote` |
 | Map toggle (mobile) | `Map` |
 | Save | `Check` |

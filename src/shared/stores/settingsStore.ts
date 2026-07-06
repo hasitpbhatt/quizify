@@ -34,7 +34,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   jinaToken: loadString('quizify:jinaToken'),
   persona: (loadString('quizify:persona') as Persona | '') || null,
   theme: getPreferredTheme(),
-  provider: (loadString('quizify:provider') as LlmProvider) || 'mistral',
+  provider: (loadString('quizify:provider') as LlmProvider) || 'default',
 
   setApiKey: (apiKey) => { saveString('quizify:apiKey', apiKey); set({ apiKey }); },
   setJinaToken: (jinaToken) => { saveString('quizify:jinaToken', jinaToken); set({ jinaToken }); },
