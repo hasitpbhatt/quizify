@@ -39,24 +39,36 @@ function extractBalanced(text: string, open: string, close: string): string | nu
 }
 
 export function parseOutline(raw: string): OutlineData {
-  let cleaned = raw.trim();
+  let parsed: unknown;
 
-  // Strip markdown fences if present
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  const match = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (match) {
+    try { parsed = JSON.parse(match[1]); } catch {}
   }
 
-  // Try direct parse
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    const extracted = extractBalanced(cleaned, '{', '}');
-    if (extracted) {
-      try { parsed = JSON.parse(extracted); } catch { throw new ParseError('Could not extract valid JSON from LLM response'); }
-    } else {
-      throw new ParseError('No JSON block found in LLM response');
+  if (!parsed) {
+    try { parsed = JSON.parse(raw); } catch {}
+  }
+
+  if (!parsed) {
+    let startIdx = 0;
+    while ((startIdx = raw.indexOf('{', startIdx)) !== -1) {
+      const extracted = extractBalanced(raw.slice(startIdx), '{', '}');
+      if (extracted) {
+        try {
+          const p = JSON.parse(extracted);
+          if (p && typeof p === 'object' && !Array.isArray(p)) {
+            parsed = p;
+            break;
+          }
+        } catch {}
+      }
+      startIdx++;
     }
+  }
+
+  if (!parsed) {
+    throw new ParseError('Could not extract valid JSON from LLM response');
   }
 
   // Validate shape

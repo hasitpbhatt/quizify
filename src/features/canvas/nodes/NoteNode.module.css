@@ -2,55 +2,60 @@
   background: var(--note-bg);
   color: var(--note-text);
   border: none;
-  border-radius: 4px;
-  padding: 14px 16px;
-  width: 220px;
-  min-height: 100px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-5);
+  width: 240px;
+  min-height: 120px;
   font-family: var(--font-canvas);
   position: relative;
-  box-shadow: 2px 2px 6px rgba(0,0,0,0.1);
+  box-shadow: var(--note-shadow);
   cursor: default;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.node:hover {
+  transform: rotate(-1deg) scale(1.02);
 }
 
 .text {
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.5;
   white-space: pre-wrap;
   word-wrap: break-word;
   outline: none;
-  min-height: 60px;
+  min-height: 80px;
   cursor: text;
 }
 
 .text:empty::before {
   content: 'Type your note…';
   color: var(--note-text);
-  opacity: 0.4;
+  opacity: 0.5;
 }
 
 .editInput {
   width: 100%;
-  min-height: 60px;
+  min-height: 80px;
   background: transparent;
   border: none;
   outline: none;
   resize: none;
   font-family: var(--font-canvas);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.5;
   color: var(--note-text);
 }
 
 .deleteBtn {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 22px;
-  height: 22px;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 24px;
+  height: 24px;
   border: none;
   border-radius: 50%;
   background: rgba(0,0,0,0.08);
-  color: #666;
+  color: rgba(0,0,0,0.6);
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
@@ -58,7 +63,7 @@
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 
 .node:hover .deleteBtn {
@@ -66,18 +71,18 @@
 }
 
 .deleteBtn:hover {
-  background: rgba(220,38,38,0.15);
+  background: rgba(220,38,38,0.2);
   color: #dc2626;
 }
 
 .linkBadge {
   position: absolute;
-  bottom: 4px;
-  left: 8px;
+  bottom: var(--space-2);
+  left: var(--space-3);
   font-size: 10px;
   font-family: var(--font-ui);
   opacity: 0.6;
-  padding: 1px 6px;
-  border-radius: 3px;
-  background: rgba(0,0,0,0.04);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  background: rgba(0,0,0,0.06);
 }

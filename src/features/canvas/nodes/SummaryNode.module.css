@@ -1,11 +1,20 @@
 .node {
-  background: var(--bg-elevated);
+  background: var(--bg-glass);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
   border: 2px solid var(--accent);
-  border-radius: 12px;
-  padding: 16px;
-  width: 280px;
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  width: 300px;
   font-family: var(--font-ui);
   position: relative;
+  box-shadow: var(--shadow-md);
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.node:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
 }
 
 .header {
@@ -14,21 +23,21 @@
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--accent);
-  margin-bottom: 10px;
+  margin-bottom: var(--space-4);
 }
 
 .recap {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 12px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
 }
 
 .recapItem {
-  font-size: 12px;
+  font-size: var(--fs-body);
   color: var(--text-primary);
-  line-height: 1.4;
-  padding-left: 12px;
+  line-height: var(--lh-normal);
+  padding-left: var(--space-4);
   position: relative;
 }
 
@@ -40,39 +49,46 @@
 }
 
 .quizCount {
-  font-size: 11px;
+  font-size: var(--fs-caption);
   color: var(--text-secondary);
-  margin-bottom: 8px;
+  margin-bottom: var(--space-3);
 }
 
 .launchBtn {
   display: block;
   width: 100%;
-  padding: 8px 0;
+  padding: var(--space-3) 0;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-ui);
   background: var(--accent);
   color: #fff;
   font-family: var(--font-ui);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-h2);
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
 }
 
 .launchBtn:hover {
-  opacity: 0.85;
+  background: var(--accent-hover);
+  transform: scale(1.02);
+}
+
+.launchBtn:active {
+  background: var(--accent-pressed);
+  transform: scale(0.98);
 }
 
 .results {
-  font-size: 12px;
+  font-size: var(--fs-body);
   color: var(--text-secondary);
-  margin-top: 8px;
+  margin-top: var(--space-4);
   text-align: center;
 }
 
 .resultsPct {
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 700;
   color: var(--accent);
+  letter-spacing: -0.02em;
 }

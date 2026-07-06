@@ -1,9 +1,7 @@
 import type { Persona, CanvasNode, CanvasEdge, ConceptData, QuizData, SummaryData } from '@/shared/types';
 import { chat } from '@/lib/llm/chat';
-import { buildDetailSystemPrompt, buildDetailUserMessage } from '@/lib/prompts/detail';
-import { parseDetailExpansion, type ConceptDetail } from '@/lib/llm/detailParser';
-import { buildQuizSystemPrompt, buildQuizUserMessage } from '@/lib/prompts/quiz';
-import { parseQuizResponse, type ConceptQuizGroup, type QuizItem } from '@/lib/llm/quizParser';
+import { buildContentSystemPrompt, buildContentUserMessage } from '@/lib/prompts/content';
+import { parseContentResponse, type QuizItem } from '@/lib/llm/contentParser';
 import { buildSummarySystemPrompt, buildSummaryUserMessage } from '@/lib/prompts/summary';
 import { parseSummaryResponse } from '@/lib/llm/summaryParser';
 import { autoGridLayout } from '@/features/canvas/layout/autoGridLayout';
@@ -18,17 +16,6 @@ export interface PipelineProgress {
 }
 
 type ProgressCallback = (progress: PipelineProgress) => void;
-
-function conceptDetailToConceptData(detail: ConceptDetail, index: number, sourceUrl?: string): ConceptData {
-  return {
-    kind: 'concept',
-    index,
-    title: detail.title,
-    explanation: detail.explanation,
-    example: detail.example,
-    sourceUrl,
-  };
-}
 
 function quizItemToQuizData(item: QuizItem, conceptId: string): QuizData {
   return {
@@ -62,155 +49,151 @@ export async function runPipeline(
 
   const topic = outlineTitle || concepts.map(c => c.title).join(', ');
 
-  // Step 1: Detail expansion
-  notify('detail', 'Expanding concept details…');
-  let details: ConceptDetail[];
-  let detailRes: import('@/lib/llm/chat').ChatResponse | undefined;
-  try {
-    const detailMessages = [
-      { role: 'system' as const, content: buildDetailSystemPrompt(persona, topic) },
-      { role: 'user' as const, content: buildDetailUserMessage(concepts) },
-    ];
-    detailRes = await chat(detailMessages, { apiKey, signal });
-    details = parseDetailExpansion(detailRes.content, concepts.map(c => c.id));
-  } catch (err) {
-    console.error('[pipeline] detail expansion failed:', err, 'response:', detailRes?.content?.slice(0, 500));
-    notify('error', 'Failed to expand concept details', err instanceof Error ? err.message : 'Unknown error');
-    throw err;
-  }
-
-  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-
-  // Step 2: Quiz generation
-  notify('quiz', 'Creating quiz questions…');
-  let quizGroups: ConceptQuizGroup[];
-  let quizRes: import('@/lib/llm/chat').ChatResponse | undefined;
-  try {
-    const quizMessages = [
-      { role: 'system' as const, content: buildQuizSystemPrompt(persona, topic) },
-      { role: 'user' as const, content: buildQuizUserMessage(details) },
-    ];
-    quizRes = await chat(quizMessages, { apiKey, signal });
-    quizGroups = parseQuizResponse(quizRes.content, concepts.map(c => c.id));
-  } catch (err) {
-    console.error('[pipeline] quiz generation failed:', err, 'response:', quizRes?.content?.slice(0, 500));
-    notify('error', 'Failed to create quiz questions', err instanceof Error ? err.message : 'Unknown error');
-    throw err;
-  }
-
-  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-
-  // Step 3: Summary generation
-  notify('summary', 'Creating summary & final quiz…');
-  let summaryData: SummaryData | null = null;
-  let summaryRes: import('@/lib/llm/chat').ChatResponse | undefined;
-  try {
-    const summaryMessages = [
-      { role: 'system' as const, content: buildSummarySystemPrompt(persona, topic) },
-      { role: 'user' as const, content: buildSummaryUserMessage(details) },
-    ];
-    summaryRes = await chat(summaryMessages, { apiKey, signal });
-    const parsed = parseSummaryResponse(summaryRes.content);
-    summaryData = {
-      kind: 'summary',
-      recap: parsed.recap,
-      finalQuiz: parsed.finalQuiz.map(item => quizItemToQuizData(item, '__summary__')),
-    };
-  } catch (err) {
-    console.error('[pipeline] summary generation failed:', err, 'response:', summaryRes?.content?.slice(0, 500));
-    notify('error', 'Failed to create summary', err instanceof Error ? err.message : 'Unknown error');
-  }
-
-  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-
-  // Step 4: Build nodes
-  notify('build', 'Building canvas…');
-
-  const detailMap = new Map(details.map(d => [d.id, d]));
-  const quizMap = new Map(quizGroups.map(g => [g.conceptId, g.items]));
-
   const allNodes: CanvasNode[] = [];
+  const edges: CanvasEdge[] = [];
+  const generatedConcepts: Array<{ id: string; title: string; explanation: string; example: string }> = [];
 
-  for (const concept of concepts) {
-    const detail = detailMap.get(concept.id);
-    if (!detail) continue;
+  const { updateCurrent } = useSessionStore.getState();
 
-    const quizItems = quizMap.get(concept.id) || [];
-    const conceptData = conceptDetailToConceptData(detail, allNodes.length, sourceUrl);
+  const updateLayoutAndStore = async () => {
+    const layoutInput = allNodes.map(n => ({
+      id: n.id,
+      type: n.type as 'concept' | 'quiz' | 'summary',
+      data: n.data,
+    }));
+    const layoutResult = autoGridLayout(layoutInput);
+    const positionMap = new Map(layoutResult.nodes.map(n => [n.id, n.position]));
+    
+    for (const node of allNodes) {
+      const pos = positionMap.get(node.id);
+      if (pos) {
+        node.position = pos;
+      }
+    }
+    
+    await updateCurrent({ nodes: [...allNodes], edges: [...edges], updatedAt: Date.now() });
+  };
 
+  // Seed the canvas with initial concepts from the outline
+  for (let i = 0; i < concepts.length; i++) {
+    const c = concepts[i];
     allNodes.push({
-      id: concept.id,
+      id: c.id,
       type: 'concept',
       position: { x: 0, y: 0 },
-      data: conceptData,
+      data: {
+        kind: 'concept',
+        index: i,
+        title: c.title,
+        explanation: c.explanation,
+        example: 'Loading...',
+        sourceUrl,
+      } satisfies ConceptData,
     });
+  }
+  await updateLayoutAndStore();
 
-    quizItems.forEach((item, qi) => {
-      const quizId = `${concept.id}-quiz-${qi}`;
-      const quizData = quizItemToQuizData(item, concept.id);
-      allNodes.push({
-        id: quizId,
-        type: 'quiz',
-        position: { x: 0, y: 0 },
-        data: quizData,
+  for (let i = 0; i < concepts.length; i++) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    const concept = concepts[i];
+    notify('detail', `Loading concept ${i + 1} of ${concepts.length}…`);
+
+    try {
+      const messages = [
+        { role: 'system' as const, content: buildContentSystemPrompt(persona, topic) },
+        { role: 'user' as const, content: buildContentUserMessage(concept) },
+      ];
+      const res = await chat(messages, { apiKey, signal, responseFormat: 'json' });
+      const content = parseContentResponse(res.content);
+
+      generatedConcepts.push({
+        id: concept.id,
+        title: concept.title,
+        explanation: content.detail.explanation,
+        example: content.detail.example,
       });
-    });
-  }
 
-  // Add summary node if generated
-  if (summaryData) {
-    allNodes.push({
-      id: '__summary__',
-      type: 'summary',
-      position: { x: 0, y: 0 },
-      data: summaryData,
-    });
-  }
+      // Hydrate the existing concept node
+      const nodeIndex = allNodes.findIndex(n => n.id === concept.id);
+      if (nodeIndex !== -1) {
+        allNodes[nodeIndex] = {
+          ...allNodes[nodeIndex],
+          data: {
+            ...allNodes[nodeIndex].data,
+            explanation: content.detail.explanation,
+            example: content.detail.example,
+          } as ConceptData
+        };
+      }
 
-  // Apply layout
-  const layoutInput = allNodes.map(n => ({
-    id: n.id,
-    type: n.type as 'concept' | 'quiz' | 'summary',
-    data: n.data,
-  }));
-  const layoutResult = autoGridLayout(layoutInput);
+      content.quizzes.forEach((item, qi) => {
+        const quizId = `${concept.id}-quiz-${qi}`;
+        const quizData = quizItemToQuizData(item, concept.id);
+        allNodes.push({
+          id: quizId,
+          type: 'quiz',
+          position: { x: 0, y: 0 },
+          data: quizData,
+        });
 
-  const positionMap = new Map(layoutResult.nodes.map(n => [n.id, n.position]));
-  for (const node of allNodes) {
-    const pos = positionMap.get(node.id);
-    if (pos) {
-      node.position = pos;
+        edges.push({
+          id: `edge-${concept.id}-${qi}`,
+          source: concept.id,
+          target: quizId,
+          type: 'wiggly',
+        });
+      });
+
+      await updateLayoutAndStore();
+
+      if (i < concepts.length - 1) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    } catch (err) {
+      console.error(`[pipeline] failed on concept ${concept.id}:`, err);
+      notify('error', `Failed to load ${concept.title}`, err instanceof Error ? err.message : 'Unknown error');
+      throw err;
     }
   }
 
-  // Build edges: concept → its quiz nodes
-  const edges: CanvasEdge[] = [];
-  for (const concept of concepts) {
-    const quizItems = quizMap.get(concept.id) || [];
-    quizItems.forEach((_, qi) => {
-      const quizId = `${concept.id}-quiz-${qi}`;
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+  if (generatedConcepts.length > 0) {
+    notify('summary', 'Creating summary & final quiz…');
+    try {
+      const summaryMessages = [
+        { role: 'system' as const, content: buildSummarySystemPrompt(persona, topic) },
+        { role: 'user' as const, content: buildSummaryUserMessage(generatedConcepts) },
+      ];
+      const summaryRes = await chat(summaryMessages, { apiKey, signal, responseFormat: 'json' });
+      const parsed = parseSummaryResponse(summaryRes.content);
+      const summaryData: SummaryData = {
+        kind: 'summary',
+        recap: parsed.recap,
+        finalQuiz: parsed.finalQuiz.map(item => quizItemToQuizData(item, '__summary__')),
+      };
+
+      allNodes.push({
+        id: '__summary__',
+        type: 'summary',
+        position: { x: 0, y: 0 },
+        data: summaryData,
+      });
+
+      const lastConceptId = concepts[concepts.length - 1].id;
       edges.push({
-        id: `edge-${concept.id}-${qi}`,
-        source: concept.id,
-        target: quizId,
+        id: 'edge-summary',
+        source: lastConceptId,
+        target: '__summary__',
         type: 'wiggly',
       });
-    });
-  }
 
-  // Add edge from last concept to summary node
-  if (summaryData && concepts.length > 0) {
-    const lastConceptId = concepts[concepts.length - 1].id;
-    edges.push({
-      id: 'edge-summary',
-      source: lastConceptId,
-      target: '__summary__',
-      type: 'wiggly',
-    });
+      await updateLayoutAndStore();
+    } catch (err) {
+      console.error('[pipeline] summary generation failed:', err);
+      notify('error', 'Failed to create summary', err instanceof Error ? err.message : 'Unknown error');
+    }
   }
-
-  const { updateCurrent } = useSessionStore.getState();
-  await updateCurrent({ nodes: allNodes, edges, updatedAt: Date.now() });
 
   notify('done', 'Canvas ready!');
   return { nodes: allNodes, edges };

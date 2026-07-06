@@ -13,11 +13,11 @@ export type LayoutResult = {
   nodes: LayoutNodeOutput[];
 };
 
-const CONCEPT_WIDTH = 240;
-const CONCEPT_HEIGHT = 100;
-const QUIZ_HEIGHT = 80;
-const COLUMN_GAP = 60;
-const ROW_GAP = 40;
+const CONCEPT_WIDTH = 380;
+const CONCEPT_HEIGHT = 300;
+const QUIZ_HEIGHT = 220;
+const COLUMN_GAP = 160;
+const ROW_GAP = 120;
 const PADDING_X = 80;
 const PADDING_Y = 80;
 const ROWS_PER_COLUMN = 4;

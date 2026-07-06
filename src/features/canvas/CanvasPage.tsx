@@ -22,6 +22,7 @@ import { NoteNode } from './nodes/NoteNode';
 import { MobileFocusView } from './MobileFocusView';
 import { useIsMobile } from '@/shared/useMediaQuery';
 import type { NoteData } from '@/shared/types';
+import { Plus } from 'lucide-react';
 import styles from './CanvasPage.module.css';
 
 const nodeTypes = { concept: ConceptNode, quiz: QuizNode, summary: SummaryNode, note: NoteNode };
@@ -167,7 +168,8 @@ export function CanvasPage() {
         onClick={handleAddNote}
         title="Add note"
       >
-        +
+        <Plus size={16} className={styles.addNoteIcon} />
+        <span>Add note</span>
       </button>
 
       {activeQuiz && (

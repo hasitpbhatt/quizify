@@ -78,9 +78,11 @@ export function App() {
       // Stage 3+ — pipeline (detail, quiz, summary, build)
       const { create: createSession, select } = useSessionStore.getState();
       const session = await createSession({ url: src.url, hostname: extractHostname(src.url), persona });
-      // Pin currentId on this session so the pipeline's updateCurrent targets it
-      // even if some other store action runs concurrently.
+      // Re-select in case a concurrent store update cleared currentId.
       await select(session.id);
+      
+      // Navigate to canvas early so we can stream nodes in real-time
+      setPage('canvas');
 
       await runPipeline(
         outline.title,
@@ -93,9 +95,7 @@ export function App() {
       );
 
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
-      // Re-select in case a concurrent store update cleared currentId.
       await select(session.id);
-      setPage('canvas');
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       console.error('[app] generate failed:', err);

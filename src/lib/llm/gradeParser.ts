@@ -26,21 +26,36 @@ function extractBalanced(text: string, open: string, close: string): string | nu
 }
 
 export function parseGradeResponse(raw: string): GradeResult {
-  let cleaned = raw.trim();
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  let parsed: unknown;
+
+  const match = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (match) {
+    try { parsed = JSON.parse(match[1]); } catch {}
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    const extracted = extractBalanced(cleaned, '{', '}');
-    if (extracted) {
-      try { parsed = JSON.parse(extracted); } catch { throw new ParseError('Could not extract valid JSON from grade response'); }
-    } else {
-      throw new ParseError('No JSON object found in grade response');
+  if (!parsed) {
+    try { parsed = JSON.parse(raw); } catch {}
+  }
+
+  if (!parsed) {
+    let startIdx = 0;
+    while ((startIdx = raw.indexOf('{', startIdx)) !== -1) {
+      const extracted = extractBalanced(raw.slice(startIdx), '{', '}');
+      if (extracted) {
+        try {
+          const p = JSON.parse(extracted);
+          if (p && typeof p === 'object' && !Array.isArray(p)) {
+            parsed = p;
+            break;
+          }
+        } catch {}
+      }
+      startIdx++;
     }
+  }
+
+  if (!parsed) {
+    throw new ParseError('Could not extract valid JSON from grade response');
   }
 
   if (!parsed || typeof parsed !== 'object') {

@@ -1,33 +1,36 @@
 .node {
   background: var(--bg-elevated);
-  border: 1px dashed var(--border);
-  border-radius: 8px;
-  padding: 12px;
-  width: 220px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  width: 240px;
   font-family: var(--font-ui);
   position: relative;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .node:hover {
+  transform: translateY(-2px);
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(91,91,214,0.15);
+  border-style: solid;
+  box-shadow: var(--shadow-focus);
 }
 
 .format {
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--accent);
-  margin-bottom: 6px;
+  margin-bottom: var(--space-2);
 }
 
 .prompt {
-  font-size: 12px;
+  font-size: var(--fs-body);
   color: var(--text-primary);
-  line-height: 1.4;
+  line-height: var(--lh-normal);
   display: -webkit-box;
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
@@ -38,14 +41,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 8px;
+  margin-top: var(--space-4);
 }
 
 .badge {
   font-size: 10px;
   font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-pill);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }

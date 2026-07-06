@@ -56,13 +56,18 @@ chat() with outline prompt         → src/lib/prompts/outline.ts      (stage: '
   parseOutline()                  → src/lib/llm/outlineParser.ts
 createSession({...})               → sessionStore.create             (writes IDB + sets currentId)
 await select(session.id)
-runPipeline(title, concepts, ...)  → src/lib/pipeline.ts            (stages: 'detail' → 'quiz' → 'summary' → 'build' → 'done')
-  - detail  : chat() + parseDetailExpansion
-  - quiz    : chat() + parseQuizResponse
-  - summary : chat() + parseSummaryResponse  (failure is non-fatal — summary node is just skipped)
-  - build   : autoGridLayout + updateCurrent({ nodes, edges })
+setPage('canvas')                  → Transition to canvas early so we can stream nodes in real-time
+runPipeline(title, concepts, ...)  → src/lib/pipeline.ts            (incremental updates via updateCurrent)
+  - For each concept:
+      chat() with content prompt  → src/lib/prompts/content.ts      (combined detail + quiz in one payload)
+      parseContentResponse()      → src/lib/llm/contentParser.ts
+      updateCurrent(...)          → Canvas automatically renders the new nodes
+      sleep(2000)                 → Delay to avoid Mistral rate limits
+  - After all concepts:
+      chat() with summary prompt  → src/lib/prompts/summary.ts
+      parseSummaryResponse()
+      updateCurrent(...)          → Append summary node
 await select(session.id)           # re-pin in case of concurrent store updates
-setPage('canvas')
 ```
 
 The `catch` block sends ANY non-abort error back to `'welcome'` and stores the message in `error`. So "blank canvas → back to welcome" almost always means something threw during the pipeline or canvas mount. Check the browser console first.
