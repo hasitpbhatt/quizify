@@ -49,6 +49,11 @@ export async function runPipeline(
 
   const topic = outlineTitle || concepts.map(c => c.title).join(', ');
 
+  const ESTIMATED_WIDTH = { concept: 260, quiz: 240, summary: 300 };
+  const GAP_X = 120;
+  const Y = 100;
+  let cursorX = 100;
+
   const allNodes: CanvasNode[] = [];
   const edges: CanvasEdge[] = [];
   const generatedConcepts: Array<{ id: string; title: string; explanation: string; example: string }> = [];
@@ -56,28 +61,9 @@ export async function runPipeline(
 
   const { updateCurrent } = useSessionStore.getState();
 
-  const updateLayoutAndStore = async () => {
+  const persist = async () => {
     await updateCurrent({ nodes: [...allNodes], edges: [...edges], updatedAt: Date.now() });
   };
-
-  // Seed the canvas with initial concepts from the outline
-  for (let i = 0; i < concepts.length; i++) {
-    const c = concepts[i];
-    allNodes.push({
-      id: c.id,
-      type: 'concept',
-      position: { x: 0, y: 0 },
-      data: {
-        kind: 'concept',
-        index: i,
-        title: c.title,
-        explanation: c.explanation,
-        example: 'Loading...',
-        sourceUrl,
-      } satisfies ConceptData,
-    });
-  }
-  await updateLayoutAndStore();
 
   for (let i = 0; i < concepts.length; i++) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -85,6 +71,23 @@ export async function runPipeline(
     notify('detail', `Loading concept ${i + 1} of ${concepts.length}…`);
 
     try {
+      // Push the concept shell immediately so the user sees it
+      allNodes.push({
+        id: concept.id,
+        type: 'concept',
+        position: { x: cursorX, y: Y },
+        data: {
+          kind: 'concept',
+          index: i,
+          title: concept.title,
+          explanation: concept.explanation,
+          example: 'Loading...',
+          sourceUrl,
+        } satisfies ConceptData,
+      });
+      cursorX += ESTIMATED_WIDTH.concept + GAP_X;
+      await persist();
+
       const messages = [
         { role: 'system' as const, content: buildContentSystemPrompt(persona, topic) },
         { role: 'user' as const, content: buildContentUserMessage(concept) },
@@ -99,7 +102,7 @@ export async function runPipeline(
         example: content.detail.example,
       });
 
-      // Hydrate the existing concept node
+      // Hydrate the concept node with real content
       const nodeIndex = allNodes.findIndex(n => n.id === concept.id);
       if (nodeIndex !== -1) {
         allNodes[nodeIndex] = {
@@ -108,7 +111,7 @@ export async function runPipeline(
             ...allNodes[nodeIndex].data,
             explanation: content.detail.explanation,
             example: content.detail.example,
-          } as ConceptData
+          } as ConceptData,
         };
       }
 
@@ -120,9 +123,10 @@ export async function runPipeline(
         allNodes.push({
           id: quizId,
           type: 'quiz',
-          position: { x: 0, y: 0 },
+          position: { x: cursorX, y: Y },
           data: quizData,
         });
+        cursorX += ESTIMATED_WIDTH.quiz + GAP_X;
 
         edges.push({
           id: `edge-${currentTailId}-${quizId}`,
@@ -144,7 +148,7 @@ export async function runPipeline(
       }
       globalChainTailId = currentTailId;
 
-      await updateLayoutAndStore();
+      await persist();
 
       if (i < concepts.length - 1) {
         await new Promise(r => setTimeout(r, 2000));
@@ -176,7 +180,7 @@ export async function runPipeline(
       allNodes.push({
         id: '__summary__',
         type: 'summary',
-        position: { x: 0, y: 0 },
+        position: { x: cursorX, y: Y },
         data: summaryData,
       });
 
@@ -189,7 +193,7 @@ export async function runPipeline(
         });
       }
 
-      await updateLayoutAndStore();
+      await persist();
     } catch (err) {
       console.error('[pipeline] summary generation failed:', err);
       notify('error', 'Failed to create summary', err instanceof Error ? err.message : 'Unknown error');

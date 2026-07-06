@@ -28,8 +28,6 @@ import styles from './CanvasPage.module.css';
 const nodeTypes = { concept: ConceptNode, quiz: QuizNode, summary: SummaryNode, note: NoteNode };
 const edgeTypes = { wiggly: WigglyEdge };
 
-import { useJourneyLayout } from './layout/useJourneyLayout';
-
 function toReactFlowNodes(canvasNodes: CanvasNode[]): Node[] {
   return canvasNodes.map(n => ({
     id: n.id,
@@ -58,8 +56,6 @@ export function CanvasPage() {
   const [summaryQuiz, setSummaryQuiz] = useState<boolean>(false);
   const updateCurrent = useSessionStore(s => s.updateCurrent);
   const reactFlow = useReactFlow();
-
-  useJourneyLayout(currentId ?? '');
 
   const nodes: Node[] = useMemo(
     () => (session ? toReactFlowNodes(session.nodes) : []),
