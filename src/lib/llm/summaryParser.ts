@@ -1,4 +1,5 @@
 import { ParseError } from './errors';
+import { extractBalanced } from './extractBalanced';
 import type { QuizFormat } from '@/shared/types';
 import type { QuizItem } from './contentParser';
 
@@ -31,25 +32,6 @@ function parseQuizItem(raw: unknown, index: number): QuizItem {
     acceptableAnswers: Array.isArray(item.acceptableAnswers) ? item.acceptableAnswers : null,
     rationale: item.rationale,
   };
-}
-
-function extractBalanced(text: string, open: string, close: string): string | null {
-  const start = text.indexOf(open);
-  if (start === -1) return null;
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i];
-    if (escape) { escape = false; continue; }
-    if (ch === '\\' && inString) { escape = true; continue; }
-    if (ch === '"') { inString = !inString; continue; }
-    if (!inString) {
-      if (ch === open) depth++;
-      if (ch === close) { depth--; if (depth === 0) return text.slice(start, i + 1); }
-    }
-  }
-  return null;
 }
 
 export function parseSummaryResponse(raw: string): SummaryResponse {

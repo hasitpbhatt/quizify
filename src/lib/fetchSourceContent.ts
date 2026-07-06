@@ -3,6 +3,12 @@ import { getCachedSource, setCachedSource } from '@/lib/db/sourceCache';
 import { getProviderConfig, getApiBase } from '@/lib/llm/providers';
 import type { LlmProvider, Persona } from '@/shared/types';
 
+const OPENCODE_HEADERS: Record<string, string> = {
+  'User-Agent': 'opencode/1.17.13 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14',
+  'x-opencode-client': 'cli',
+  'x-opencode-project': 'global',
+};
+
 export interface SourceResult {
   content: string;
   source: 'cache' | 'jina' | 'allorigins' | 'corsproxy' | 'corseu' | 'codetabs' | 'corslol' | 'corsfix' | 'cfproxy' | 'llm';
@@ -106,9 +112,13 @@ async function fetchViaFallbacks(url: string): Promise<{ content: string; source
 async function callLlm(prompt: string, apiKey: string, provider?: LlmProvider): Promise<string> {
   const cfg = getProviderConfig(provider);
   const apiBase = getApiBase(provider);
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (cfg.requiresApiKey) {
-    headers.Authorization = `Bearer ${apiKey}`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(cfg.defaultBearerToken ? OPENCODE_HEADERS : {}),
+  };
+  const bearer = cfg.defaultBearerToken ?? (cfg.requiresApiKey ? apiKey : undefined);
+  if (bearer) {
+    headers.Authorization = `Bearer ${bearer}`;
   }
   const res = await fetch(apiBase, {
     method: 'POST',

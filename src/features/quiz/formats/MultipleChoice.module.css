@@ -1,0 +1,49 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  border: 1px solid var(--border);
+  transition: background 0.15s, color 0.15s;
+  cursor: pointer;
+}
+
+.optionDefault {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.optionSelected {
+  background: var(--accent);
+  color: #fff;
+}
+
+.radio {
+  accent-color: var(--accent);
+}
+
+.submitBtn {
+  padding: 8px 20px;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.submitBtn:disabled {
+  opacity: 0.5;
+}

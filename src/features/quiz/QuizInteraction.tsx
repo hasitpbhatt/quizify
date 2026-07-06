@@ -8,6 +8,7 @@ import { FillBlank } from './formats/FillBlank';
 import { Ordering } from './formats/Ordering';
 import type { SubmitResult } from './useQuizAnswer';
 import { useQuizAnswer } from './useQuizAnswer';
+import { useSettingsStore } from '@/shared/stores/settingsStore';
 
 interface Props {
   quiz: QuizData;
@@ -31,8 +32,7 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
   const overlayRef = useRef<HTMLDivElement>(null);
 
   const handleSubmit = useCallback(async (answer: string | string[]) => {
-    const settings = (await import('@/shared/stores/settingsStore')).useSettingsStore.getState();
-    const key = settings.apiKey;
+    const key = useSettingsStore.getState().apiKey;
     if (!key) return;
     const res = await submit(answer, key);
     setResult(res);

@@ -4,6 +4,40 @@ import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
+const OPENCODE_BASE = 'https://opencode.ai/zen/v1/chat/completions';
+const OPENCODE_MODEL = 'deepseek-v4-flash-free';
+const OPENCODE_TOKEN = 'public';
+const OPENCODE_HEADERS: Record<string, string> = {
+  'User-Agent': 'opencode/1.17.13 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14',
+  'x-opencode-client': 'cli',
+  'x-opencode-project': 'global',
+};
+
+async function opencodeFallback(res: ServerResponse, body: string) {
+  try {
+    const parsed = JSON.parse(body);
+    parsed.model = OPENCODE_MODEL;
+    const opencodeResponse = await fetch(OPENCODE_BASE, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${OPENCODE_TOKEN}`,
+        ...OPENCODE_HEADERS,
+      },
+      body: JSON.stringify(parsed),
+    });
+    const text = await opencodeResponse.text();
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.statusCode = opencodeResponse.ok ? opencodeResponse.status : 502;
+    res.end(text);
+  } catch {
+    res.statusCode = 502;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Both Mistral and OpenCode failed' }));
+  }
+}
+
 function devProxyPlugin(): import('vite').Plugin {
   return {
     name: 'dev-proxy',
@@ -31,39 +65,39 @@ function devProxyPlugin(): import('vite').Plugin {
           return;
         }
 
-        const mistralApiKey = process.env.MISTRAL_API_KEY;
-        if (!mistralApiKey) {
-          res.statusCode = 500;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: 'MISTRAL_API_KEY not set in environment' }));
-          return;
-        }
-
         let body = '';
         for await (const chunk of req) {
           body += chunk;
         }
 
-        try {
-          const mistralResponse = await fetch('https://api.mistral.ai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${mistralApiKey}`,
-            },
-            body,
-          });
+        // Phase 1: Try Mistral
+        const mistralApiKey = process.env.MISTRAL_API_KEY;
+        if (mistralApiKey) {
+          try {
+            const mistralResponse = await fetch('https://api.mistral.ai/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${mistralApiKey}`,
+              },
+              body,
+            });
 
-          const text = await mistralResponse.text();
-          res.setHeader('Content-Type', 'application/json');
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.statusCode = mistralResponse.status;
-          res.end(text);
-        } catch {
-          res.statusCode = 502;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: 'Proxy fetch failed' }));
+            if (mistralResponse.ok) {
+              const text = await mistralResponse.text();
+              res.setHeader('Content-Type', 'application/json');
+              res.setHeader('Access-Control-Allow-Origin', '*');
+              res.statusCode = mistralResponse.status;
+              res.end(text);
+              return;
+            }
+          } catch {
+            // fall through to OpenCode
+          }
         }
+
+        // Phase 2: Fallback to OpenCode
+        await opencodeFallback(res, body);
       });
 
       server.middlewares.use('/api/fetch', async (req: IncomingMessage, res: ServerResponse) => {

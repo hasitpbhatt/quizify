@@ -24,7 +24,7 @@ function SummaryNodeComponent(props: NodeProps) {
           <div>Mastery</div>
         </div>
       ) : (
-        <button className={styles.launchBtn} onClick={() => {}}>
+        <button className={styles.launchBtn}>
           Take Final Quiz
         </button>
       )}
