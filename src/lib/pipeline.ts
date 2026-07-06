@@ -1,4 +1,4 @@
-import type { Persona, CanvasNode, CanvasEdge, ConceptData, QuizData, SummaryData } from '@/shared/types';
+import type { LlmProvider, Persona, CanvasNode, CanvasEdge, ConceptData, QuizData, SummaryData } from '@/shared/types';
 import { chat } from '@/lib/llm/chat';
 import { buildContentSystemPrompt, buildContentUserMessage } from '@/lib/prompts/content';
 import { parseContentResponse, type QuizItem } from '@/lib/llm/contentParser';
@@ -39,6 +39,7 @@ export async function runPipeline(
   concepts: Array<{ id: string; title: string; explanation: string }>,
   persona: Persona,
   apiKey: string,
+  provider: LlmProvider,
   sourceUrl?: string,
   onProgress?: ProgressCallback,
   signal?: AbortSignal,
@@ -103,7 +104,7 @@ export async function runPipeline(
         { role: 'system' as const, content: buildContentSystemPrompt(persona, topic) },
         { role: 'user' as const, content: buildContentUserMessage(concept) },
       ];
-      const res = await chat(messages, { apiKey, signal, responseFormat: 'json' });
+      const res = await chat(messages, { apiKey, provider, signal, responseFormat: 'json' });
       const content = parseContentResponse(res.content);
 
       generatedConcepts.push({
@@ -165,7 +166,7 @@ export async function runPipeline(
         { role: 'system' as const, content: buildSummarySystemPrompt(persona, topic) },
         { role: 'user' as const, content: buildSummaryUserMessage(generatedConcepts) },
       ];
-      const summaryRes = await chat(summaryMessages, { apiKey, signal, responseFormat: 'json' });
+      const summaryRes = await chat(summaryMessages, { apiKey, provider, signal, responseFormat: 'json' });
       const parsed = parseSummaryResponse(summaryRes.content);
       const summaryData: SummaryData = {
         kind: 'summary',

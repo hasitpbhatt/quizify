@@ -1,6 +1,7 @@
 import { truncateByParagraphs } from '@/lib/truncate';
 import { getCachedSource, setCachedSource } from '@/lib/db/sourceCache';
-import type { Persona } from '@/shared/types';
+import { getProviderConfig, getApiBase } from '@/lib/llm/providers';
+import type { LlmProvider, Persona } from '@/shared/types';
 
 export interface SourceResult {
   content: string;
@@ -74,7 +75,7 @@ async function fetchViaFallbacks(url: string): Promise<{ content: string; source
 
 export async function fetchSourceContent(
   url: string,
-  opts: { apiKey: string; jinaToken?: string; persona: Persona }
+  opts: { apiKey: string; jinaToken?: string; persona: Persona; provider?: LlmProvider }
 ): Promise<SourceResult> {
   // 1. check cache
   const cached = await getCachedSource(url);
@@ -105,9 +106,9 @@ export async function fetchSourceContent(
     }
   }
 
-  // 4. last resort: ask Mistral's knowledge (only for well-known URLs)
+  // 4. last resort: ask LLM knowledge (only for well-known URLs)
   if (!content) {
-    content = await fetchViaLlmKnowledge(url, opts.apiKey);
+    content = await fetchViaLlmKnowledge(url, opts.apiKey, opts.provider);
     source = 'llm';
   }
 
@@ -123,15 +124,16 @@ export async function fetchSourceContent(
   return { content: truncated, source: source ?? 'llm', url };
 }
 
-async function fetchViaLlmKnowledge(url: string, apiKey: string): Promise<string | null> {
-  // Ensure url has scheme for Mistral context
+async function fetchViaLlmKnowledge(url: string, apiKey: string, provider?: LlmProvider): Promise<string | null> {
   const targetUrl = url.startsWith('http') ? url : `https://${url}`;
+  const cfg = getProviderConfig(provider);
+  const apiBase = getApiBase(provider);
   try {
-    const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+    const res = await fetch(apiBase, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: 'mistral-small-latest',
+        model: cfg.gradingModel,
         messages: [
           {
             role: 'system',

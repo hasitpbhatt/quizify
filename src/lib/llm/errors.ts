@@ -1,5 +1,5 @@
 export class AuthError extends Error {
-  constructor(msg = 'Mistral API key rejected') {
+  constructor(msg = 'API key rejected') {
     super(msg);
     this.name = 'AuthError';
   }

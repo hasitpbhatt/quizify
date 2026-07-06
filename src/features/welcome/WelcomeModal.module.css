@@ -348,6 +348,44 @@
 
 .mutedLink { color: var(--text-secondary); }
 
+.providerRow {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.providerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  justify-content: center;
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-ui);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-h2);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+
+.providerBtn:hover {
+  border-color: var(--accent-glass);
+  color: var(--text-primary);
+}
+
+.providerBtnActive {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+:root[data-theme='dark'] .providerBtnActive {
+  color: var(--accent-hover);
+}
+
 .errorBanner {
   display: flex;
   align-items: center;

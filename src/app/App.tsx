@@ -49,7 +49,7 @@ export function App() {
   }, []);
 
   const handleGenerate = useCallback(async (url: string) => {
-    const { apiKey, jinaToken, persona } = useSettingsStore.getState();
+    const { apiKey, jinaToken, persona, provider } = useSettingsStore.getState();
     if (!apiKey || !persona) return;
 
     const abortController = new AbortController();
@@ -60,7 +60,7 @@ export function App() {
     try {
       // Stage 1 — fetch the source
       setProgress({ stage: 'fetch', label: 'Reading the source…' });
-      const src = await fetchSourceContent(url, { apiKey, jinaToken, persona });
+      const src = await fetchSourceContent(url, { apiKey, jinaToken, persona, provider });
 
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
 
@@ -70,7 +70,7 @@ export function App() {
         { role: 'system' as const, content: buildOutlineSystemPrompt(persona, url) },
         { role: 'user' as const, content: buildOutlineUserMessage(src.content) },
       ];
-      const res = await chat(messages, { apiKey, responseFormat: 'json', signal: abortController.signal });
+      const res = await chat(messages, { apiKey, provider, responseFormat: 'json', signal: abortController.signal });
       const outline = parseOutline(res.content);
 
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -89,6 +89,7 @@ export function App() {
         outline.concepts.map(c => ({ id: c.id, title: c.title, explanation: c.explanation })),
         persona,
         apiKey,
+        provider,
         src.url,
         (p) => { setProgress({ stage: p.step, label: p.label }); },
         abortController.signal,

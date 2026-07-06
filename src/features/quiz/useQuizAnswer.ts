@@ -1,8 +1,10 @@
 import { useState, useCallback } from 'react';
-import { chat, GRADING_MODEL } from '@/lib/llm/chat';
+import { chat } from '@/lib/llm/chat';
+import { getGradingModel } from '@/lib/llm/providers';
 import { buildGradeSystemPrompt, buildGradeUserMessage } from '@/lib/prompts/grade';
 import { parseGradeResponse } from '@/lib/llm/gradeParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
+import { useSettingsStore } from '@/shared/stores/settingsStore';
 import type { QuizData, Attempt, QuizState } from '@/shared/types';
 
 export interface SubmitResult {
@@ -69,6 +71,7 @@ export function useQuizAnswer(quiz: QuizData) {
   const [error, setError] = useState<string | null>(null);
 
   const submit = useCallback(async (given: string | string[], apiKey: string) => {
+    const { provider } = useSettingsStore.getState();
     setSubmitting(true);
     setError(null);
     try {
@@ -80,7 +83,7 @@ export function useQuizAnswer(quiz: QuizData) {
             { role: 'system' as const, content: buildGradeSystemPrompt(quiz.parentConceptId) },
             { role: 'user' as const, content: buildGradeUserMessage(quiz.prompt, typeof given === 'string' ? given : JSON.stringify(given), quiz.correctAnswer) },
           ];
-          const res = await chat(messages, { apiKey, model: GRADING_MODEL });
+          const res = await chat(messages, { apiKey, provider, model: getGradingModel(provider) });
           const parsed = parseGradeResponse(res.content);
           result = parsed;
         } catch {

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Persona, Theme } from '@/shared/types';
+import type { LlmProvider, Persona, Theme } from '@/shared/types';
 import { getPreferredTheme, setThemeOnDocument } from '@/app/theme';
 
 interface SettingsState {
@@ -8,12 +8,14 @@ interface SettingsState {
   jinaToken: string;
   persona: Persona | null;
   theme: Theme;
+  provider: LlmProvider;
 
   /* actions */
   setApiKey: (key: string) => void;
   setJinaToken: (token: string) => void;
   setPersona: (p: Persona) => void;
   setTheme: (t: Theme) => void;
+  setProvider: (p: LlmProvider) => void;
 
   /* derived helpers */
   hasApiKey: () => boolean;
@@ -32,11 +34,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   jinaToken: loadString('quizify:jinaToken'),
   persona: (loadString('quizify:persona') as Persona | '') || null,
   theme: getPreferredTheme(),
+  provider: (loadString('quizify:provider') as LlmProvider) || 'mistral',
 
   setApiKey: (apiKey) => { saveString('quizify:apiKey', apiKey); set({ apiKey }); },
   setJinaToken: (jinaToken) => { saveString('quizify:jinaToken', jinaToken); set({ jinaToken }); },
   setPersona: (persona) => { saveString('quizify:persona', persona); set({ persona }); },
   setTheme: (theme) => { saveString('quizify:theme', theme); setThemeOnDocument(theme); set({ theme }); },
+  setProvider: (provider) => { saveString('quizify:provider', provider); set({ provider }); },
 
   hasApiKey: () => get().apiKey.length > 0,
   hasPersona: () => get().persona !== null,

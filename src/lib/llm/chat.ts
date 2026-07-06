@@ -1,14 +1,11 @@
 import { AuthError, RateLimitError, NetworkError } from './errors';
-import type { ChatMessage } from '@/shared/types';
-
-export const DEFAULT_MODEL = 'mistral-large-latest';
-export const FALLBACK_MODEL = 'mistral-medium-latest';
-export const GRADING_MODEL = 'mistral-small-latest';
-export const API_BASE = 'https://api.mistral.ai/v1/chat/completions';
+import { getProviderConfig, getApiBase } from './providers';
+import type { ChatMessage, LlmProvider } from '@/shared/types';
 
 export interface ChatOptions {
   model?: string;
   apiKey: string;
+  provider?: LlmProvider;
   temperature?: number;
   responseFormat?: 'json';
   signal?: AbortSignal;
@@ -23,10 +20,13 @@ export interface ChatResponse {
 
 export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<ChatResponse> {
   const { apiKey, signal: userSignal, responseFormat, maxTokens = 4096 } = opts;
-  const model = opts.model ?? DEFAULT_MODEL;
+  const provider = opts.provider ?? 'mistral';
+  const cfg = getProviderConfig(provider);
+  const model = opts.model ?? cfg.defaultModel;
   const temperature = opts.temperature ?? 0.3;
+  const apiBase = getApiBase(provider);
 
-  const modelsToTry = model === DEFAULT_MODEL ? [DEFAULT_MODEL, FALLBACK_MODEL] : [model];
+  const modelsToTry = model === cfg.defaultModel ? [cfg.defaultModel, cfg.fallbackModel] : [model];
   const MAX_RETRIES = 3;
 
   for (const currentModel of modelsToTry) {
@@ -50,7 +50,7 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<
         const ac = new AbortController();
         const combinedSignal = anySignal(userSignal, AbortSignal.timeout(timeoutMs), ac.signal);
 
-        const res = await fetch(API_BASE, {
+        const res = await fetch(apiBase, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -65,9 +65,9 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<
         if (res.status === 429 || res.status >= 500) {
           if (attempt >= MAX_RETRIES) {
             if (currentModel === modelsToTry[modelsToTry.length - 1]) {
-              throw res.status === 429 ? new RateLimitError() : new NetworkError(`Mistral returned ${res.status}`);
+              throw res.status === 429 ? new RateLimitError() : new NetworkError(`${cfg.label} returned ${res.status}`);
             }
-            break; // Move to next model
+            break;
           }
           const delay = 1000 * Math.pow(2, attempt);
           await sleep(delay);
@@ -76,7 +76,7 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<
         }
 
         if (!res.ok) {
-          if (currentModel === modelsToTry[modelsToTry.length - 1]) throw new NetworkError(`Mistral returned ${res.status}`);
+          if (currentModel === modelsToTry[modelsToTry.length - 1]) throw new NetworkError(`${cfg.label} returned ${res.status}`);
           break;
         }
 
@@ -101,14 +101,14 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<
       } catch (err) {
         if (err instanceof AuthError) throw err;
         if (err instanceof DOMException && err.name === 'AbortError') throw err;
-        
+
         if (attempt >= MAX_RETRIES) {
           if (currentModel === modelsToTry[modelsToTry.length - 1]) {
             throw new NetworkError(err instanceof Error ? err.message : 'Unknown fetch error');
           }
           break;
         }
-        
+
         const delay = 1000 * Math.pow(2, attempt);
         await sleep(delay);
         attempt++;

@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Sparkles, GraduationCap, Briefcase, Microscope, Eye, EyeOff, ArrowRight, ChevronDown, Key } from 'lucide-react';
+import { Sparkles, GraduationCap, Briefcase, Microscope, Eye, EyeOff, ArrowRight, ChevronDown, Key, Cpu } from 'lucide-react';
 import { PersonaCard } from './PersonaCard';
 import { useWelcomeState, EXAMPLE_CHIPS } from './useWelcomeState';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
-import type { Persona } from '@/shared/types';
+import { PROVIDERS } from '@/lib/llm/providers';
+import type { LlmProvider, Persona } from '@/shared/types';
 import styles from './WelcomeModal.module.css';
 
 interface WelcomeModalProps {
@@ -20,7 +21,7 @@ const PERSONAS: { value: Persona; label: string; sublabel: string; description: 
 ];
 
 export function WelcomeModal({ onGenerate, error, onClearError }: WelcomeModalProps) {
-  const { url, persona, setUrl, setApiKey, setPersona, submitEnabled, submitDisabledReason } = useWelcomeState();
+  const { url, persona, provider, setUrl, setApiKey, setPersona, setProvider, submitEnabled, submitDisabledReason } = useWelcomeState();
   const { jinaToken, apiKey, setJinaToken } = useSettingsStore();
   const [showKey, setShowKey] = useState(false);
   const [showJina, setShowJina] = useState(false);
@@ -145,12 +146,29 @@ export function WelcomeModal({ onGenerate, error, onClearError }: WelcomeModalPr
           {showSettings && (
             <div className={styles.settingsPanel}>
               <div className={styles.field}>
-                <label className={styles.fieldLabel}>Mistral API key</label>
+                <label className={styles.fieldLabel}>AI Provider</label>
+                <div className={styles.providerRow}>
+                  {(Object.values(PROVIDERS) as Array<typeof PROVIDERS[LlmProvider]>).map((p) => (
+                    <button
+                      key={p.name}
+                      className={`${styles.providerBtn} ${provider === p.name ? styles.providerBtnActive : ''}`}
+                      onClick={() => setProvider(p.name)}
+                      type="button"
+                    >
+                      {p.name === 'nvidia' ? <Cpu size={14} /> : <Sparkles size={14} />}
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>{PROVIDERS[provider].apiKeyLabel}</label>
                 <div className={styles.inputWrapper}>
                   <input
                     className={styles.monoInput}
                     type={showKey ? 'text' : 'password'}
-                    placeholder="sk-…"
+                    placeholder={PROVIDERS[provider].apiKeyPlaceholder}
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     autoComplete="off"
@@ -167,7 +185,7 @@ export function WelcomeModal({ onGenerate, error, onClearError }: WelcomeModalPr
                 </div>
                 <p className={styles.fieldHint}>
                   Stored only on this device. Get a free key from{' '}
-                  <span className={styles.mutedLink}>console.mistral.ai</span>.
+                  <a className={styles.mutedLink} href={PROVIDERS[provider].signupUrl} target="_blank" rel="noopener noreferrer">{PROVIDERS[provider].signupUrl.replace(/^https?:\/\//, '')}</a>.
                 </p>
               </div>
 
