@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Session } from '@/shared/types';
+import type { Session, QuizData } from '@/shared/types';
 import * as sessionsDb from '@/lib/db/sessionsDb';
 
 interface SessionState {
@@ -104,7 +104,40 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const existing = await sessionsDb.getSession(currentId);
     if (!existing) return;
 
-    const updated: Session = { ...existing, ...patch, updatedAt: Date.now() };
+    // When patch replaces nodes, preserve quiz grade data from IDB so the
+    // pipeline's persist() doesn't clobber user-authored attempts/state.
+    let mergedPatch = patch;
+    if (patch.nodes && existing.nodes.length > 0) {
+      const existingNodeMap = new Map(existing.nodes.map(n => [n.id, n]));
+      const mergedNodes = patch.nodes.map(node => {
+        const existingNode = existingNodeMap.get(node.id);
+        if (existingNode?.data?.kind === 'quiz' && node.data?.kind === 'quiz') {
+          const existingQuiz = existingNode.data as QuizData;
+          const patchQuiz = node.data as QuizData;
+          // Pipeline writes default { attempts: [], state: 'untested' } — don't
+          // let that overwrite a user's in-progress or completed grade.
+          if (
+            patchQuiz.attempts.length === 0 &&
+            patchQuiz.state === 'untested' &&
+            (existingQuiz.attempts.length > 0 || existingQuiz.state !== 'untested')
+          ) {
+            return {
+              ...node,
+              data: {
+                ...patchQuiz,
+                attempts: existingQuiz.attempts,
+                state: existingQuiz.state,
+                bestScore: existingQuiz.bestScore,
+              } as QuizData,
+            };
+          }
+        }
+        return node;
+      });
+      mergedPatch = { ...patch, nodes: mergedNodes };
+    }
+
+    const updated: Session = { ...existing, ...mergedPatch, updatedAt: Date.now() };
     await sessionsDb.putSession(updated);
 
     set((state) => ({

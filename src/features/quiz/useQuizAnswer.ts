@@ -5,6 +5,7 @@ import { buildGradeSystemPrompt, buildGradeUserMessage } from '@/lib/prompts/gra
 import { parseGradeResponse } from '@/lib/llm/gradeParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
+import * as sessionsDb from '@/lib/db/sessionsDb';
 import type { QuizData, Attempt, QuizState } from '@/shared/types';
 
 export interface SubmitResult {
@@ -65,7 +66,7 @@ function computeState(attempts: Attempt[]): QuizState {
   return 'incorrect';
 }
 
-export function useQuizAnswer(quiz: QuizData) {
+export function useQuizAnswer(quiz: QuizData, quizId: string) {
   const [submitting, setSubmitting] = useState(false);
   const [lastResult, setLastResult] = useState<SubmitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -111,21 +112,20 @@ export function useQuizAnswer(quiz: QuizData) {
       const updatedAttempts = [...quiz.attempts, attempt];
       const newState = computeState(updatedAttempts);
 
-      const { updateCurrent, currentId, sessions: sessionList } = useSessionStore.getState();
-      const session2 = sessionList.find(s => s.id === currentId);
-      if (session2) {
-        const nodeMatch = (n: typeof session2.nodes[0]) =>
-          n.data.kind === 'quiz' &&
-          (n.data as QuizData).parentConceptId === quiz.parentConceptId &&
-          (n.data as QuizData).prompt === quiz.prompt &&
-          (n.data as QuizData).format === quiz.format;
-        const updatedNodes = session2.nodes.map(n => {
-          if (nodeMatch(n)) {
-            return { ...n, data: { ...n.data, attempts: updatedAttempts, state: newState } as QuizData };
+      const { currentId, updateCurrent } = useSessionStore.getState();
+      if (currentId) {
+        const authoritative = await sessionsDb.getSession(currentId);
+        if (authoritative) {
+          const quizIndex = authoritative.nodes.findIndex(n => n.id === quizId && n.data?.kind === 'quiz');
+          if (quizIndex !== -1) {
+            const updatedNodes = [...authoritative.nodes];
+            updatedNodes[quizIndex] = {
+              ...updatedNodes[quizIndex],
+              data: { ...updatedNodes[quizIndex].data, attempts: updatedAttempts, state: newState } as QuizData,
+            };
+            await updateCurrent({ nodes: updatedNodes });
           }
-          return n;
-        });
-        await updateCurrent({ nodes: updatedNodes });
+        }
       }
 
       setLastResult(result);
@@ -137,7 +137,7 @@ export function useQuizAnswer(quiz: QuizData) {
     } finally {
       setSubmitting(false);
     }
-  }, [quiz]);
+  }, [quiz, quizId]);
 
   const attempts = quiz.attempts;
   const state = computeState(attempts);

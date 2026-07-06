@@ -52,7 +52,7 @@ export function CanvasPage() {
   const currentId = useSessionStore(s => s.currentId);
   const sessions = useSessionStore(s => s.sessions);
   const session = sessions.find(s => s.id === currentId);
-  const [activeQuiz, setActiveQuiz] = useState<{ quiz: QuizData; conceptTitle: string } | null>(null);
+  const [activeQuiz, setActiveQuiz] = useState<{ quizId: string; quiz: QuizData; conceptTitle: string } | null>(null);
   const [summaryQuiz, setSummaryQuiz] = useState<boolean>(false);
   const updateCurrent = useSessionStore(s => s.updateCurrent);
   const reactFlow = useReactFlow();
@@ -86,7 +86,7 @@ export function CanvasPage() {
       const quiz = canvasNode.data as QuizData;
       const parentId = quiz.parentConceptId;
       const conceptTitle = conceptTitles.get(parentId) ?? 'Concept';
-      setActiveQuiz({ quiz, conceptTitle });
+      setActiveQuiz({ quizId: canvasNode.id, quiz, conceptTitle });
     } else if (canvasNode.data.kind === 'summary') {
       setSummaryQuiz(true);
     }
@@ -175,6 +175,7 @@ export function CanvasPage() {
       {activeQuiz && (
         <QuizInteraction
           quiz={activeQuiz.quiz}
+          quizId={activeQuiz.quizId}
           conceptTitle={activeQuiz.conceptTitle}
           onClose={handleCloseQuiz}
         />

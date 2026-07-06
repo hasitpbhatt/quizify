@@ -11,6 +11,7 @@ import { useQuizAnswer } from './useQuizAnswer';
 
 interface Props {
   quiz: QuizData;
+  quizId: string;
   conceptTitle: string;
   onClose: () => void;
 }
@@ -23,8 +24,8 @@ const badgeColors: Record<string, string> = {
   mastered: '#22c55e',
 };
 
-export function QuizInteraction({ quiz, conceptTitle, onClose }: Props) {
-  const { submit, submitting, error, attempts } = useQuizAnswer(quiz);
+export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) {
+  const { submit, submitting, error, attempts } = useQuizAnswer(quiz, quizId);
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
