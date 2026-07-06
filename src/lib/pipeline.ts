@@ -4,7 +4,6 @@ import { buildContentSystemPrompt, buildContentUserMessage } from '@/lib/prompts
 import { parseContentResponse, type QuizItem } from '@/lib/llm/contentParser';
 import { buildSummarySystemPrompt, buildSummaryUserMessage } from '@/lib/prompts/summary';
 import { parseSummaryResponse } from '@/lib/llm/summaryParser';
-import { autoGridLayout } from '@/features/canvas/layout/autoGridLayout';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 
 export type PipelineStep = 'detail' | 'quiz' | 'summary' | 'build' | 'done' | 'error';
@@ -53,25 +52,11 @@ export async function runPipeline(
   const allNodes: CanvasNode[] = [];
   const edges: CanvasEdge[] = [];
   const generatedConcepts: Array<{ id: string; title: string; explanation: string; example: string }> = [];
+  let globalChainTailId: string | null = null;
 
   const { updateCurrent } = useSessionStore.getState();
 
   const updateLayoutAndStore = async () => {
-    const layoutInput = allNodes.map(n => ({
-      id: n.id,
-      type: n.type as 'concept' | 'quiz' | 'summary',
-      data: n.data,
-    }));
-    const layoutResult = autoGridLayout(layoutInput);
-    const positionMap = new Map(layoutResult.nodes.map(n => [n.id, n.position]));
-    
-    for (const node of allNodes) {
-      const pos = positionMap.get(node.id);
-      if (pos) {
-        node.position = pos;
-      }
-    }
-    
     await updateCurrent({ nodes: [...allNodes], edges: [...edges], updatedAt: Date.now() });
   };
 
@@ -127,6 +112,8 @@ export async function runPipeline(
         };
       }
 
+      let currentTailId = concept.id;
+
       content.quizzes.forEach((item, qi) => {
         const quizId = `${concept.id}-quiz-${qi}`;
         const quizData = quizItemToQuizData(item, concept.id);
@@ -138,12 +125,24 @@ export async function runPipeline(
         });
 
         edges.push({
-          id: `edge-${concept.id}-${qi}`,
-          source: concept.id,
+          id: `edge-${currentTailId}-${quizId}`,
+          source: currentTailId,
           target: quizId,
           type: 'wiggly',
         });
+        currentTailId = quizId;
       });
+
+      if (i < concepts.length - 1) {
+        const nextConceptId = concepts[i + 1].id;
+        edges.push({
+          id: `edge-${currentTailId}-${nextConceptId}`,
+          source: currentTailId,
+          target: nextConceptId,
+          type: 'wiggly',
+        });
+      }
+      globalChainTailId = currentTailId;
 
       await updateLayoutAndStore();
 
@@ -181,13 +180,14 @@ export async function runPipeline(
         data: summaryData,
       });
 
-      const lastConceptId = concepts[concepts.length - 1].id;
-      edges.push({
-        id: 'edge-summary',
-        source: lastConceptId,
-        target: '__summary__',
-        type: 'wiggly',
-      });
+      if (globalChainTailId) {
+        edges.push({
+          id: 'edge-summary',
+          source: globalChainTailId,
+          target: '__summary__',
+          type: 'wiggly',
+        });
+      }
 
       await updateLayoutAndStore();
     } catch (err) {

@@ -22,8 +22,8 @@ function QuizNodeComponent(props: NodeProps) {
   const bc = badgeColors[data.state] ?? badgeColors.untested;
 
   return (
-    <div className={styles.node} onClick={() => {}}>
-      <Handle type="target" position={Position.Top} />
+    <div className={styles.node}>
+      <Handle type="target" position={Position.Left} />
       <div className={styles.format}>{formatLabel}</div>
       <div className={styles.prompt}>{data.prompt}</div>
       <div className={styles.footer}>
@@ -37,7 +37,7 @@ function QuizNodeComponent(props: NodeProps) {
           {data.attempts.length > 0 ? `${data.attempts.length} attempt${data.attempts.length > 1 ? 's' : ''}` : 'click to answer'}
         </span>
       </div>
-      <Handle type="source" position={Position.Bottom} />
+      <Handle type="source" position={Position.Right} />
     </div>
   );
 }

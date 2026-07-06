@@ -8,7 +8,7 @@ function SummaryNodeComponent(props: NodeProps) {
 
   return (
     <div className={styles.node}>
-      <Handle type="target" position={Position.Top} />
+      <Handle type="target" position={Position.Left} />
       <div className={styles.header}>Summary</div>
       <div className={styles.recap}>
         {data.recap.map((item, i) => (
@@ -28,7 +28,7 @@ function SummaryNodeComponent(props: NodeProps) {
           Take Final Quiz
         </button>
       )}
-      <Handle type="source" position={Position.Bottom} />
+      <Handle type="source" position={Position.Right} />
     </div>
   );
 }
