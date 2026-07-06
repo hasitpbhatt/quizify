@@ -116,6 +116,22 @@
   position: relative;
 }
 
+.answerBtn {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  text-align: center;
+}
+
 .closeMinimapBtn {
   position: absolute;
   top: 8px;
