@@ -33,4 +33,36 @@ describe('truncateByParagraphs', () => {
     const result = truncateByParagraphs(text);
     expect(result).toBe(text);
   });
+
+  it('handles empty string', () => {
+    expect(truncateByParagraphs('')).toBe('');
+  });
+
+  it('handles single very long paragraph by including it whole', () => {
+    const text = 'A'.repeat(50_000);
+    const result = truncateByParagraphs(text);
+    expect(result.length).toBe(50_000);
+  });
+
+  it('handles text with only whitespace paragraphs', () => {
+    const text = 'First.\n\n   \n\nSecond.';
+    const result = truncateByParagraphs(text);
+    expect(result).toContain('First.');
+    expect(result).toContain('Second.');
+    expect(result).not.toContain('   ');
+  });
+
+  it('preserves single newlines within paragraphs', () => {
+    const text = 'Line one.\nLine two.\n\nNext paragraph.';
+    const result = truncateByParagraphs(text);
+    expect(result).toContain('Line one.\nLine two');
+  });
+
+  it('handles very short paragraphs with many of them', () => {
+    const paragraphs = Array.from({ length: 100 }, (_, i) => `P${i}.`);
+    const text = paragraphs.join('\n\n');
+    const result = truncateByParagraphs(text);
+    expect(result).toContain('P0.');
+    expect(result).toContain('P99.');
+  });
 });

@@ -51,4 +51,23 @@ describe('useIsMobile', () => {
     const { result } = renderHook(() => useIsMobile());
     expect(result.current).toBe(true);
   });
+
+  it('returns false for non-mobile viewport', () => {
+    mockMatchMedia(false);
+    const { result } = renderHook(() => useIsMobile());
+    expect(result.current).toBe(false);
+  });
+
+  it('cleans up event listener on unmount', () => {
+    const mql = mockMatchMedia(true);
+    const { unmount } = renderHook(() => useMediaQuery('(max-width: 639px)'));
+    unmount();
+    expect(mql.removeEventListener).toHaveBeenCalled();
+  });
+
+  it('uses correct mobile breakpoint', () => {
+    const mql = mockMatchMedia(true);
+    renderHook(() => useIsMobile());
+    expect(window.matchMedia).toHaveBeenCalledWith('(max-width: 639px)');
+  });
 });

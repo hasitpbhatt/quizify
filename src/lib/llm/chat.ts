@@ -42,12 +42,12 @@ async function tryEndpoint(
   opts: {
     apiKey: string;
     responseFormat?: 'json';
-    signal?: AbortSignal;
+    userSignal?: AbortSignal;
     maxTokens: number;
     temperature: number;
   },
 ): Promise<ChatResponse | null> {
-  const { apiKey, signal: userSignal, responseFormat, maxTokens } = opts;
+  const { apiKey, userSignal, responseFormat, maxTokens } = opts;
 
   for (const model of entry.models) {
     const body: Record<string, unknown> = {
@@ -123,6 +123,8 @@ async function tryEndpoint(
         };
       } catch (err) {
         if (err instanceof AuthError) throw err;
+        if (err instanceof NetworkError) throw err;
+        if (err instanceof RateLimitError) throw err;
         if (err instanceof DOMException && err.name === 'AbortError') throw err;
 
         if (attempt >= MAX_RETRIES) {
