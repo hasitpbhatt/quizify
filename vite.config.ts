@@ -8,9 +8,25 @@ function devProxyPlugin(): import('vite').Plugin {
   return {
     name: 'dev-proxy',
     configureServer(server) {
-      server.middlewares.use('/api/chat', async (req: IncomingMessage, res: ServerResponse, next) => {
+      // Register as early as possible so Vite's indexHtmlFallback / static
+      // middlewares don't swallow /api/* or /__proxy requests. Returning a
+      // post-hook from configureServer would run *after* Vite's internals,
+      // which is too late for the default provider's /api/chat path.
+      server.middlewares.use('/api/chat', async (req: IncomingMessage, res: ServerResponse) => {
+        // CORS preflight — let the dev server (and Cloudflare in prod) be reachable
+        // from any origin while developing.
+        if (req.method === 'OPTIONS') {
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          res.statusCode = 204;
+          res.end();
+          return;
+        }
+
         if (req.method !== 'POST') {
           res.statusCode = 405;
+          res.setHeader('Allow', 'POST, OPTIONS');
           res.end('Method not allowed');
           return;
         }
@@ -40,6 +56,7 @@ function devProxyPlugin(): import('vite').Plugin {
 
           const text = await mistralResponse.text();
           res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Access-Control-Allow-Origin', '*');
           res.statusCode = mistralResponse.status;
           res.end(text);
         } catch {
@@ -49,7 +66,7 @@ function devProxyPlugin(): import('vite').Plugin {
         }
       });
 
-      server.middlewares.use('/__proxy', async (req: IncomingMessage, res: ServerResponse, next) => {
+      server.middlewares.use('/__proxy', async (req: IncomingMessage, res: ServerResponse) => {
         const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
         const target = url.searchParams.get('url');
         if (!target) {
