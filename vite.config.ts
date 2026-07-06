@@ -66,6 +66,29 @@ function devProxyPlugin(): import('vite').Plugin {
         }
       });
 
+      server.middlewares.use('/api/fetch', async (req: IncomingMessage, res: ServerResponse) => {
+        const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+        const target = url.searchParams.get('url');
+        if (!target) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Missing url query param' }));
+          return;
+        }
+        try {
+          const response = await fetch(target);
+          const text = await response.text();
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+          res.statusCode = response.ok ? 200 : response.status;
+          res.end(text);
+        } catch {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Proxy fetch failed' }));
+        }
+      });
+
       server.middlewares.use('/__proxy', async (req: IncomingMessage, res: ServerResponse) => {
         const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
         const target = url.searchParams.get('url');

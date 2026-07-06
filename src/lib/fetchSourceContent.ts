@@ -5,7 +5,7 @@ import type { LlmProvider, Persona } from '@/shared/types';
 
 export interface SourceResult {
   content: string;
-  source: 'cache' | 'jina' | 'allorigins' | 'corsproxy' | 'corseu' | 'llm';
+  source: 'cache' | 'jina' | 'allorigins' | 'corsproxy' | 'corseu' | 'codetabs' | 'corslol' | 'corsfix' | 'cfproxy' | 'llm';
   url: string;
 }
 
@@ -42,6 +42,10 @@ async function fetchViaViteProxy(url: string): Promise<Response> {
   return fetch(`${DEV_PROXY}${encodeURIComponent(url)}`);
 }
 
+async function fetchViaCfProxy(url: string): Promise<Response> {
+  return fetch(`/api/fetch?url=${encodeURIComponent(url)}`);
+}
+
 async function fetchViaFallbacks(url: string): Promise<{ content: string; source: SourceResult['source'] } | null> {
   const absolute = url.startsWith('http') ? url : `https://${url}`;
 
@@ -63,20 +67,37 @@ async function fetchViaFallbacks(url: string): Promise<{ content: string; source
     { prefix: 'https://api.allorigins.win/raw?url=', label: 'allorigins' },
     { prefix: 'https://corsproxy.io/?', label: 'corsproxy' },
     { prefix: 'https://cors.eu.org/', label: 'corseu' },
+    { prefix: 'https://api.codetabs.com/v1/proxy/?quest=', label: 'codetabs' },
+    { prefix: 'https://cors.lol/', label: 'corslol' },
+    { prefix: 'https://api.corsfix.com/proxy?url=', label: 'corsfix' },
   ];
 
-  for (const proxy of proxies) {
-    try {
-      const absolute = url.startsWith('http') ? url : `https://${url}`;
+  const results = await Promise.allSettled(
+    proxies.map(async (proxy) => {
       const res = await fetchViaProxy(absolute, proxy.prefix);
-      if (!res.ok) continue;
+      if (!res.ok) throw new Error(`${proxy.label} returned ${res.status}`);
+      const text = await res.text();
+      if (text.length <= 200) throw new Error(`${proxy.label} returned too little content`);
+      return { content: text, source: proxy.label };
+    })
+  );
+
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    }
+  }
+
+  try {
+    const res = await fetchViaCfProxy(absolute);
+    if (res.ok) {
       const text = await res.text();
       if (text.length > 200) {
-        return { content: text, source: proxy.label };
+        return { content: text, source: 'cfproxy' };
       }
-    } catch {
-      continue;
     }
+  } catch {
+    // fall through
   }
 
   return null;
