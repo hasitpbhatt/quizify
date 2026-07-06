@@ -129,9 +129,13 @@ async function fetchViaLlmKnowledge(url: string, apiKey: string, provider?: LlmP
   const cfg = getProviderConfig(provider);
   const apiBase = getApiBase(provider);
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (cfg.requiresApiKey) {
+      headers.Authorization = `Bearer ${apiKey}`;
+    }
     const res = await fetch(apiBase, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      headers,
       body: JSON.stringify({
         model: cfg.gradingModel,
         messages: [

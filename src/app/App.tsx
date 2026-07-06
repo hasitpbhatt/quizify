@@ -9,6 +9,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { ProgressScreen } from './ProgressScreen';
 import { fetchSourceContent } from '@/lib/fetchSourceContent';
 import { chat } from '@/lib/llm/chat';
+import { getProviderConfig } from '@/lib/llm/providers';
 import { buildOutlineSystemPrompt, buildOutlineUserMessage } from '@/lib/prompts/outline';
 import { parseOutline } from '@/lib/llm/outlineParser';
 import { runPipeline, type PipelineStep } from '@/lib/pipeline';
@@ -50,7 +51,8 @@ export function App() {
 
   const handleGenerate = useCallback(async (url: string) => {
     const { apiKey, jinaToken, persona, provider } = useSettingsStore.getState();
-    if (!apiKey || !persona) return;
+    const cfg = getProviderConfig(provider);
+    if ((cfg.requiresApiKey && !apiKey) || !persona) return;
 
     const abortController = new AbortController();
     abortRef.current = abortController;
