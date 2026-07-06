@@ -9,6 +9,16 @@ export interface SourceResult {
   url: string;
 }
 
+export function isLikelyUrl(input: string): boolean {
+  const trimmed = input.trim();
+  if (/^https?:\/\//i.test(trimmed)) return true;
+  const hasDot = trimmed.includes('.');
+  const hasPath = trimmed.includes('/');
+  const hasSpace = trimmed.includes(' ');
+  if (hasSpace) return false;
+  return hasDot || hasPath;
+}
+
 const JINA_BASE = 'https://r.jina.ai';
 
 async function fetchViaJina(url: string, jinaToken?: string): Promise<Response> {
@@ -35,7 +45,6 @@ async function fetchViaViteProxy(url: string): Promise<Response> {
 async function fetchViaFallbacks(url: string): Promise<{ content: string; source: SourceResult['source'] } | null> {
   const absolute = url.startsWith('http') ? url : `https://${url}`;
 
-  // In dev mode, use Vite's built-in proxy (avoids CORS)
   if (import.meta.env.DEV) {
     try {
       const res = await fetchViaViteProxy(absolute);
@@ -73,94 +82,104 @@ async function fetchViaFallbacks(url: string): Promise<{ content: string; source
   return null;
 }
 
+async function callLlm(prompt: string, apiKey: string, provider?: LlmProvider): Promise<string> {
+  const cfg = getProviderConfig(provider);
+  const apiBase = getApiBase(provider);
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (cfg.requiresApiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+  const res = await fetch(apiBase, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: cfg.gradingModel,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 4000,
+      temperature: 0.3,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`${cfg.label} returned ${res.status}${body ? `: ${body.slice(0, 200)}` : ''}`);
+  }
+  const json = await res.json() as { choices: { message: { content: string } }[] };
+  return json.choices?.[0]?.message?.content ?? '';
+}
+
+async function fetchSubjectFromLlm(subject: string, apiKey: string, provider?: LlmProvider): Promise<string> {
+  const prompt =
+    `You are a research assistant. The user wants to learn about "${subject}". ` +
+    `Produce a detailed educational overview covering: key definitions, core concepts, ` +
+    `important examples, common pitfalls, and real-world applications. ` +
+    `Output only the content, no disclaimers. Format in clear paragraphs with section headers.`;
+  return callLlm(prompt, apiKey, provider);
+}
+
 export async function fetchSourceContent(
-  url: string,
+  input: string,
   opts: { apiKey: string; jinaToken?: string; persona: Persona; provider?: LlmProvider }
 ): Promise<SourceResult> {
-  // 1. check cache
-  const cached = await getCachedSource(url);
+  const cached = await getCachedSource(input);
   if (cached) {
-    return { content: cached, source: 'cache', url };
+    return { content: cached, source: 'cache', url: input };
   }
 
   let content: string | null = null;
   let source: SourceResult['source'] | null = null;
 
-  // 2. try Jina
-  try {
-    const res = await fetchViaJina(url, opts.jinaToken);
-    if (res.ok) {
-      content = await res.text();
-      source = 'jina';
+  if (isLikelyUrl(input)) {
+    // URL path: cache → Jina → proxies → LLM
+    try {
+      const res = await fetchViaJina(input, opts.jinaToken);
+      if (res.ok) {
+        content = await res.text();
+        source = 'jina';
+      }
+    } catch {
+      // fall through
     }
-  } catch {
-    // fall through
-  }
 
-  // 3. try proxy chain
-  if (!content) {
-    const fallback = await fetchViaFallbacks(url);
-    if (fallback) {
-      content = fallback.content;
-      source = fallback.source;
+    if (!content) {
+      const fallback = await fetchViaFallbacks(input);
+      if (fallback) {
+        content = fallback.content;
+        source = fallback.source;
+      }
     }
-  }
 
-  // 4. last resort: ask LLM knowledge (only for well-known URLs)
-  if (!content) {
-    content = await fetchViaLlmKnowledge(url, opts.apiKey, opts.provider);
-    source = 'llm';
+    if (!content) {
+      try {
+        content = await callLlm(
+          `Summarize the content found at ${input.startsWith('http') ? input : `https://${input}`}. ` +
+          `Focus on educational value — definitions, explanations, examples, code snippets if applicable.`,
+          opts.apiKey,
+          opts.provider,
+        );
+        source = 'llm';
+      } catch {
+        // fall through
+      }
+    }
+  } else {
+    // Subject path: go straight to LLM
+    try {
+      content = await fetchSubjectFromLlm(input, opts.apiKey, opts.provider);
+      source = 'llm';
+    } catch (err) {
+      throw new Error(
+        `Couldn't generate content for "${input}". ${err instanceof Error ? err.message : 'LLM call failed.'}`
+      );
+    }
   }
 
   if (!content || content.length < 50) {
-    throw new Error(`Failed to fetch content from ${url}`);
+    throw new Error(`Failed to fetch content from ${input}`);
   }
 
   const truncated = truncateByParagraphs(content);
 
-  // cache asynchronously (don't await)
-  setCachedSource(url, truncated);
+  setCachedSource(input, truncated);
 
-  return { content: truncated, source: source ?? 'llm', url };
-}
-
-async function fetchViaLlmKnowledge(url: string, apiKey: string, provider?: LlmProvider): Promise<string | null> {
-  const targetUrl = url.startsWith('http') ? url : `https://${url}`;
-  const cfg = getProviderConfig(provider);
-  const apiBase = getApiBase(provider);
-  try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (cfg.requiresApiKey) {
-      headers.Authorization = `Bearer ${apiKey}`;
-    }
-    const res = await fetch(apiBase, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: cfg.gradingModel,
-        messages: [
-          {
-            role: 'system',
-            content:
-              'You are a research assistant. Given a URL, return a detailed summary of what the page at that URL covers. Include key facts, definitions, and explanations. Output only the content, no disclaimers.',
-          },
-          {
-            role: 'user',
-            content: `Summarize the content found at ${targetUrl}. Focus on educational value — definitions, explanations, examples, code snippets if applicable.`,
-          },
-        ],
-        max_tokens: 4000,
-        temperature: 0.3,
-      }),
-    });
-
-    if (!res.ok) return null;
-
-    const json = await res.json() as {
-      choices: { message: { content: string } }[];
-    };
-    return json.choices?.[0]?.message?.content ?? null;
-  } catch {
-    return null;
-  }
+  return { content: truncated, source: source ?? 'llm', url: input };
 }

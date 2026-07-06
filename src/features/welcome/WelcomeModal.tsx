@@ -54,9 +54,9 @@ export function WelcomeModal({ onGenerate, error, onClearError }: WelcomeModalPr
             <Sparkles size={14} />
             <span>Learn anything, visually</span>
           </div>
-          <h1 className={styles.heading}>Turn any link into a canvas you actually remember.</h1>
+          <h1 className={styles.heading}>Turn any topic into a canvas you actually remember.</h1>
           <p className={styles.subheading}>
-            Paste an article and Quizify breaks it into concepts, quizzes, and a final recap — laid out on an infinite canvas.
+            Paste a URL or type a topic and Quizify breaks it into concepts, quizzes, and a final recap — laid out on an infinite canvas.
           </p>
         </header>
 
@@ -66,8 +66,8 @@ export function WelcomeModal({ onGenerate, error, onClearError }: WelcomeModalPr
             <input
               id="url-input"
               className={styles.urlInput}
-              type="url"
-              placeholder="Paste a URL — article, blog, Wikipedia, or PDF"
+              type="text"
+              placeholder="Paste a URL or type a topic — e.g. an article link or 'agentic AI'"
               value={url}
               onChange={(e) => { setUrl(e.target.value); setExampleUrl(''); }}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}

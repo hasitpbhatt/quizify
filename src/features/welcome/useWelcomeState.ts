@@ -10,6 +10,7 @@ export interface ExampleChip {
 export const EXAMPLE_CHIPS: ExampleChip[] = [
   { label: 'Wikipedia: photosynthesis', url: 'https://en.wikipedia.org/wiki/Photosynthesis' },
   { label: 'Article: Why async/await', url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function' },
+  { label: 'Topic: agentic AI', url: 'agentic AI' },
 ];
 
 export function useWelcomeState() {
@@ -23,7 +24,7 @@ export function useWelcomeState() {
   const submitDisabledReason =
     !keyOk ? `Add your ${cfg.apiKeyLabel} above` :
     !persona ? 'Pick a profile above' :
-    !url.trim() ? 'Paste a URL' : null;
+    !url.trim() ? 'Enter a URL or topic' : null;
 
   return {
     apiKey,
