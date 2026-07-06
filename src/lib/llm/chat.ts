@@ -42,12 +42,12 @@ async function tryEndpoint(
   opts: {
     apiKey: string;
     responseFormat?: 'json';
-    userSignal?: AbortSignal;
+    signal?: AbortSignal;
     maxTokens: number;
     temperature: number;
   },
 ): Promise<ChatResponse | null> {
-  const { apiKey, userSignal, responseFormat, maxTokens } = opts;
+  const { apiKey, signal: userSignal, responseFormat, maxTokens } = opts;
 
   for (const model of entry.models) {
     const body: Record<string, unknown> = {
