@@ -1,0 +1,155 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.panel {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 520px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+
+.questionCounter {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.prompt {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  line-height: 1.4;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.navBtn {
+  padding: 8px 20px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+
+.navBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.resultsPanel {
+  text-align: center;
+}
+
+.masteryPct {
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: var(--font-ui);
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.masteryLabel {
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  margin-bottom: 20px;
+}
+
+.breakdown {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.breakdownItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.breakdownValue {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.breakdownLabel {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.breakdownGreen {
+  composes: breakdownValue;
+  color: #22c55e;
+}
+
+.breakdownYellow {
+  composes: breakdownValue;
+  color: #eab308;
+}
+
+.breakdownRed {
+  composes: breakdownValue;
+  color: #ef4444;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.primaryBtn {
+  padding: 10px 24px;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.secondaryBtn {
+  padding: 10px 24px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 13px;
+}

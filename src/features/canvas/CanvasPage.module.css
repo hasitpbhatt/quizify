@@ -1,0 +1,43 @@
+.container {
+  height: calc(100vh - 48px);
+  width: 100%;
+  background: var(--bg-canvas);
+}
+
+.empty {
+  height: calc(100vh - 48px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-canvas);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 14px;
+}
+
+.addNoteBtn {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  z-index: 10;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.addNoteBtn:hover {
+  transform: scale(1.08);
+  opacity: 0.9;
+}
