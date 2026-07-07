@@ -5,6 +5,7 @@ import { buildGradeSystemPrompt, buildGradeUserMessage } from '@/lib/prompts/gra
 import { parseGradeResponse } from '@/lib/llm/gradeParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
+import { useToastStore } from '@/shared/stores/toastStore';
 import * as sessionsDb from '@/lib/db/sessionsDb';
 import type { QuizData, Attempt, QuizState } from '@/shared/types';
 
@@ -84,7 +85,10 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
             { role: 'system' as const, content: buildGradeSystemPrompt(quiz.parentConceptId) },
             { role: 'user' as const, content: buildGradeUserMessage(quiz.prompt, typeof given === 'string' ? given : JSON.stringify(given), quiz.correctAnswer) },
           ];
-          const res = await chat(messages, { apiKey, provider, model: getGradingModel(provider) });
+          const res = await chat(messages, {
+            apiKey, provider, model: getGradingModel(provider),
+            onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
+          });
           const parsed = parseGradeResponse(res.content);
           result = parsed;
         } catch {

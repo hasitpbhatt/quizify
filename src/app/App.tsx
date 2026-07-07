@@ -7,12 +7,14 @@ import { Toolbar } from '@/features/toolbar/Toolbar';
 import { CanvasPage } from '@/features/canvas/CanvasPage';
 import { ReactFlowProvider } from '@xyflow/react';
 import { ProgressScreen } from './ProgressScreen';
+import { Toaster } from './Toaster';
 import { fetchSourceContent } from '@/lib/fetchSourceContent';
 import { chat } from '@/lib/llm/chat';
 import { getProviderConfig } from '@/lib/llm/providers';
 import { buildOutlineSystemPrompt, buildOutlineUserMessage } from '@/lib/prompts/outline';
 import { parseOutline } from '@/lib/llm/outlineParser';
 import { runPipeline, type PipelineStep } from '@/lib/pipeline';
+import { useToastStore } from '@/shared/stores/toastStore';
 
 export type JourneyStage = 'fetch' | 'outline' | PipelineStep;
 export type JourneyState = 'pending' | 'active' | 'done' | 'error';
@@ -121,7 +123,10 @@ export function App() {
         { role: 'system' as const, content: buildOutlineSystemPrompt(persona, url) },
         { role: 'user' as const, content: buildOutlineUserMessage(src.content) },
       ];
-      const res = await chat(messages, { apiKey, provider, responseFormat: 'json', signal: abortController.signal });
+      const res = await chat(messages, {
+        apiKey, provider, responseFormat: 'json', signal: abortController.signal,
+        onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
+      });
       const outline = parseOutline(res.content);
 
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -158,31 +163,17 @@ export function App() {
     }
   }, []);
 
-  if (page === 'progress') {
-    return (
-      <>
-        <Toolbar onNewSession={() => setPage('welcome')} />
-        <ProgressScreen
-          progress={progress}
-          error={error}
-          onCancel={handleCancel}
-        />
-      </>
-    );
-  }
-
-  if (page === 'canvas') {
-    return (
-      <>
-        <Toolbar onNewSession={() => setPage('welcome')} />
-        <ReactFlowProvider>
-          <CanvasPage />
-        </ReactFlowProvider>
-      </>
-    );
-  }
-
-  return (
+  const main = page === 'progress' ? (
+    <>
+      <Toolbar onNewSession={() => setPage('welcome')} />
+      <ProgressScreen progress={progress} error={error} onCancel={handleCancel} />
+    </>
+  ) : page === 'canvas' ? (
+    <>
+      <Toolbar onNewSession={() => setPage('welcome')} />
+      <ReactFlowProvider><CanvasPage /></ReactFlowProvider>
+    </>
+  ) : (
     <WelcomeModal
       onGenerate={handleGenerate}
       error={error ?? undefined}
@@ -190,5 +181,12 @@ export function App() {
       sessions={sessions}
       onSelectSession={handleSelectSession}
     />
+  );
+
+  return (
+    <>
+      {main}
+      <Toaster />
+    </>
   );
 }

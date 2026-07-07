@@ -32,7 +32,6 @@ export function mockQuizNode(parentConceptId: string, overrides: Partial<CanvasN
       correctAnswer: 'Quantum bit',
       rationale: 'A qubit is the fundamental unit of quantum information.',
       attempts: [],
-      bestScore: null,
       state: 'untested',
     },
     draggable: true,

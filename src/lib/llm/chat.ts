@@ -3,6 +3,14 @@ import { getProviderConfig, getApiBase } from './providers';
 import { sleep } from './sleep';
 import type { ChatMessage, LlmProvider } from '@/shared/types';
 
+export interface RetryInfo {
+  attempt: number;
+  maxRetries: number;
+  delayMs: number;
+  status?: number;
+  model: string;
+}
+
 export interface ChatOptions {
   model?: string;
   apiKey: string;
@@ -11,6 +19,7 @@ export interface ChatOptions {
   responseFormat?: 'json';
   signal?: AbortSignal;
   maxTokens?: number;
+  onRetry?: (info: RetryInfo) => void;
 }
 
 export interface ChatResponse {
@@ -46,9 +55,10 @@ async function tryEndpoint(
     userSignal?: AbortSignal;
     maxTokens: number;
     temperature: number;
+    onRetry?: (info: RetryInfo) => void;
   },
 ): Promise<ChatResponse | null> {
-  const { apiKey, userSignal, responseFormat, maxTokens } = opts;
+  const { apiKey, userSignal, responseFormat, maxTokens, onRetry } = opts;
 
   for (const model of entry.models) {
     const body: Record<string, unknown> = {
@@ -95,6 +105,7 @@ async function tryEndpoint(
             break;
           }
           const delay = BASE_DELAY * Math.pow(2, attempt);
+          onRetry?.({ attempt, maxRetries: MAX_RETRIES, delayMs: delay, status: res.status, model });
           await sleep(delay);
           attempt++;
           continue;
@@ -136,6 +147,7 @@ async function tryEndpoint(
         }
 
         const delay = BASE_DELAY * Math.pow(2, attempt);
+        onRetry?.({ attempt, maxRetries: MAX_RETRIES, delayMs: delay, model });
         await sleep(delay);
         attempt++;
       }
@@ -153,7 +165,7 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<
   const temperature = opts.temperature ?? 0.3;
   const apiBase = getApiBase(provider);
 
-  const shared = { apiKey, userSignal, responseFormat, maxTokens, temperature };
+  const shared = { apiKey, userSignal, responseFormat, maxTokens, temperature, onRetry: opts.onRetry };
 
   const modelsToTry = model === cfg.defaultModel ? [cfg.defaultModel, cfg.fallbackModel] : [model];
 

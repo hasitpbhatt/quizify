@@ -5,6 +5,7 @@ import { parseContentResponse, type ContentResponse, type QuizItem } from '@/lib
 import { buildSummarySystemPrompt, buildSummaryUserMessage } from '@/lib/prompts/summary';
 import { parseSummaryResponse } from '@/lib/llm/summaryParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
+import { useToastStore } from '@/shared/stores/toastStore';
 
 export type PipelineStep = 'detail' | 'quiz' | 'summary' | 'build' | 'done' | 'error';
 
@@ -114,7 +115,10 @@ export async function runPipeline(
 
       let content: ContentResponse | null = null;
       for (let attempt = 0; attempt < 2; attempt++) {
-        const res = await chat(messages, { apiKey, provider, signal, responseFormat: 'json' });
+        const res = await chat(messages, {
+          apiKey, provider, signal, responseFormat: 'json',
+          onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
+        });
         try {
           content = parseContentResponse(res.content);
           break;
@@ -216,7 +220,10 @@ export async function runPipeline(
         { role: 'system' as const, content: buildSummarySystemPrompt(persona, topic) },
         { role: 'user' as const, content: buildSummaryUserMessage(generatedConcepts) },
       ];
-      const summaryRes = await chat(summaryMessages, { apiKey, provider, signal, responseFormat: 'json' });
+      const summaryRes = await chat(summaryMessages, {
+        apiKey, provider, signal, responseFormat: 'json',
+        onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
+      });
       const parsed = parseSummaryResponse(summaryRes.content);
       const summaryData: SummaryData = {
         kind: 'summary',

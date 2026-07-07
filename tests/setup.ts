@@ -33,7 +33,7 @@ globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
   setTimeout(() => cb(Date.now()), 0);
   return rafId;
 };
-globalThis.cancelAnimationFrame = (id: number) => { /* no-op */ };
+globalThis.cancelAnimationFrame = (_id: number) => { /* no-op */ };
 
 // ResizeObserver — React Flow observes its container for layout
 class ResizeObserverMock {
