@@ -49,9 +49,12 @@ export async function runPipeline(
 
   const topic = outlineTitle || concepts.map(c => c.title).join(', ');
 
-  const ESTIMATED_WIDTH = { concept: 260, quiz: 240, summary: 300 };
-  const GAP_X = 120;
-  const Y = 100;
+  const COL_WIDTH = 300;
+  const GAP_COL = 60;
+  const GAP_ROW = 40;
+  const QUIZ_HEIGHT_EST = 150;
+  const PAIR_WIDTH = 2 * COL_WIDTH + GAP_COL;
+  const START_Y = 100;
   let cursorX = 100;
 
   const allNodes: CanvasNode[] = [];
@@ -71,11 +74,12 @@ export async function runPipeline(
     notify('detail', `Loading concept ${i + 1} of ${concepts.length}…`);
 
     try {
-      // Push the concept shell immediately so the user sees it
+      // Push the concept shell immediately so the user sees it (position refined after LLM)
+      const initConceptY = START_Y + 100;
       allNodes.push({
         id: concept.id,
         type: 'concept',
-        position: { x: cursorX, y: Y },
+        position: { x: cursorX, y: initConceptY },
         data: {
           kind: 'concept',
           index: i,
@@ -85,7 +89,6 @@ export async function runPipeline(
           sourceUrl,
         } satisfies ConceptData,
       });
-      cursorX += ESTIMATED_WIDTH.concept + GAP_X;
       await persist();
 
       const messages = [
@@ -102,11 +105,17 @@ export async function runPipeline(
         example: content.detail.example,
       });
 
-      // Hydrate the concept node with real content
-      const nodeIndex = allNodes.findIndex(n => n.id === concept.id);
+      // Vertically center concept relative to its quizzes
+      const n = content.quizzes.length;
+      const quizzesHeight = n > 0 ? n * QUIZ_HEIGHT_EST + (n - 1) * GAP_ROW : 0;
+      const conceptY = n > 0 ? START_Y + Math.floor((quizzesHeight - QUIZ_HEIGHT_EST) / 2) : START_Y;
+
+      // Update concept position + hydrate data
+      const nodeIndex = allNodes.findIndex(c => c.id === concept.id);
       if (nodeIndex !== -1) {
         allNodes[nodeIndex] = {
           ...allNodes[nodeIndex],
+          position: { x: cursorX, y: conceptY },
           data: {
             ...allNodes[nodeIndex].data,
             explanation: content.detail.explanation,
@@ -123,19 +132,21 @@ export async function runPipeline(
         allNodes.push({
           id: quizId,
           type: 'quiz',
-          position: { x: cursorX, y: Y },
+          position: { x: cursorX + COL_WIDTH + GAP_COL, y: START_Y + qi * (QUIZ_HEIGHT_EST + GAP_ROW) },
           data: quizData,
         });
-        cursorX += ESTIMATED_WIDTH.quiz + GAP_X;
 
+        // Fan-out edge: concept → each quiz
         edges.push({
-          id: `edge-${currentTailId}-${quizId}`,
-          source: currentTailId,
+          id: `edge-${concept.id}-${quizId}`,
+          source: concept.id,
           target: quizId,
           type: 'wiggly',
         });
         currentTailId = quizId;
       });
+
+      cursorX += PAIR_WIDTH;
 
       if (i < concepts.length - 1) {
         const nextConceptId = concepts[i + 1].id;
@@ -180,7 +191,7 @@ export async function runPipeline(
       allNodes.push({
         id: '__summary__',
         type: 'summary',
-        position: { x: cursorX, y: Y },
+        position: { x: cursorX, y: START_Y },
         data: summaryData,
       });
 
