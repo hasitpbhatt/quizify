@@ -161,7 +161,7 @@ export function App() {
   if (page === 'progress') {
     return (
       <>
-        <Toolbar />
+        <Toolbar onNewSession={() => setPage('welcome')} />
         <ProgressScreen
           progress={progress}
           error={error}
@@ -174,7 +174,7 @@ export function App() {
   if (page === 'canvas') {
     return (
       <>
-        <Toolbar />
+        <Toolbar onNewSession={() => setPage('welcome')} />
         <ReactFlowProvider>
           <CanvasPage />
         </ReactFlowProvider>

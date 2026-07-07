@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
-import { ChevronDown, X, Sun, Moon, Monitor } from 'lucide-react';
+import { ChevronDown, X, Sun, Moon, Monitor, Plus } from 'lucide-react';
 import styles from './Toolbar.module.css';
 
-export function Toolbar() {
+interface ToolbarProps {
+  onNewSession?: () => void;
+}
+
+export function Toolbar({ onNewSession }: ToolbarProps) {
   const { sessions, currentId, load, select, remove } = useSessionStore();
   const { theme, setTheme } = useSettingsStore();
   const [open, setOpen] = useState(false);
@@ -43,6 +47,13 @@ export function Toolbar() {
       <span className={styles.brand}>Quizify</span>
 
       <div className={styles.spacer} />
+
+      {onNewSession && (
+        <button className={styles.newBtn} onClick={onNewSession} title="New session" type="button">
+          <Plus size={16} />
+          <span>New</span>
+        </button>
+      )}
 
       <button
         className={styles.themeToggle}
