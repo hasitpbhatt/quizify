@@ -59,3 +59,14 @@
 .addNoteBtn:hover .addNoteIcon {
   color: var(--text-primary);
 }
+
+.react-flow__controls-button {
+  background: var(--bg-elevated);
+  border-bottom-color: var(--border);
+  color: var(--text-primary);
+  fill: var(--text-primary);
+}
+
+.react-flow__controls-button:hover {
+  background: var(--bg-subtle);
+}

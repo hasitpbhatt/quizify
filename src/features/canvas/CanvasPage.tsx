@@ -164,13 +164,13 @@ export function CanvasPage() {
         />
       </ReactFlow>
 
-      <span style={{
+      <a href="https://hasit.in" target="_blank" rel="noopener noreferrer" style={{
         position: 'absolute', bottom: 8, right: 12, zIndex: 10,
         fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-ui)',
-        opacity: 0.5, pointerEvents: 'none',
+        opacity: 0.5, textDecoration: 'none',
       }}>
         hasit.in
-      </span>
+      </a>
 
       <button
         className={styles.addNoteBtn}
