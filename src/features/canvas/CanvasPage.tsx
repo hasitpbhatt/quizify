@@ -48,7 +48,11 @@ function toReactFlowEdges(canvasEdges: CanvasEdge[]): Edge[] {
   }));
 }
 
-export function CanvasPage() {
+interface CanvasPageProps {
+  progress?: { stage: string; label: string };
+}
+
+export function CanvasPage({ progress }: CanvasPageProps) {
   const currentId = useSessionStore(s => s.currentId);
   const sessions = useSessionStore(s => s.sessions);
   const session = sessions.find(s => s.id === currentId);
@@ -134,7 +138,7 @@ export function CanvasPage() {
   }
 
   if (isMobile && session) {
-    return <MobileFocusView nodes={session.nodes} />;
+    return <MobileFocusView nodes={session.nodes} progress={progress} />;
   }
 
   return (

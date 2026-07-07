@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { ReactFlow, Background, MiniMap, BackgroundVariant } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { CanvasNode, ConceptData, QuizData, NoteData, SummaryData } from '@/shared/types';
@@ -7,6 +7,7 @@ import styles from './MobileFocusView.module.css';
 
 interface Props {
   nodes: CanvasNode[];
+  progress?: { stage: string; label: string };
 }
 
 function formatKind(node: CanvasNode): string {
@@ -45,10 +46,20 @@ function renderContent(node: CanvasNode): { title?: string; body: string } {
   return { body: '' };
 }
 
-export function MobileFocusView({ nodes }: Props) {
+export function MobileFocusView({ nodes, progress }: Props) {
   const [index, setIndex] = useState(0);
   const [showMinimap, setShowMinimap] = useState(false);
   const [activeQuiz, setActiveQuiz] = useState<{ quizId: string; quiz: QuizData; conceptTitle: string } | null>(null);
+
+  // Clamp index when nodes shrink
+  useEffect(() => {
+    if (nodes.length === 0) {
+      setIndex(0);
+    } else {
+      setIndex(i => Math.min(i, nodes.length - 1));
+    }
+  }, [nodes.length]);
+
   const node = nodes[index];
   const total = nodes.length;
 
@@ -69,7 +80,7 @@ export function MobileFocusView({ nodes }: Props) {
   );
 
   const goPrev = useCallback(() => setIndex(i => Math.max(0, i - 1)), []);
-  const goNext = useCallback(() => setIndex(i => Math.min(total - 1, i + 1)), [total]);
+  const goNext = useCallback(() => setIndex(i => Math.min(nodes.length - 1, i + 1)), [nodes.length]);
 
   const openQuiz = useCallback(() => {
     if (!node || node.data.kind !== 'quiz') return;
@@ -82,33 +93,42 @@ export function MobileFocusView({ nodes }: Props) {
     setActiveQuiz(null);
   }, []);
 
-  if (!node) {
-    return <div className={styles.wrapper}><div className={styles.card}>No nodes</div></div>;
-  }
+  const isGenerating = progress && progress.stage !== 'done';
 
   return (
     <div className={styles.wrapper}>
+      {isGenerating && (
+        <div className={styles.progressBar}>
+          <span className={styles.progressDot} />
+          <span className={styles.progressLabel}>{progress.label}</span>
+        </div>
+      )}
+
       <button className={styles.minimapBtn} onClick={() => setShowMinimap(v => !v)}>
         {showMinimap ? '✕ Map' : '☰ Map'}
       </button>
 
       <div className={styles.card}>
-        <div className={styles.nodeContent}>
-          <div className={styles.kindTag}>{kindLabel}</div>
-          {title && <div className={styles.title}>{title}</div>}
-          {body && <div className={styles.body}>{body}</div>}
-          {node.data.kind === 'quiz' && (
-            <button className={styles.answerBtn} onClick={openQuiz}>
-              {(node.data as QuizData).attempts.length > 0 ? 'Answer again' : 'Answer quiz'}
-            </button>
-          )}
-        </div>
+        {node ? (
+          <div className={styles.nodeContent}>
+            <div className={styles.kindTag}>{kindLabel}</div>
+            {title && <div className={styles.title}>{title}</div>}
+            {body && <div className={styles.body}>{body}</div>}
+            {node.data.kind === 'quiz' && (
+              <button className={styles.answerBtn} onClick={openQuiz}>
+                {(node.data as QuizData).attempts.length > 0 ? 'Answer again' : 'Answer quiz'}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className={styles.emptyCard}>No content to display</div>
+        )}
       </div>
 
       <div className={styles.nav}>
-        <button className={styles.navBtn} onClick={goPrev} disabled={index === 0}>‹</button>
-        <span className={styles.counter}>{index + 1} / {total}</span>
-        <button className={styles.navBtn} onClick={goNext} disabled={index === total - 1}>›</button>
+        <button className={styles.navBtn} onClick={goPrev} disabled={index === 0 || total === 0}>‹</button>
+        <span className={styles.counter}>{total > 0 ? `${index + 1} / ${total}` : '0 / 0'}</span>
+        <button className={styles.navBtn} onClick={goNext} disabled={index === total - 1 || total === 0}>›</button>
       </div>
 
       {activeQuiz && (

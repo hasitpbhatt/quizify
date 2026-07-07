@@ -171,7 +171,7 @@ export function App() {
   ) : page === 'canvas' ? (
     <>
       <Toolbar onNewSession={() => setPage('welcome')} />
-      <ReactFlowProvider><CanvasPage /></ReactFlowProvider>
+      <ReactFlowProvider><CanvasPage progress={progress} /></ReactFlowProvider>
     </>
   ) : (
     <WelcomeModal

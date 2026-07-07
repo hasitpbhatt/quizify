@@ -71,11 +71,13 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
   const [submitting, setSubmitting] = useState(false);
   const [lastResult, setLastResult] = useState<SubmitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryInfo, setRetryInfo] = useState<{ attempt: number; maxRetries: number } | null>(null);
 
   const submit = useCallback(async (given: string | string[], apiKey: string) => {
     const { provider } = useSettingsStore.getState();
     setSubmitting(true);
     setError(null);
+    setRetryInfo(null);
     try {
       let result: SubmitResult;
 
@@ -87,11 +89,15 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
           ];
           const res = await chat(messages, {
             apiKey, provider, model: getGradingModel(provider),
-            onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
+            onRetry: (info) => {
+              setRetryInfo({ attempt: info.attempt, maxRetries: info.maxRetries });
+              useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`);
+            },
           });
           const parsed = parseGradeResponse(res.content);
           result = parsed;
         } catch {
+          setRetryInfo(null);
           const givenStr = typeof given === 'string' ? given.trim().toLowerCase() : given.join(' ').toLowerCase();
           const ideal = quiz.correctAnswer.trim().toLowerCase();
           const fuzzyCorrect = givenStr === ideal || ideal.includes(givenStr) || givenStr.includes(ideal);
@@ -132,9 +138,11 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
         }
       }
 
+      setRetryInfo(null);
       setLastResult(result);
       return result;
     } catch (err) {
+      setRetryInfo(null);
       const msg = err instanceof Error ? err.message : 'Grading failed';
       setError(msg);
       throw err;
@@ -146,5 +154,5 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
   const attempts = quiz.attempts;
   const state = computeState(attempts);
 
-  return { submit, submitting, lastResult, error, attempts, state };
+  return { submit, submitting, lastResult, error, attempts, state, retryInfo };
 }

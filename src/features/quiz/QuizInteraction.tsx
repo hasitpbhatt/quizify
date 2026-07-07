@@ -27,7 +27,7 @@ const badgeColors: Record<string, string> = {
 };
 
 export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) {
-  const { submit, submitting, error, attempts } = useQuizAnswer(quiz, quizId);
+  const { submit, submitting, error, attempts, retryInfo } = useQuizAnswer(quiz, quizId);
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -124,7 +124,9 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
                 textAlign: 'center', padding: 16,
                 color: 'var(--text-secondary)', fontSize: 13,
               }}>
-                Grading…
+                {retryInfo
+                  ? `Grading timed out, retrying\u2026 (${retryInfo.attempt + 1}/${retryInfo.maxRetries + 1})`
+                  : 'Grading\u2026'}
               </div>
             )}
           </div>
