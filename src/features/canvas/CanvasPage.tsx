@@ -153,6 +153,7 @@ export function CanvasPage() {
         nodesDraggable
         nodesConnectable={false}
         onNodeClick={handleNodeClick}
+        proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} />
         <Controls showInteractive={false} />
@@ -162,6 +163,14 @@ export function CanvasPage() {
           style={{ background: 'var(--bg-elevated)' }}
         />
       </ReactFlow>
+
+      <span style={{
+        position: 'absolute', bottom: 8, right: 12, zIndex: 10,
+        fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-ui)',
+        opacity: 0.5, pointerEvents: 'none',
+      }}>
+        hasit.in
+      </span>
 
       <button
         className={styles.addNoteBtn}
