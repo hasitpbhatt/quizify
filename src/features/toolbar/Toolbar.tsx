@@ -1,12 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
-import { ChevronDown, X } from 'lucide-react';
+import { useSettingsStore } from '@/shared/stores/settingsStore';
+import { ChevronDown, X, Sun, Moon, Monitor } from 'lucide-react';
 import styles from './Toolbar.module.css';
 
 export function Toolbar() {
   const { sessions, currentId, load, select, remove } = useSessionStore();
+  const { theme, setTheme } = useSettingsStore();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  const cycleTheme = () => {
+    const next = theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light';
+    setTheme(next);
+  };
+  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
 
   useEffect(() => {
     load();
@@ -35,6 +43,15 @@ export function Toolbar() {
       <span className={styles.brand}>Quizify</span>
 
       <div className={styles.spacer} />
+
+      <button
+        className={styles.themeToggle}
+        onClick={cycleTheme}
+        title={`Theme: ${theme}`}
+        type="button"
+      >
+        <ThemeIcon size={16} />
+      </button>
 
       <div className={styles.sessionSelect} ref={ref}>
         <button
