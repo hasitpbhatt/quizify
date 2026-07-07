@@ -28,6 +28,7 @@ import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
 import { exportSessionJson } from '@/lib/export/json';
 import { downloadSessionMarkdown } from '@/lib/export/markdown';
+import { exportCanvasAsPng } from '@/lib/export/image';
 import '@/styles/notebook.css';
 import styles from './CanvasPage.module.css';
 
@@ -235,6 +236,12 @@ export function CanvasPage({ progress }: CanvasPageProps) {
     setShowExport(false);
   }, [session]);
 
+  const handleExportPng = useCallback(() => {
+    if (!session) return;
+    exportCanvasAsPng(reactFlow, session);
+    setShowExport(false);
+  }, [session, reactFlow]);
+
   const handlePlayPause = useCallback(() => {
     if (ttsPaused) {
       ttsManager.resume();
@@ -357,6 +364,7 @@ export function CanvasPage({ progress }: CanvasPageProps) {
             <div className={styles.exportDropdown}>
               <button onClick={handleExportJson}>JSON</button>
               <button onClick={handleExportMarkdown}>Markdown</button>
+              <button onClick={handleExportPng}>PNG</button>
             </div>
           )}
         </div>
