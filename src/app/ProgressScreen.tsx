@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { JourneyProgress, JourneyStage, JourneyState } from './App';
+import { SnakeGame } from './SnakeGame';
 import styles from './ProgressScreen.module.css';
 
 interface StageDef {
@@ -32,11 +33,51 @@ interface ProgressScreenProps {
 export function ProgressScreen({ progress, error, onCancel }: ProgressScreenProps) {
   const activeIndex = progress.stage === 'error' ? 0 : stageIndex(progress.stage);
   const [mounted, setMounted] = useState(false);
+  const [showGame, setShowGame] = useState(false);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setMounted(true));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  function getState(i: number): JourneyState {
+    return progress.stage === 'error' && i <= activeIndex ? 'error' :
+      i < activeIndex ? 'done' :
+      i === activeIndex ? (progress.stage === 'done' ? 'done' : 'active') :
+      'pending';
+  }
+
+  if (showGame && !error) {
+    return (
+      <div className={styles.screen}>
+        <div className={styles.card}>
+          <div className={styles.compactBar}>
+            {STAGES.map((s, i) => {
+              const state = getState(i);
+              return (
+                <div key={s.stage} className={`${styles.compactStage} ${styles[`compactStage-${state}`] ?? ''}`}>
+                  <span className={styles.compactDot}>
+                    {state === 'done' && <span className={styles.compactDotDone} />}
+                    {state === 'active' && <span className={styles.compactDotActive} />}
+                    {state === 'pending' && <span className={styles.compactDotPending} />}
+                    {state === 'error' && <span className={styles.compactDotError} />}
+                  </span>
+                  <span className={styles.compactLabel}>{s.stage}</span>
+                </div>
+              );
+            })}
+          </div>
+          <SnakeGame paused={progress.stage === 'done'} />
+          <div className={styles.gameFooter}>
+            <button className={styles.cancelLink} onClick={() => setShowGame(false)} type="button">
+              ← Progress
+            </button>
+          </div>
+        </div>
+        <div className={styles.ambient} aria-hidden data-mounted={mounted} />
+      </div>
+    );
+  }
 
   return (
     <div className={styles.screen}>
@@ -55,11 +96,7 @@ export function ProgressScreen({ progress, error, onCancel }: ProgressScreenProp
 
         <ol className={styles.stages} aria-live="polite">
           {STAGES.map((s, i) => {
-            const state: JourneyState =
-              progress.stage === 'error' && i <= activeIndex ? 'error' :
-              i < activeIndex ? 'done' :
-              i === activeIndex ? (progress.stage === 'done' ? 'done' : 'active') :
-              'pending';
+            const state = getState(i);
             return (
               <li
                 key={s.stage}
@@ -92,6 +129,9 @@ export function ProgressScreen({ progress, error, onCancel }: ProgressScreenProp
           <div className={styles.footer}>
             <button className={styles.cancelLink} onClick={onCancel} type="button">
               Cancel
+            </button>
+            <button className={styles.gameToggle} onClick={() => setShowGame(true)} type="button">
+              🐍 Play Snake
             </button>
           </div>
         )}

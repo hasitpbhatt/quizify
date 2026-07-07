@@ -219,7 +219,9 @@
 
 .footer {
   margin-top: var(--space-6);
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .cancelLink {
@@ -274,4 +276,97 @@
   .orbCore { opacity: 0.9; }
   .card { animation: none; opacity: 1; }
   .check { animation: none; }
+}
+
+.compactBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0 var(--space-4);
+  border-bottom: 1px solid var(--border-hairline);
+  margin-bottom: var(--space-3);
+}
+
+.compactStage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  opacity: 0.3;
+  transition: opacity var(--dur) var(--ease-out);
+}
+
+.compactStage-done { opacity: 0.6; }
+.compactStage-active { opacity: 1; }
+.compactStage-error { opacity: 1; }
+
+.compactDot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+
+.compactDotDone {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.compactDotActive {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: dotPulse 1.2s var(--ease-in-out) infinite;
+}
+
+.compactDotPending {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px dashed var(--border-strong);
+}
+
+.compactDotError {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.compactLabel {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  font-weight: var(--fw-h2);
+}
+
+.gameFooter {
+  margin-top: var(--space-3);
+  text-align: center;
+}
+
+.gameToggle {
+  background: none;
+  border: 1px solid var(--border);
+  padding: var(--space-1) var(--space-3);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-pill);
+  transition: all var(--dur-fast) var(--ease-out);
+  white-space: nowrap;
+  line-height: 1.6;
+}
+
+.gameToggle:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
 }
