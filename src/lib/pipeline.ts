@@ -1,7 +1,7 @@
-import type { LlmProvider, Persona, CanvasNode, CanvasEdge, ConceptData, QuizData, SummaryData } from '@/shared/types';
+import type { LlmProvider, Persona, CanvasNode, CanvasEdge, ConceptData, QuizData, SummaryData, ChatMessage } from '@/shared/types';
 import { chat } from '@/lib/llm/chat';
 import { buildContentSystemPrompt, buildContentUserMessage } from '@/lib/prompts/content';
-import { parseContentResponse, type QuizItem } from '@/lib/llm/contentParser';
+import { parseContentResponse, type ContentResponse, type QuizItem } from '@/lib/llm/contentParser';
 import { buildSummarySystemPrompt, buildSummaryUserMessage } from '@/lib/prompts/summary';
 import { parseSummaryResponse } from '@/lib/llm/summaryParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
@@ -107,12 +107,29 @@ export async function runPipeline(
       });
       await persist();
 
-      const messages = [
-        { role: 'system' as const, content: buildContentSystemPrompt(persona, topic) },
-        { role: 'user' as const, content: buildContentUserMessage(concept) },
+      const messages: ChatMessage[] = [
+        { role: 'system', content: buildContentSystemPrompt(persona, topic) },
+        { role: 'user', content: buildContentUserMessage(concept) },
       ];
-      const res = await chat(messages, { apiKey, provider, signal, responseFormat: 'json' });
-      const content = parseContentResponse(res.content);
+
+      let content: ContentResponse | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const res = await chat(messages, { apiKey, provider, signal, responseFormat: 'json' });
+        try {
+          content = parseContentResponse(res.content);
+          break;
+        } catch (err) {
+          if (attempt === 0) {
+            console.warn(`[pipeline] ParseError for concept ${concept.id}, retrying. Raw:\n${res.content.slice(0, 500)}`);
+            messages.push({ role: 'user', content: 'Your previous response could not be parsed as valid JSON. Return ONLY valid JSON matching the requested schema — no markdown fences, no extra text.' });
+          } else {
+            throw err;
+          }
+        }
+      }
+      if (!content) {
+        throw new Error(`Failed to parse LLM response for concept ${concept.id} after retry`);
+      }
 
       generatedConcepts.push({
         id: concept.id,
