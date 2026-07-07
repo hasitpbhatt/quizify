@@ -1,6 +1,6 @@
 import type {
   CanvasNode, CanvasEdge, Session, ConceptData, QuizData, NoteData,
-  SummaryData, Persona, Attempt, QuizState, LlmProvider,
+  SummaryData, Persona, Attempt,
 } from '@/shared/types';
 import type { OutlineData, ConceptQuiz } from '@/lib/llm/outlineParser';
 import type { QuizItem, ContentResponse } from '@/lib/llm/contentParser';
@@ -14,8 +14,8 @@ function seq(prefix = ''): string {
   return `${prefix}${_counter}`;
 }
 
-export function makePersona(overrides?: Partial<Persona>): Persona {
-  return overrides?.curious ?? 'curious';
+export function makePersona(overrides?: Persona): Persona {
+  return overrides ?? 'curious';
 }
 
 export function makeAttempt(overrides?: Partial<Attempt>): Attempt {
@@ -65,7 +65,7 @@ export function makeSummaryData(overrides?: Partial<SummaryData>): SummaryData {
   return {
     kind: 'summary',
     recap: ['Key takeaway 1', 'Key takeaway 2'],
-    finalQuiz: [makeQuizData({ id: 'sq-1' })],
+    finalQuiz: [makeQuizData()],
     ...overrides,
   };
 }

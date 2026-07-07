@@ -66,7 +66,7 @@ describe('useIsMobile', () => {
   });
 
   it('uses correct mobile breakpoint', () => {
-    const mql = mockMatchMedia(true);
+    mockMatchMedia(true);
     renderHook(() => useIsMobile());
     expect(window.matchMedia).toHaveBeenCalledWith('(max-width: 639px)');
   });
