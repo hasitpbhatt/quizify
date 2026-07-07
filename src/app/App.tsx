@@ -37,7 +37,7 @@ export function App() {
   const [progress, setProgress] = useState<JourneyProgress>({ stage: 'fetch', label: 'Reading the source…' });
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const { load: loadSessions, currentId } = useSessionStore();
+  const { load: loadSessions, sessions, currentId, select } = useSessionStore();
 
   // Restore canvas page on tab reload, and always load sessions on mount
   useEffect(() => {
@@ -92,6 +92,11 @@ export function App() {
     setError(null);
     setPage('welcome');
   }, []);
+
+  const handleSelectSession = useCallback((id: string) => {
+    select(id);
+    setPage('canvas');
+  }, [select]);
 
   const handleGenerate = useCallback(async (url: string) => {
     const { apiKey, jinaToken, persona, provider } = useSettingsStore.getState();
@@ -177,5 +182,13 @@ export function App() {
     );
   }
 
-  return <WelcomeModal onGenerate={handleGenerate} error={error ?? undefined} onClearError={() => setError(null)} />;
+  return (
+    <WelcomeModal
+      onGenerate={handleGenerate}
+      error={error ?? undefined}
+      onClearError={() => setError(null)}
+      sessions={sessions}
+      onSelectSession={handleSelectSession}
+    />
+  );
 }

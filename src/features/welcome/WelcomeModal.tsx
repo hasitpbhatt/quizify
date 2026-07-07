@@ -1,16 +1,38 @@
 import { useState } from 'react';
-import { Sparkles, GraduationCap, Briefcase, Microscope, Eye, EyeOff, ArrowRight, ChevronDown, Key, Cpu, Globe } from 'lucide-react';
+import { Sparkles, GraduationCap, Briefcase, Microscope, Eye, EyeOff, ArrowRight, ChevronDown, Key, Cpu, Globe, X, Clock } from 'lucide-react';
 import { PersonaCard } from './PersonaCard';
 import { useWelcomeState, EXAMPLE_CHIPS } from './useWelcomeState';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
+import { useSessionStore } from '@/shared/stores/sessionStore';
 import { PROVIDERS } from '@/lib/llm/providers';
-import type { LlmProvider, Persona } from '@/shared/types';
+import type { LlmProvider, Persona, Session } from '@/shared/types';
 import styles from './WelcomeModal.module.css';
+
+const PERSONA_ICONS: Record<string, typeof Sparkles> = {
+  curious: Sparkles,
+  student: GraduationCap,
+  professional: Briefcase,
+  expert: Microscope,
+};
+
+function relativeTime(date: Date): string {
+  const diff = Date.now() - date.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return date.toLocaleDateString();
+}
 
 interface WelcomeModalProps {
   onGenerate: (url: string) => void;
   error?: string;
   onClearError?: () => void;
+  sessions: Session[];
+  onSelectSession: (id: string) => void;
 }
 
 const PERSONAS: { value: Persona; label: string; sublabel: string; description: string; icon: typeof Sparkles }[] = [
@@ -20,9 +42,10 @@ const PERSONAS: { value: Persona; label: string; sublabel: string; description: 
   { value: 'expert', label: 'Expert', sublabel: 'terse', description: 'Edge cases & depth', icon: Microscope },
 ];
 
-export function WelcomeModal({ onGenerate, error, onClearError }: WelcomeModalProps) {
+export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSelectSession }: WelcomeModalProps) {
   const { url, persona, provider, setUrl, setApiKey, setPersona, setProvider, submitEnabled, submitDisabledReason } = useWelcomeState();
   const { jinaToken, apiKey, setJinaToken } = useSettingsStore();
+  const { remove: removeSession } = useSessionStore();
   const [showKey, setShowKey] = useState(false);
   const [showJina, setShowJina] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -121,6 +144,42 @@ export function WelcomeModal({ onGenerate, error, onClearError }: WelcomeModalPr
               : 'We’ll match the depth and quiz style to your pick.'}
           </p>
         </section>
+
+        {sessions.length > 0 && (
+          <section className={styles.sessionsSection}>
+            <label className={styles.label}>Recent sessions</label>
+            <div className={styles.sessionList}>
+              {sessions
+                .slice()
+                .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+                .slice(0, 5)
+                .map((s) => {
+                  const Icon = PERSONA_ICONS[s.persona] ?? Sparkles;
+                  return (
+                    <div key={s.id} className={styles.sessionCard} onClick={() => onSelectSession(s.id)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') onSelectSession(s.id); }}>
+                      <Icon size={16} />
+                      <div className={styles.sessionInfo}>
+                        <span className={styles.sessionName}>{s.name}</span>
+                        <span className={styles.sessionMeta}>
+                          {s.hostname && <><Globe size={11} /><span>{s.hostname}</span><span className={styles.sessionDot}>·</span></>}
+                          <Clock size={11} />
+                          <span>{relativeTime(new Date(s.updatedAt))}</span>
+                        </span>
+                      </div>
+                      <button
+                        className={styles.sessionDelete}
+                        onClick={(e) => { e.stopPropagation(); removeSession(s.id); }}
+                        aria-label="Delete session"
+                        type="button"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+            </div>
+          </section>
+        )}
 
         <section className={styles.settingsSection}>
           <button

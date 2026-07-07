@@ -38,6 +38,11 @@ async function opencodeFallback(res: ServerResponse, body: string) {
   }
 }
 
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+};
+
 function devProxyPlugin(): import('vite').Plugin {
   return {
     name: 'dev-proxy',
@@ -110,7 +115,7 @@ function devProxyPlugin(): import('vite').Plugin {
           return;
         }
         try {
-          const response = await fetch(target);
+          const response = await fetch(target, { headers: BROWSER_HEADERS });
           const text = await response.text();
           res.setHeader('Access-Control-Allow-Origin', '*');
           res.setHeader('Content-Type', 'text/plain; charset=utf-8');
@@ -133,7 +138,7 @@ function devProxyPlugin(): import('vite').Plugin {
           return;
         }
         try {
-          const response = await fetch(target);
+          const response = await fetch(target, { headers: BROWSER_HEADERS });
           const text = await response.text();
           res.setHeader('Access-Control-Allow-Origin', '*');
           res.setHeader('Content-Type', 'text/plain; charset=utf-8');

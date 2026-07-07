@@ -52,9 +52,25 @@ export async function runPipeline(
   const COL_WIDTH = 300;
   const GAP_COL = 60;
   const GAP_ROW = 40;
-  const QUIZ_HEIGHT_EST = 150;
   const PAIR_WIDTH = 2 * COL_WIDTH + GAP_COL;
   const START_Y = 100;
+
+  const CHARS_PER_LINE_QUIZ = 24;
+  const CHARS_PER_LINE_CONCEPT = 27;
+  const LINE_HEIGHT = 21;
+
+  const estimateQuizHeight = (prompt: string): number => {
+    const fixed = 74;
+    const lines = Math.max(1, Math.ceil(prompt.length / CHARS_PER_LINE_QUIZ));
+    return fixed + lines * LINE_HEIGHT;
+  };
+
+  const estimateConceptHeight = (explanation: string): number => {
+    const fixed = 98;
+    const lines = Math.max(1, Math.ceil(explanation.length / CHARS_PER_LINE_CONCEPT));
+    return fixed + lines * LINE_HEIGHT;
+  };
+
   let cursorX = 100;
 
   const allNodes: CanvasNode[] = [];
@@ -107,8 +123,9 @@ export async function runPipeline(
 
       // Vertically center concept relative to its quizzes
       const n = content.quizzes.length;
-      const quizzesHeight = n > 0 ? n * QUIZ_HEIGHT_EST + (n - 1) * GAP_ROW : 0;
-      const conceptY = n > 0 ? START_Y + Math.floor((quizzesHeight - QUIZ_HEIGHT_EST) / 2) : START_Y;
+      const quizHeights = content.quizzes.map(q => estimateQuizHeight(q.prompt));
+      const totalColumnHeight = n > 0 ? quizHeights.reduce((a, b) => a + b + GAP_ROW, 0) - GAP_ROW : 0;
+      const conceptY = n > 0 ? START_Y + Math.floor((totalColumnHeight - estimateConceptHeight(content.detail.explanation)) / 2) : START_Y;
 
       // Update concept position + hydrate data
       const nodeIndex = allNodes.findIndex(c => c.id === concept.id);
@@ -126,13 +143,14 @@ export async function runPipeline(
 
       let currentTailId = concept.id;
 
+      let quizY = START_Y;
       content.quizzes.forEach((item, qi) => {
         const quizId = `${concept.id}-quiz-${qi}`;
         const quizData = quizItemToQuizData(item, concept.id);
         allNodes.push({
           id: quizId,
           type: 'quiz',
-          position: { x: cursorX + COL_WIDTH + GAP_COL, y: START_Y + qi * (QUIZ_HEIGHT_EST + GAP_ROW) },
+          position: { x: cursorX + COL_WIDTH + GAP_COL, y: quizY },
           data: quizData,
         });
 
@@ -144,6 +162,7 @@ export async function runPipeline(
           type: 'wiggly',
         });
         currentTailId = quizId;
+        quizY += quizHeights[qi] + GAP_ROW;
       });
 
       cursorX += PAIR_WIDTH;
