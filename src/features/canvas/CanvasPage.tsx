@@ -11,6 +11,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useSessionStore } from '@/shared/stores/sessionStore';
+import { getUnlockedConceptIndex, getConceptIndex } from '@/lib/progression';
 import type { CanvasNode, CanvasEdge, QuizData, ConceptData, SummaryData } from '@/shared/types';
 import { ConceptNode } from './nodes/ConceptNode';
 import { QuizNode } from './nodes/QuizNode';
@@ -53,6 +54,58 @@ function toReactFlowEdges(canvasEdges: CanvasEdge[]): Edge[] {
   }));
 }
 
+function filterVisibleNodes(
+  nodes: CanvasNode[],
+  edges: CanvasEdge[],
+  currentConceptIndex: number,
+  revealedQuizIds: Set<string>,
+  notebookMode: boolean,
+): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
+  const conceptCount = nodes.filter(n => n.data.kind === 'concept').length;
+  const visibleNodeIds = new Set<string>();
+
+  for (const n of nodes) {
+    if (n.data.kind === 'note') {
+      visibleNodeIds.add(n.id);
+      continue;
+    }
+    if (n.data.kind === 'summary') {
+      if (currentConceptIndex >= conceptCount) {
+        visibleNodeIds.add(n.id);
+      }
+      continue;
+    }
+    if (n.data.kind === 'concept') {
+      const c = n.data as ConceptData;
+      if (c.index <= currentConceptIndex) {
+        visibleNodeIds.add(n.id);
+      }
+      continue;
+    }
+    if (n.data.kind === 'quiz') {
+      const q = n.data as QuizData;
+      const parentIdx = getConceptIndex(nodes, q.parentConceptId);
+      if (parentIdx < 0) continue;
+
+      if (parentIdx < currentConceptIndex) {
+        visibleNodeIds.add(n.id);
+      } else if (parentIdx === currentConceptIndex) {
+        if (!notebookMode || revealedQuizIds.has(n.id)) {
+          visibleNodeIds.add(n.id);
+        }
+      }
+      continue;
+    }
+  }
+
+  const filteredNodes = nodes.filter(n => visibleNodeIds.has(n.id));
+  const filteredEdges = edges.filter(e =>
+    visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target),
+  );
+
+  return { nodes: filteredNodes, edges: filteredEdges };
+}
+
 interface CanvasPageProps {
   progress?: { stage: string; label: string };
 }
@@ -63,17 +116,16 @@ export function CanvasPage({ progress }: CanvasPageProps) {
   const session = sessions.find(s => s.id === currentId);
   const [activeQuiz, setActiveQuiz] = useState<{ quizId: string; quiz: QuizData; conceptTitle: string } | null>(null);
   const [summaryQuiz, setSummaryQuiz] = useState<boolean>(false);
+  const [revealedQuizIds, setRevealedQuizIds] = useState<Set<string>>(new Set());
   const updateCurrent = useSessionStore(s => s.updateCurrent);
   const reactFlow = useReactFlow();
-
-  const nodes: Node[] = useMemo(
-    () => (session ? toReactFlowNodes(session.nodes) : []),
-    [session?.nodes],
-  );
-  const edges: Edge[] = useMemo(
-    () => (session ? toReactFlowEdges(session.edges) : []),
-    [session?.edges],
-  );
+  const isMobile = useIsMobile();
+  const notebookMode = useNotebookStore(s => s.notebookMode);
+  const toggleNotebookMode = useNotebookStore(s => s.toggleNotebookMode);
+  const ttsPlaying = useNotebookStore(s => s.ttsPlaying);
+  const ttsPaused = useNotebookStore(s => s.ttsPaused);
+  const segmentIndex = useNotebookStore(s => s.segmentIndex);
+  const totalSegments = useNotebookStore(s => s.totalSegments);
 
   const conceptTitles = useMemo(() => {
     const map = new Map<string, string>();
@@ -87,6 +139,31 @@ export function CanvasPage({ progress }: CanvasPageProps) {
     }
     return map;
   }, [session]);
+
+  const concepts = useMemo(() => {
+    return (session?.nodes ?? [])
+      .filter((n): n is CanvasNode & { data: ConceptData } => n.data.kind === 'concept')
+      .sort((a, b) => a.data.index - b.data.index);
+  }, [session?.nodes]);
+
+  const currentConceptIndex = useMemo(
+    () => getUnlockedConceptIndex(session?.nodes ?? []),
+    [session?.nodes],
+  );
+
+  const visibleData = useMemo(() => {
+    if (!session) return { nodes: [], edges: [] };
+    return filterVisibleNodes(session.nodes, session.edges, currentConceptIndex, revealedQuizIds, notebookMode);
+  }, [session, currentConceptIndex, revealedQuizIds, notebookMode]);
+
+  const nodes: Node[] = useMemo(
+    () => toReactFlowNodes(visibleData.nodes),
+    [visibleData.nodes],
+  );
+  const edges: Edge[] = useMemo(
+    () => toReactFlowEdges(visibleData.edges),
+    [visibleData.edges],
+  );
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     const canvasNode = session?.nodes.find(n => n.id === node.id);
@@ -132,13 +209,6 @@ export function CanvasPage({ progress }: CanvasPageProps) {
     updateCurrent({ nodes: updatedNodes });
   }, [session, reactFlow, updateCurrent]);
 
-  const isMobile = useIsMobile();
-  const notebookMode = useNotebookStore(s => s.notebookMode);
-  const toggleNotebookMode = useNotebookStore(s => s.toggleNotebookMode);
-  const ttsPlaying = useNotebookStore(s => s.ttsPlaying);
-  const ttsPaused = useNotebookStore(s => s.ttsPaused);
-  const segmentIndex = useNotebookStore(s => s.segmentIndex);
-  const totalSegments = useNotebookStore(s => s.totalSegments);
   const [showExport, setShowExport] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
 
@@ -179,6 +249,54 @@ export function CanvasPage({ progress }: CanvasPageProps) {
     ttsManager.stop();
   }, []);
 
+  // In notebook mode: subscribe to TTS onSegmentEnd for the current concept
+  // to reveal its quiz nodes once the concept is done speaking
+  useEffect(() => {
+    if (!notebookMode || !session) return;
+
+    const currentConcept = concepts.find(c => c.data.index === currentConceptIndex);
+    if (!currentConcept) return;
+
+    const onSegmentEnd = (nodeId: string) => {
+      if (nodeId === currentConcept.id) {
+        const quizIds = session.nodes
+          .filter(n => n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === currentConcept.id)
+          .map(n => n.id);
+        if (quizIds.length > 0) {
+          setRevealedQuizIds(prev => {
+            const next = new Set(prev);
+            quizIds.forEach(id => next.add(id));
+            return next;
+          });
+        }
+      }
+    };
+
+    ttsManager.subscribe(currentConcept.id, { onSegmentEnd });
+
+    return () => {
+      ttsManager.unsubscribe(currentConcept.id);
+    };
+  }, [notebookMode, currentConceptIndex, session, concepts]);
+
+  // In notebook mode: enqueue TTS for the current concept when it becomes active
+  useEffect(() => {
+    if (!notebookMode || !session) return;
+
+    const currentConcept = concepts.find(c => c.data.index === currentConceptIndex);
+    if (!currentConcept) return;
+
+    const text = `${currentConcept.data.title}. ${currentConcept.data.explanation}`;
+    if (!ttsManager.hasSegment(currentConcept.id)) {
+      ttsManager.enqueue({ nodeId: currentConcept.id, text });
+    }
+    if (!ttsManager.isPlaying && !ttsManager.isPaused) {
+      ttsManager.start();
+    }
+
+    setRevealedQuizIds(new Set());
+  }, [currentConceptIndex, notebookMode, session, concepts]);
+
   if (!session || nodes.length === 0) {
     return (
       <div className={styles.empty}>
@@ -188,7 +306,7 @@ export function CanvasPage({ progress }: CanvasPageProps) {
   }
 
   if (isMobile && session) {
-    return <MobileFocusView nodes={session.nodes} progress={progress} />;
+    return <MobileFocusView nodes={visibleData.nodes} progress={progress} />;
   }
 
   return (

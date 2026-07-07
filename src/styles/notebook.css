@@ -53,9 +53,23 @@
   margin-bottom: var(--space-3);
 }
 
-/* --- Hide footer elements that don't belong in notebook mode --- */
-[data-notebook="true"] [class*="footer"],
-[data-notebook="true"] [class*="quizBadge"],
+/* --- Quiz card styling in notebook mode --- */
+[data-notebook="true"] [class*="footer"] {
+  display: flex !important;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+}
+
+[data-notebook="true"] [class*="quizBadge"] {
+  display: inline !important;
+  font-size: var(--fs-small);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+
 [data-notebook="true"] [class*="playButton"],
 [data-notebook="true"] [class*="quizCount"],
 [data-notebook="true"] [class*="launchBtn"],
@@ -72,6 +86,16 @@
   padding-left: var(--space-4);
   border-left: 2px solid var(--accent-subtle);
   margin-bottom: var(--space-2);
+}
+
+/* --- Make quiz nodes obviously clickable in notebook mode --- */
+[data-notebook="true"] [data-node-type="quiz"] {
+  cursor: pointer !important;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+[data-notebook="true"] [data-node-type="quiz"]:hover {
+  opacity: 0.7;
 }
 
 /* --- Handles (the React Flow connection dots) — hide in notebook --- */

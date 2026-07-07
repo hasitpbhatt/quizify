@@ -22,7 +22,7 @@ function QuizNodeComponent(props: NodeProps) {
   const bc = badgeColors[data.state] ?? badgeColors.untested;
 
   return (
-    <div className={styles.node}>
+    <div className={styles.node} data-node-type="quiz">
       <Handle type="target" position={Position.Left} />
       <div className={styles.format}>{formatLabel}</div>
       <div className={styles.prompt}>{data.prompt}</div>

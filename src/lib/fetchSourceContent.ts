@@ -18,11 +18,19 @@ export interface SourceResult {
 export function isLikelyUrl(input: string): boolean {
   const trimmed = input.trim();
   if (/^https?:\/\//i.test(trimmed)) return true;
-  const hasDot = trimmed.includes('.');
-  const hasPath = trimmed.includes('/');
-  const hasSpace = trimmed.includes(' ');
-  if (hasSpace) return false;
-  return hasDot || hasPath;
+  if (trimmed.includes(' ')) return false;
+  try {
+    const url = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`);
+    const host = url.hostname;
+    if (!host.includes('.')) return false;
+    const parts = host.split('.');
+    const tld = parts[parts.length - 1];
+    if (/^(js|jsx|ts|tsx)$/i.test(tld)) return false;
+    if (/^\d+$/.test(tld)) return false;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 const JINA_BASE = 'https://r.jina.ai';
@@ -192,8 +200,10 @@ export async function fetchSourceContent(
         // fall through
       }
     }
-  } else {
-    // Subject path: go straight to LLM
+  }
+
+  // Fallback: if URL fetching failed (or input was not a URL), treat as subject
+  if (!content) {
     try {
       content = await fetchSubjectFromLlm(input, opts.apiKey, opts.provider);
       source = 'llm';

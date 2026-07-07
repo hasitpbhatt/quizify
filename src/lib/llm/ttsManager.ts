@@ -14,12 +14,20 @@ export interface TtsCallbacks {
 
 type TtsState = 'idle' | 'playing' | 'paused' | 'stopped';
 
+interface TtsSubscription {
+  nodeId: string;
+  onSegmentStart?: (nodeId: string) => void;
+  onCharProgress?: (nodeId: string, charIndex: number) => void;
+  onSegmentEnd?: (nodeId: string) => void;
+}
+
 class TtsManagerSingleton {
   private queue: TtsSegment[] = [];
   private currentIdx = -1;
   private state: TtsState = 'idle';
 
   private callbacks: TtsCallbacks = {};
+  private subscriptions = new Map<string, TtsSubscription>();
 
   // Audio element for Mistral Voxtral
   private audioEl: HTMLAudioElement | null = null;
@@ -84,7 +92,7 @@ class TtsManagerSingleton {
     const current = this.queue[this.currentIdx];
     this.cleanup();
     if (current) {
-      this.callbacks.onSegmentEnd?.(current.nodeId);
+      this.notifySegmentEnd(current.nodeId);
     }
     this.playNext();
   }
@@ -119,7 +127,48 @@ class TtsManagerSingleton {
     this.callbacks = { ...this.callbacks, ...cb };
   }
 
+  /**
+   * Subscribe to TTS events for a specific node.
+   * Multiple nodes can subscribe independently without overwriting each other.
+   */
+  subscribe(nodeId: string, cb: {
+    onSegmentStart?: (nodeId: string) => void;
+    onCharProgress?: (nodeId: string, charIndex: number) => void;
+    onSegmentEnd?: (nodeId: string) => void;
+  }): void {
+    this.subscriptions.set(nodeId, { nodeId, ...cb });
+  }
+
+  /**
+   * Unsubscribe a node from TTS events.
+   */
+  unsubscribe(nodeId: string): void {
+    this.subscriptions.delete(nodeId);
+  }
+
+  /**
+   * Check if a TTS segment exists in the queue for a given node.
+   */
+  hasSegment(nodeId: string): boolean {
+    return this.queue.some(s => s.nodeId === nodeId);
+  }
+
   // ==================== Internal ====================
+
+  private notifySegmentStart(nodeId: string): void {
+    this.subscriptions.get(nodeId)?.onSegmentStart?.(nodeId);
+    this.callbacks.onSegmentStart?.(nodeId);
+  }
+
+  private notifyCharProgress(nodeId: string, charIndex: number): void {
+    this.subscriptions.get(nodeId)?.onCharProgress?.(nodeId, charIndex);
+    this.callbacks.onCharProgress?.(nodeId, charIndex);
+  }
+
+  private notifySegmentEnd(nodeId: string): void {
+    this.subscriptions.get(nodeId)?.onSegmentEnd?.(nodeId);
+    this.callbacks.onSegmentEnd?.(nodeId);
+  }
 
   private async playNext(): Promise<void> {
     this.currentIdx++;
@@ -133,7 +182,7 @@ class TtsManagerSingleton {
     this.state = 'playing';
     this.charCount = 0;
     this.charsPerMs = 0;
-    this.callbacks.onSegmentStart?.(segment.nodeId);
+    this.notifySegmentStart(segment.nodeId);
 
     // Try Mistral Voxtral first
     const blob = await this.fetchTtsBlob(segment.text);
@@ -191,8 +240,8 @@ class TtsManagerSingleton {
     }
 
     audio.onended = () => {
-      this.callbacks.onCharProgress?.(segment.nodeId, segment.text.length);
-      this.callbacks.onSegmentEnd?.(segment.nodeId);
+      this.notifyCharProgress(segment.nodeId, segment.text.length);
+      this.notifySegmentEnd(segment.nodeId);
       this.cleanup();
       this.playNext();
     };
@@ -200,7 +249,7 @@ class TtsManagerSingleton {
     audio.onerror = () => {
       console.warn('[ttsManager] Audio playback error, skipping segment');
       this.cleanup();
-      this.callbacks.onSegmentEnd?.(segment.nodeId);
+      this.notifySegmentEnd(segment.nodeId);
       this.playNext();
     };
 
@@ -227,7 +276,7 @@ class TtsManagerSingleton {
       );
       if (estimatedChars !== this.charCount) {
         this.charCount = estimatedChars;
-        this.callbacks.onCharProgress?.(segment.nodeId, estimatedChars);
+        this.notifyCharProgress(segment.nodeId, estimatedChars);
       }
       this.rafId = requestAnimationFrame(tick);
     };
@@ -241,13 +290,13 @@ class TtsManagerSingleton {
     utterance.onboundary = (event) => {
       if (event.name === 'word') {
         this.charCount = event.charIndex + event.charLength;
-        this.callbacks.onCharProgress?.(segment.nodeId, this.charCount);
+        this.notifyCharProgress(segment.nodeId, this.charCount);
       }
     };
 
     utterance.onend = () => {
-      this.callbacks.onCharProgress?.(segment.nodeId, segment.text.length);
-      this.callbacks.onSegmentEnd?.(segment.nodeId);
+      this.notifyCharProgress(segment.nodeId, segment.text.length);
+      this.notifySegmentEnd(segment.nodeId);
       this.cleanupSpeech();
       this.playNext();
     };
@@ -255,7 +304,7 @@ class TtsManagerSingleton {
     utterance.onerror = (event) => {
       console.warn('[ttsManager] SpeechSynthesis error:', event.error);
       this.cleanupSpeech();
-      this.callbacks.onSegmentEnd?.(segment.nodeId);
+      this.notifySegmentEnd(segment.nodeId);
       this.playNext();
     };
 
