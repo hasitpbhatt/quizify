@@ -16,7 +16,6 @@ export async function fetchTtsBlob(text: string): Promise<Blob | null> {
       },
       body: JSON.stringify({
         model: 'voxtral-mini-tts-2603',
-        voice: 'en_paul_cheerful',
         input: text,
       }),
     });
