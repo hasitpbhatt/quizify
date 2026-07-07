@@ -9,6 +9,7 @@ import { Ordering } from './formats/Ordering';
 import type { SubmitResult } from './useQuizAnswer';
 import { useQuizAnswer } from './useQuizAnswer';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
+import { PROVIDERS } from '@/lib/llm/providers';
 
 interface Props {
   quiz: QuizData;
@@ -32,9 +33,10 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
   const overlayRef = useRef<HTMLDivElement>(null);
 
   const handleSubmit = useCallback(async (answer: string | string[]) => {
-    const key = useSettingsStore.getState().apiKey;
-    if (!key) return;
-    const res = await submit(answer, key);
+    const { apiKey, provider } = useSettingsStore.getState();
+    const cfg = PROVIDERS[provider];
+    if (cfg.requiresApiKey && !apiKey) return;
+    const res = await submit(answer, apiKey);
     setResult(res);
     setSubmitted(true);
   }, [submit]);
