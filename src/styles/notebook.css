@@ -1,0 +1,159 @@
+/* ============================================================
+   Notebook View — CSS Overrides
+   Applied when <body data-notebook="true">
+   ============================================================ */
+
+/* --- Ruled-line background (like a physical notebook) --- */
+[data-notebook="true"] .react-flow__background {
+  background-image:
+    repeating-linear-gradient(
+      transparent,
+      transparent 23px,
+      var(--border-hairline) 23px,
+      var(--border-hairline) 24px
+    ) !important;
+  background-color: transparent !important;
+}
+
+/* --- Strip all card styling from every node type --- */
+[data-notebook="true"] [class*="node"] {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 4px 0 !important;
+  width: auto !important;
+  min-width: 200px !important;
+  max-width: 520px !important;
+}
+
+[data-notebook="true"] [class*="node"]:hover {
+  transform: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+
+/* --- Title / header styling for notebook mode --- */
+[data-notebook="true"] [class*="title"],
+[data-notebook="true"] [class*="header"] {
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-title);
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+}
+
+/* --- Explanation / body text --- */
+[data-notebook="true"] [class*="explanation"],
+[data-notebook="true"] [class*="recapItem"] {
+  font-size: var(--fs-body);
+  color: var(--text-primary);
+  line-height: var(--lh-relaxed);
+  margin-bottom: var(--space-3);
+}
+
+/* --- Hide footer elements that don't belong in notebook mode --- */
+[data-notebook="true"] [class*="footer"],
+[data-notebook="true"] [class*="quizBadge"],
+[data-notebook="true"] [class*="playButton"],
+[data-notebook="true"] [class*="quizCount"],
+[data-notebook="true"] [class*="launchBtn"],
+[data-notebook="true"] [class*="results"] {
+  display: none !important;
+}
+
+/* --- Quiz prompt looks like inline text in notebook mode --- */
+[data-notebook="true"] [class*="quizPrompt"],
+[data-notebook="true"] [class*="prompt"] {
+  font-size: var(--fs-body);
+  color: var(--text-primary);
+  font-style: italic;
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--accent-subtle);
+  margin-bottom: var(--space-2);
+}
+
+/* --- Handles (the React Flow connection dots) — hide in notebook --- */
+[data-notebook="true"] .react-flow__handle {
+  display: none !important;
+}
+
+/* --- React Flow controls — hide in notebook (zoom/pan not useful) --- */
+[data-notebook="true"] .react-flow__controls {
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+/* --- Minimap — hide in notebook --- */
+[data-notebook="true"] .react-flow__minimap {
+  display: none !important;
+}
+
+/* --- Typing cursor animation --- */
+.notebookCursor::after {
+  content: '|';
+  animation: notebookBlink 0.6s step-end infinite;
+  color: var(--accent);
+  font-weight: 300;
+  font-size: var(--fs-body);
+  margin-left: 1px;
+}
+
+@keyframes notebookBlink {
+  50% { opacity: 0; }
+}
+
+/* --- Floating TTS controls bar --- */
+.notebookControls {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  background: var(--bg-glass);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  color: var(--text-primary);
+  transition: opacity var(--dur) var(--ease-out);
+}
+
+.notebookControls.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.notebookControls button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.notebookControls button:hover {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.notebookControls .progressLabel {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  min-width: 120px;
+  text-align: center;
+}
