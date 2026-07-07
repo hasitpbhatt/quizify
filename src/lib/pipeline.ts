@@ -6,6 +6,8 @@ import { buildSummarySystemPrompt, buildSummaryUserMessage } from '@/lib/prompts
 import { parseSummaryResponse } from '@/lib/llm/summaryParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useToastStore } from '@/shared/stores/toastStore';
+import { ttsManager } from '@/lib/llm/ttsManager';
+import { useNotebookStore } from '@/shared/stores/notebookStore';
 
 export type PipelineStep = 'detail' | 'quiz' | 'summary' | 'build' | 'done' | 'error';
 
@@ -162,6 +164,15 @@ export async function runPipeline(
         };
       }
 
+      // Enqueue TTS for this concept if notebook mode is active
+      if (useNotebookStore.getState().notebookMode) {
+        const ttsText = `${concept.title}. ${content.detail.explanation}`;
+        ttsManager.enqueue({ nodeId: concept.id, text: ttsText });
+        if (!ttsManager.isPlaying && !ttsManager.isPaused) {
+          ttsManager.start();
+        }
+      }
+
       let currentTailId = concept.id;
 
       let quizY = START_Y;
@@ -248,6 +259,15 @@ export async function runPipeline(
       }
 
       await persist();
+
+      // Enqueue TTS for summary if notebook mode is active
+      if (useNotebookStore.getState().notebookMode) {
+        const ttsText = parsed.recap.join('. ');
+        ttsManager.enqueue({ nodeId: '__summary__', text: ttsText });
+        if (!ttsManager.isPlaying && !ttsManager.isPaused) {
+          ttsManager.start();
+        }
+      }
     } catch (err) {
       console.error('[pipeline] summary generation failed:', err);
       notify('error', 'Failed to create summary', err instanceof Error ? err.message : 'Unknown error');

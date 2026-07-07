@@ -9,6 +9,7 @@ interface NotebookState {
   totalSegments: number;
 
   setNotebookMode: (on: boolean) => void;
+  toggleNotebookMode: () => void;
   setTtsPlaying: (v: boolean) => void;
   setTtsPaused: (v: boolean) => void;
   setCurrentSegment: (nodeId: string | null, index?: number, total?: number) => void;
@@ -23,6 +24,7 @@ export const useNotebookStore = create<NotebookState>((set) => ({
   totalSegments: 0,
 
   setNotebookMode: (on) => set({ notebookMode: on }),
+  toggleNotebookMode: () => set((s) => ({ notebookMode: !s.notebookMode })),
 
   setTtsPlaying: (v) => set({ ttsPlaying: v }),
 

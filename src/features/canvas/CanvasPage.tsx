@@ -22,7 +22,10 @@ import { NoteNode } from './nodes/NoteNode';
 import { MobileFocusView } from './MobileFocusView';
 import { useIsMobile } from '@/shared/useMediaQuery';
 import type { NoteData } from '@/shared/types';
-import { Plus } from 'lucide-react';
+import { Plus, BookOpen, Play, Pause, Square } from 'lucide-react';
+import { useNotebookStore } from '@/shared/stores/notebookStore';
+import { ttsManager } from '@/lib/llm/ttsManager';
+import '@/styles/notebook.css';
 import styles from './CanvasPage.module.css';
 
 const nodeTypes = { concept: ConceptNode, quiz: QuizNode, summary: SummaryNode, note: NoteNode };
@@ -128,6 +131,26 @@ export function CanvasPage({ progress }: CanvasPageProps) {
   }, [session, reactFlow, updateCurrent]);
 
   const isMobile = useIsMobile();
+  const notebookMode = useNotebookStore(s => s.notebookMode);
+  const toggleNotebookMode = useNotebookStore(s => s.toggleNotebookMode);
+  const ttsPlaying = useNotebookStore(s => s.ttsPlaying);
+  const ttsPaused = useNotebookStore(s => s.ttsPaused);
+  const segmentIndex = useNotebookStore(s => s.segmentIndex);
+  const totalSegments = useNotebookStore(s => s.totalSegments);
+
+  const handlePlayPause = useCallback(() => {
+    if (ttsPaused) {
+      ttsManager.resume();
+    } else if (!ttsPlaying) {
+      ttsManager.start();
+    } else {
+      ttsManager.pause();
+    }
+  }, [ttsPlaying, ttsPaused]);
+
+  const handleStopTts = useCallback(() => {
+    ttsManager.stop();
+  }, []);
 
   if (!session || nodes.length === 0) {
     return (
@@ -142,7 +165,7 @@ export function CanvasPage({ progress }: CanvasPageProps) {
   }
 
   return (
-    <div className={styles.container}>
+    <div className={styles.container} data-notebook={notebookMode ? 'true' : undefined}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -159,13 +182,15 @@ export function CanvasPage({ progress }: CanvasPageProps) {
         onNodeClick={handleNodeClick}
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={24} size={1} />
-        <Controls showInteractive={false} />
-        <MiniMap
-          nodeColor="var(--accent)"
-          maskColor="rgba(0,0,0,0.1)"
-          style={{ background: 'var(--bg-elevated)' }}
-        />
+        {!notebookMode && <Background variant={BackgroundVariant.Dots} gap={24} size={1} />}
+        {!notebookMode && <Controls showInteractive={false} />}
+        {!notebookMode && (
+          <MiniMap
+            nodeColor="var(--accent)"
+            maskColor="rgba(0,0,0,0.1)"
+            style={{ background: 'var(--bg-elevated)' }}
+          />
+        )}
       </ReactFlow>
 
       <a href="https://hasit.in" target="_blank" rel="noopener noreferrer" style={{
@@ -180,10 +205,40 @@ export function CanvasPage({ progress }: CanvasPageProps) {
         className={styles.addNoteBtn}
         onClick={handleAddNote}
         title="Add note"
+        style={notebookMode ? { display: 'none' } : undefined}
       >
         <Plus size={16} className={styles.addNoteIcon} />
         <span>Add note</span>
       </button>
+
+      <button
+        className={styles.addNoteBtn}
+        onClick={toggleNotebookMode}
+        title={notebookMode ? 'Exit notebook mode' : 'Notebook view'}
+        style={{
+          right: notebookMode ? 68 : 124,
+          background: notebookMode ? 'var(--accent)' : undefined,
+          color: notebookMode ? 'var(--bg-primary)' : undefined,
+        }}
+      >
+        <BookOpen size={16} />
+      </button>
+
+      {notebookMode && (
+        <div className={`notebookControls ${!ttsPlaying && !ttsPaused ? 'hidden' : ''}`}>
+          <button onClick={handlePlayPause} title={ttsPaused ? 'Resume' : 'Play/Pause'}>
+            {ttsPaused ? <Play size={14} /> : ttsPlaying ? <Pause size={14} /> : <Play size={14} />}
+          </button>
+          <button onClick={handleStopTts} title="Stop">
+            <Square size={14} />
+          </button>
+          <span className="progressLabel">
+            {totalSegments > 0
+              ? `${segmentIndex + 1} / ${totalSegments}`
+              : 'Queued'}
+          </span>
+        </div>
+      )}
 
       {activeQuiz && (
         <QuizInteraction

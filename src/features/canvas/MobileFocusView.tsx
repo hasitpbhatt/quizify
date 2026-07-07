@@ -3,6 +3,8 @@ import { ReactFlow, Background, MiniMap, BackgroundVariant } from '@xyflow/react
 import '@xyflow/react/dist/style.css';
 import type { CanvasNode, ConceptData, QuizData, NoteData, SummaryData } from '@/shared/types';
 import { QuizInteraction } from '@/features/quiz/QuizInteraction';
+import { useNotebookStore } from '@/shared/stores/notebookStore';
+import { ttsManager } from '@/lib/llm/ttsManager';
 import styles from './MobileFocusView.module.css';
 
 interface Props {
@@ -62,6 +64,26 @@ export function MobileFocusView({ nodes, progress }: Props) {
 
   const node = nodes[index];
   const total = nodes.length;
+
+  // Auto-TTS on card change in notebook mode
+  const notebookMode = useNotebookStore(s => s.notebookMode);
+  useEffect(() => {
+    if (!notebookMode || !node) return;
+    if (node.data.kind === 'concept') {
+      const c = node.data as ConceptData;
+      const text = `${c.title}. ${c.explanation}`;
+      ttsManager.enqueue({ nodeId: node.id, text });
+    } else if (node.data.kind === 'summary') {
+      const s = node.data as SummaryData;
+      const text = s.recap.join('. ');
+      ttsManager.enqueue({ nodeId: node.id, text });
+    } else {
+      return;
+    }
+    if (!ttsManager.isPlaying && !ttsManager.isPaused) {
+      ttsManager.start();
+    }
+  }, [notebookMode, node?.id, node?.data?.kind]);
 
   const conceptTitles = useMemo(() => {
     const map = new Map<string, string>();

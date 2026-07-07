@@ -3,10 +3,16 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Volume2, Loader2, Square } from 'lucide-react';
 import styles from './ConceptNode.module.css';
 import { fetchTtsBlob } from '@/lib/llm/tts';
+import { useTypingAnimation } from '@/features/canvas/useTypingAnimation';
+import { useNotebookStore } from '@/shared/stores/notebookStore';
 import type { ConceptData } from '@/shared/types';
 
 function ConceptNodeComponent(props: NodeProps) {
   const data = props.data as unknown as ConceptData;
+  const notebookMode = useNotebookStore((s) => s.notebookMode);
+  const textToRead = `${data.title}. ${data.explanation}`;
+  const { revealed, isAnimating } = useTypingAnimation(props.id, textToRead);
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -32,8 +38,7 @@ function ConceptNodeComponent(props: NodeProps) {
     }
 
     setIsLoading(true);
-    const textToRead = `${data.title}. ${data.explanation}`;
-    
+
     try {
       const blob = await fetchTtsBlob(textToRead);
       if (blob) {
@@ -62,14 +67,25 @@ function ConceptNodeComponent(props: NodeProps) {
     <div className={styles.node}>
       <Handle type="target" position={Position.Left} />
       <div className={styles.title}>{data.title}</div>
-      <div className={styles.explanation}>{data.explanation}</div>
-      <div className={styles.footer}>
-        <span className={styles.quizBadge}>Concepts</span>
-        <button onClick={handlePlay} className={styles.playButton} disabled={isLoading} title="Listen">
-          {isLoading ? <Loader2 size={14} className={styles.spin} /> : isPlaying ? <Square size={14} /> : <Volume2 size={14} />}
-          {isPlaying ? 'Stop' : 'Listen'}
-        </button>
+      <div className={styles.explanation}>
+        {notebookMode ? (
+          <>
+            {textToRead.slice(0, revealed)}
+            {isAnimating && <span className="notebookCursor" />}
+          </>
+        ) : (
+          data.explanation
+        )}
       </div>
+      {!notebookMode && (
+        <div className={styles.footer}>
+          <span className={styles.quizBadge}>Concepts</span>
+          <button onClick={handlePlay} className={styles.playButton} disabled={isLoading} title="Listen">
+            {isLoading ? <Loader2 size={14} className={styles.spin} /> : isPlaying ? <Square size={14} /> : <Volume2 size={14} />}
+            {isPlaying ? 'Stop' : 'Listen'}
+          </button>
+        </div>
+      )}
       <Handle type="source" position={Position.Right} />
     </div>
   );
