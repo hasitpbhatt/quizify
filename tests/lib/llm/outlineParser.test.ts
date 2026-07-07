@@ -53,7 +53,7 @@ describe('parseOutline', () => {
     });
 
     it('throws on missing title', () => {
-      const { title, ...rest } = validOutline;
+      const { title: _title, ...rest } = validOutline;
       expect(() => parseOutline(JSON.stringify(rest))).toThrow('Missing or invalid "title"');
     });
 
@@ -63,12 +63,12 @@ describe('parseOutline', () => {
     });
 
     it('throws on missing summary', () => {
-      const { summary, ...rest } = validOutline;
+      const { summary: _summary, ...rest } = validOutline;
       expect(() => parseOutline(JSON.stringify(rest))).toThrow('Missing or invalid "summary"');
     });
 
     it('throws on missing concepts array', () => {
-      const { concepts, ...rest } = validOutline;
+      const { concepts: _concepts, ...rest } = validOutline;
       expect(() => parseOutline(JSON.stringify(rest))).toThrow('Missing or empty "concepts"');
     });
 

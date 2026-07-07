@@ -38,12 +38,12 @@ describe('parseGradeResponse', () => {
   });
 
   it('throws on missing rationale', () => {
-    const { rationale, ...rest } = valid;
+    const { rationale: _rationale, ...rest } = valid;
     expect(() => parseGradeResponse(JSON.stringify(rest))).toThrow('missing "rationale"');
   });
 
   it('throws on missing idealAnswer', () => {
-    const { idealAnswer, ...rest } = valid;
+    const { idealAnswer: _idealAnswer, ...rest } = valid;
     expect(() => parseGradeResponse(JSON.stringify(rest))).toThrow('missing "idealAnswer"');
   });
 

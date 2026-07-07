@@ -30,7 +30,7 @@ describe('parseSummaryResponse', () => {
   });
 
   it('throws on missing recap', () => {
-    const { recap, ...rest } = validSummary;
+    const { recap: _recap, ...rest } = validSummary;
     expect(() => parseSummaryResponse(JSON.stringify(rest))).toThrow('Summary response missing or empty "recap"');
   });
 
@@ -45,7 +45,7 @@ describe('parseSummaryResponse', () => {
   });
 
   it('throws on missing finalQuiz', () => {
-    const { finalQuiz, ...rest } = validSummary;
+    const { finalQuiz: _finalQuiz, ...rest } = validSummary;
     expect(() => parseSummaryResponse(JSON.stringify(rest))).toThrow('Summary response missing or empty "finalQuiz"');
   });
 

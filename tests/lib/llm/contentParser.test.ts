@@ -37,7 +37,7 @@ describe('parseContentResponse', () => {
 
   describe('validation', () => {
     it('throws on missing detail', () => {
-      const { detail, ...rest } = validContent;
+      const { detail: _detail, ...rest } = validContent;
       expect(() => parseContentResponse(JSON.stringify(rest))).toThrow('Missing or invalid "detail"');
     });
 
@@ -57,7 +57,7 @@ describe('parseContentResponse', () => {
     });
 
     it('throws on missing quizzes', () => {
-      const { quizzes, ...rest } = validContent;
+      const { quizzes: _quizzes, ...rest } = validContent;
       expect(() => parseContentResponse(JSON.stringify(rest))).toThrow('Missing or empty "quizzes"');
     });
 
