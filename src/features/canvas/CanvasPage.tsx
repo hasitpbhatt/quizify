@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -22,9 +22,11 @@ import { NoteNode } from './nodes/NoteNode';
 import { MobileFocusView } from './MobileFocusView';
 import { useIsMobile } from '@/shared/useMediaQuery';
 import type { NoteData } from '@/shared/types';
-import { Plus, BookOpen, Play, Pause, Square } from 'lucide-react';
+import { Plus, BookOpen, Play, Pause, Square, Download, ChevronDown } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
+import { exportSessionJson } from '@/lib/export/json';
+import { downloadSessionMarkdown } from '@/lib/export/markdown';
 import '@/styles/notebook.css';
 import styles from './CanvasPage.module.css';
 
@@ -137,6 +139,31 @@ export function CanvasPage({ progress }: CanvasPageProps) {
   const ttsPaused = useNotebookStore(s => s.ttsPaused);
   const segmentIndex = useNotebookStore(s => s.segmentIndex);
   const totalSegments = useNotebookStore(s => s.totalSegments);
+  const [showExport, setShowExport] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showExport) return;
+    const handler = (e: MouseEvent) => {
+      if (exportRef.current && !(e.target instanceof Node && exportRef.current.contains(e.target))) {
+        setShowExport(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showExport]);
+
+  const handleExportJson = useCallback(() => {
+    if (!session) return;
+    exportSessionJson(session);
+    setShowExport(false);
+  }, [session]);
+
+  const handleExportMarkdown = useCallback(() => {
+    if (!session) return;
+    downloadSessionMarkdown(session);
+    setShowExport(false);
+  }, [session]);
 
   const handlePlayPause = useCallback(() => {
     if (ttsPaused) {
@@ -201,28 +228,30 @@ export function CanvasPage({ progress }: CanvasPageProps) {
         hasit.in
       </a>
 
-      <button
-        className={styles.addNoteBtn}
-        onClick={handleAddNote}
-        title="Add note"
-        style={notebookMode ? { display: 'none' } : undefined}
-      >
-        <Plus size={16} className={styles.addNoteIcon} />
-        <span>Add note</span>
-      </button>
+      <div className={styles.actionsRow} style={notebookMode ? { display: 'none' } : undefined}>
+        <div className={styles.exportWrapper} ref={exportRef}>
+          <button className={styles.actionBtn} onClick={() => setShowExport(v => !v)} title="Export">
+            <Download size={14} />
+            <span>Export</span>
+            <ChevronDown size={12} />
+          </button>
+          {showExport && (
+            <div className={styles.exportDropdown}>
+              <button onClick={handleExportJson}>JSON</button>
+              <button onClick={handleExportMarkdown}>Markdown</button>
+            </div>
+          )}
+        </div>
 
-      <button
-        className={styles.addNoteBtn}
-        onClick={toggleNotebookMode}
-        title={notebookMode ? 'Exit notebook mode' : 'Notebook view'}
-        style={{
-          right: notebookMode ? 68 : 124,
-          background: notebookMode ? 'var(--accent)' : undefined,
-          color: notebookMode ? 'var(--bg-primary)' : undefined,
-        }}
-      >
-        <BookOpen size={16} />
-      </button>
+        <button className={styles.actionBtn} onClick={handleAddNote} title="Add note">
+          <Plus size={14} />
+          <span>Add note</span>
+        </button>
+
+        <button className={styles.actionBtn} onClick={toggleNotebookMode} title="Notebook view">
+          <BookOpen size={14} />
+        </button>
+      </div>
 
       {notebookMode && (
         <div className={`notebookControls ${!ttsPlaying && !ttsPaused ? 'hidden' : ''}`}>
