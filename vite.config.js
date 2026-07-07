@@ -99,6 +99,10 @@ function opencodeFallback(res, body) {
         });
     });
 }
+var BROWSER_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+};
 function devProxyPlugin() {
     return {
         name: 'dev-proxy',
@@ -221,7 +225,7 @@ function devProxyPlugin() {
                             _d.label = 1;
                         case 1:
                             _d.trys.push([1, 4, , 5]);
-                            return [4 /*yield*/, fetch(target)];
+                            return [4 /*yield*/, fetch(target, { headers: BROWSER_HEADERS })];
                         case 2:
                             response = _d.sent();
                             return [4 /*yield*/, response.text()];
@@ -259,7 +263,7 @@ function devProxyPlugin() {
                             _d.label = 1;
                         case 1:
                             _d.trys.push([1, 4, , 5]);
-                            return [4 /*yield*/, fetch(target)];
+                            return [4 /*yield*/, fetch(target, { headers: BROWSER_HEADERS })];
                         case 2:
                             response = _d.sent();
                             return [4 /*yield*/, response.text()];
