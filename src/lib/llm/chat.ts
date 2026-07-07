@@ -1,5 +1,6 @@
 import { AuthError, RateLimitError, NetworkError } from './errors';
 import { getProviderConfig, getApiBase } from './providers';
+import { sleep } from './sleep';
 import type { ChatMessage, LlmProvider } from '@/shared/types';
 
 export interface ChatOptions {
@@ -42,12 +43,12 @@ async function tryEndpoint(
   opts: {
     apiKey: string;
     responseFormat?: 'json';
-    signal?: AbortSignal;
+    userSignal?: AbortSignal;
     maxTokens: number;
     temperature: number;
   },
 ): Promise<ChatResponse | null> {
-  const { apiKey, signal: userSignal, responseFormat, maxTokens } = opts;
+  const { apiKey, userSignal, responseFormat, maxTokens } = opts;
 
   for (const model of entry.models) {
     const body: Record<string, unknown> = {
@@ -185,10 +186,6 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<
   }
 
   throw new NetworkError('All endpoints exhausted');
-}
-
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
 }
 
 function anySignal(...signals: (AbortSignal | undefined)[]): AbortSignal {

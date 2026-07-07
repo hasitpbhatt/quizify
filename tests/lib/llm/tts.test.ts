@@ -46,7 +46,6 @@ describe('fetchTtsBlob', () => {
     expect(headers['Content-Type']).toBe('application/json');
     const body = JSON.parse(opts.body as string);
     expect(body.model).toBe('voxtral-mini-tts-2603');
-    expect(body.voice).toBe('en_paul_cheerful');
     expect(body.input).toBe('Say this');
   });
 

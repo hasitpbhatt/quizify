@@ -2,17 +2,16 @@ import { chat } from '@/lib/llm/chat';
 import { AuthError, RateLimitError, NetworkError } from '@/lib/llm/errors';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 
+vi.mock('@/lib/llm/sleep', () => ({
+  sleep: vi.fn().mockResolvedValue(undefined),
+}));
+
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.useRealTimers();
   useSettingsStore.setState({ provider: 'default' });
-});
-
-afterEach(() => {
-  vi.useRealTimers();
 });
 
 function okResponse(overrides: Partial<{ content: string; model: string; usage: object }> = {}) {
@@ -188,23 +187,15 @@ describe('chat', () => {
     });
 
     it('retries on 429 and throws RateLimitError after exhaustion', async () => {
-      vi.useFakeTimers();
       mockFetch.mockResolvedValue(statusResponse(429));
-      const promise = chat(messages, { apiKey: '', model: 'custom-test', provider: 'default' });
-      await vi.advanceTimersByTimeAsync(40_000);
-      await expect(promise).rejects.toThrow(RateLimitError);
+      await expect(chat(messages, { apiKey: '', model: 'custom-test', provider: 'default' })).rejects.toThrow(RateLimitError);
       expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(3);
-      vi.useRealTimers();
     });
 
     it('retries on 5xx and throws NetworkError after exhaustion', async () => {
-      vi.useFakeTimers();
       mockFetch.mockResolvedValue(statusResponse(502));
-      const promise = chat(messages, { apiKey: '', model: 'custom-test', provider: 'default' });
-      await vi.advanceTimersByTimeAsync(40_000);
-      await expect(promise).rejects.toThrow(NetworkError);
+      await expect(chat(messages, { apiKey: '', model: 'custom-test', provider: 'default' })).rejects.toThrow(NetworkError);
       expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(3);
-      vi.useRealTimers();
     });
 
     it('throws NetworkError on non-retryable error status', async () => {
@@ -220,53 +211,37 @@ describe('chat', () => {
     });
 
     it('handles network failure with retry then fallback', async () => {
-      vi.useFakeTimers();
       mockFetch.mockRejectedValue(new TypeError('Failed to fetch'));
-      const promise = chat(messages, { apiKey: '', model: 'custom-test', provider: 'default' });
-      await vi.advanceTimersByTimeAsync(80_000);
-      await expect(promise).rejects.toThrow('All endpoints exhausted');
-      vi.useRealTimers();
+      await expect(chat(messages, { apiKey: '', model: 'custom-test', provider: 'default' })).rejects.toThrow('All endpoints exhausted');
     });
   });
 
   describe('fallback endpoint', () => {
     it('tries primary endpoint then fallback for default provider', async () => {
-      vi.useFakeTimers();
       mockFetch
         .mockResolvedValue(statusResponse(429))
         .mockResolvedValue(statusResponse(429))
         .mockResolvedValue(statusResponse(429))
         .mockResolvedValue(okResponse({ content: 'Fallback response' }));
-      const promise = chat(messages, { apiKey: '', provider: 'default' });
-      await vi.advanceTimersByTimeAsync(120_000);
-      const result = await promise;
+      const result = await chat(messages, { apiKey: '', provider: 'default' });
       expect(result.content).toBe('Fallback response');
-      vi.useRealTimers();
     });
 
     it('does not include fallback endpoint for mistral', async () => {
-      vi.useFakeTimers();
       mockFetch.mockResolvedValue(statusResponse(429));
-      const promise = chat(messages, { apiKey: 'sk-test', model: 'custom-test', provider: 'mistral' });
-      await vi.advanceTimersByTimeAsync(40_000);
-      await expect(promise).rejects.toThrow(RateLimitError);
-      vi.useRealTimers();
+      await expect(chat(messages, { apiKey: 'sk-test', model: 'custom-test', provider: 'mistral' })).rejects.toThrow(RateLimitError);
     });
   });
 
   describe('fallback models', () => {
     it('tries fallback model after default model fails', async () => {
-      vi.useFakeTimers();
       mockFetch
         .mockResolvedValue(statusResponse(429))
         .mockResolvedValue(statusResponse(429))
         .mockResolvedValue(statusResponse(429))
         .mockResolvedValue(okResponse({ content: 'Fallback model response' }));
-      const promise = chat(messages, { apiKey: '', provider: 'default' });
-      await vi.advanceTimersByTimeAsync(120_000);
-      const result = await promise;
+      const result = await chat(messages, { apiKey: '', provider: 'default' });
       expect(result.content).toBe('Fallback model response');
-      vi.useRealTimers();
     });
   });
 
