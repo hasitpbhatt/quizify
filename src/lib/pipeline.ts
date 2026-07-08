@@ -20,21 +20,21 @@ const CONCURRENCY = 1;
 
 const COL_WIDTH = 450;
 const GAP_COL = 60;
-const GAP_ROW = 40;
+const GAP_ROW = 85;
 const PAIR_WIDTH = 2 * COL_WIDTH + GAP_COL;
 const START_Y = 100;
-const CHARS_PER_LINE_QUIZ = 36;
-const CHARS_PER_LINE_CONCEPT = 40;
-const LINE_HEIGHT = 21;
+const CHARS_PER_LINE_QUIZ = 30;
+const CHARS_PER_LINE_CONCEPT = 35;
+const LINE_HEIGHT = 28;
 
 export function estimateQuizHeight(prompt: string): number {
-  const fixed = 74;
+  const fixed = 130;
   const lines = Math.max(1, Math.ceil(prompt.length / CHARS_PER_LINE_QUIZ));
   return fixed + lines * LINE_HEIGHT;
 }
 
 export function estimateConceptHeight(explanation: string): number {
-  const fixed = 98;
+  const fixed = 150;
   const lines = Math.max(1, Math.ceil(explanation.length / CHARS_PER_LINE_CONCEPT));
   return fixed + lines * LINE_HEIGHT;
 }

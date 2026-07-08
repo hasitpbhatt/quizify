@@ -51,12 +51,12 @@ beforeEach(() => {
 describe('estimateQuizHeight', () => {
   it('returns fixed height for short prompts', () => {
     const h = estimateQuizHeight('');
-    expect(h).toBe(74 + 21);
+    expect(h).toBe(130 + 28);
   });
 
   it('scales with prompt length', () => {
-    const short = estimateQuizHeight('a'.repeat(36));
-    const long = estimateQuizHeight('a'.repeat(73));
+    const short = estimateQuizHeight('a'.repeat(30));
+    const long = estimateQuizHeight('a'.repeat(61));
     expect(long).toBeGreaterThan(short);
   });
 });
@@ -64,12 +64,12 @@ describe('estimateQuizHeight', () => {
 describe('estimateConceptHeight', () => {
   it('returns fixed height for short explanations', () => {
     const h = estimateConceptHeight('');
-    expect(h).toBe(98 + 21);
+    expect(h).toBe(150 + 28);
   });
 
   it('scales with explanation length', () => {
-    const short = estimateConceptHeight('a'.repeat(40));
-    const long = estimateConceptHeight('a'.repeat(81));
+    const short = estimateConceptHeight('a'.repeat(35));
+    const long = estimateConceptHeight('a'.repeat(71));
     expect(long).toBeGreaterThan(short);
   });
 });

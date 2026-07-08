@@ -13,13 +13,22 @@ import { useNotebookStore } from '@/shared/stores/notebookStore';
 export function useTypingAnimation(nodeId: string, fullText: string, skipAnimation = false) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const [revealed, setRevealed] = useState(fullText.length);
+  const [displayedRevealed, setDisplayedRevealed] = useState(fullText.length);
+  const targetRef = useRef(fullText.length);
   const hasHadTts = useRef(false);
   const fallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fallbackIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Sync targetRef with raw revealed progress
+  useEffect(() => {
+    targetRef.current = revealed;
+  }, [revealed]);
+
   useEffect(() => {
     if (!notebookMode || fullText.length === 0 || skipAnimation) {
       setRevealed(fullText.length);
+      setDisplayedRevealed(fullText.length);
+      targetRef.current = fullText.length;
       if (notebookMode) {
         // Run in next tick to avoid React render phase warnings
         setTimeout(() => {
@@ -30,14 +39,16 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
     }
 
     setRevealed(0);
+    setDisplayedRevealed(0);
+    targetRef.current = 0;
     hasHadTts.current = false;
 
     // Fallback: if no TTS starts for this node within 2s, animate locally
     fallbackTimeoutRef.current = setTimeout(() => {
       if (!hasHadTts.current && fullText.length > 0) {
         const totalChars = fullText.length;
-        const CHARS_PER_TICK = 2;
-        const INTERVAL_MS = 40;
+        const CHARS_PER_TICK = 1;
+        const INTERVAL_MS = 25;
         fallbackIntervalRef.current = setInterval(() => {
           setRevealed((prev) => {
             const next = prev + CHARS_PER_TICK;
@@ -68,6 +79,8 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
           fallbackIntervalRef.current = null;
         }
         setRevealed(0);
+        setDisplayedRevealed(0);
+        targetRef.current = 0;
       }
     };
 
@@ -105,11 +118,47 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
     };
   }, [nodeId, fullText, notebookMode, skipAnimation]);
 
+  // Smoothly chase target character count for character-by-character feel
+  useEffect(() => {
+    if (!notebookMode || skipAnimation) {
+      setDisplayedRevealed(fullText.length);
+      return;
+    }
+
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const tick = () => {
+      setDisplayedRevealed((prev) => {
+        const target = targetRef.current;
+        if (prev < target) {
+          return prev + 1;
+        } else {
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+          return prev;
+        }
+      });
+    };
+
+    if (displayedRevealed < revealed) {
+      intervalId = setInterval(tick, 20); // ~50 chars/sec speed
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [revealed, notebookMode, skipAnimation, fullText.length, displayedRevealed]);
+
   useEffect(() => {
     if (!notebookMode || skipAnimation) {
       setRevealed(fullText.length);
+      setDisplayedRevealed(fullText.length);
     }
   }, [notebookMode, fullText, skipAnimation]);
 
-  return { revealed, isAnimating: revealed < fullText.length };
+  return { revealed: displayedRevealed, isAnimating: displayedRevealed < fullText.length };
 }

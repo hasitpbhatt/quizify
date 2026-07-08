@@ -73,7 +73,7 @@
 [data-notebook="true"] [class*="title"],
 [data-notebook="true"] [class*="header"] {
   font-family: var(--font-canvas), 'Caveat', cursive !important;
-  font-size: 2.1rem !important;
+  font-size: 1.8rem !important;
   font-weight: 700 !important;
   color: var(--ink-color) !important;
   margin-bottom: var(--space-2);
@@ -84,10 +84,10 @@
 [data-notebook="true"] [class*="explanation"],
 [data-notebook="true"] [class*="recapItem"] {
   font-family: var(--font-canvas), 'Caveat', cursive !important;
-  font-size: 1.45rem !important;
+  font-size: 1.3rem !important;
   font-weight: 500 !important;
   color: var(--ink-color) !important;
-  line-height: 1.7 !important;
+  line-height: 1.6 !important;
   margin-bottom: var(--space-3);
 }
 
@@ -98,27 +98,27 @@
   gap: var(--space-3);
   margin-top: var(--space-3);
   font-family: var(--font-canvas), 'Caveat', cursive !important;
-  font-size: 1.25rem !important;
+  font-size: 1.15rem !important;
   color: var(--ink-color) !important;
 }
 
 [data-notebook="true"] [class*="footer"] span {
   font-family: var(--font-canvas), 'Caveat', cursive !important;
-  font-size: 1.25rem !important;
+  font-size: 1.15rem !important;
   color: var(--ink-color) !important;
 }
 
 [data-notebook="true"] [class*="quizBadge"] {
   display: inline !important;
   font-family: var(--font-canvas), 'Caveat', cursive !important;
-  font-size: 1.2rem !important;
+  font-size: 1.1rem !important;
   padding: 2px 8px;
   border-radius: var(--radius-pill);
 }
 
 [data-notebook="true"] [class*="badge"] {
   font-family: var(--font-canvas), 'Caveat', cursive !important;
-  font-size: 1.2rem !important;
+  font-size: 1.1rem !important;
 }
 
 [data-notebook="true"] [class*="playButton"],
@@ -131,7 +131,7 @@
 /* --- Quiz format text styling --- */
 [data-notebook="true"] [class*="format"] {
   font-family: var(--font-canvas), 'Caveat', cursive !important;
-  font-size: 1.2rem !important;
+  font-size: 1.1rem !important;
   font-weight: 700 !important;
   color: var(--accent) !important;
   margin-bottom: var(--space-1);
@@ -141,7 +141,7 @@
 [data-notebook="true"] [class*="quizPrompt"],
 [data-notebook="true"] [class*="prompt"] {
   font-family: var(--font-canvas), 'Caveat', cursive !important;
-  font-size: 1.45rem !important;
+  font-size: 1.3rem !important;
   color: var(--ink-color) !important;
   font-style: normal !important;
   padding-left: var(--space-4);
