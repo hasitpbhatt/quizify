@@ -21,7 +21,7 @@
 .modal {
   position: relative;
   z-index: 1;
-  width: min(600px, 100%);
+  width: min(640px, 100%);
   margin: auto;
   padding: var(--space-9) var(--space-8) var(--space-7);
   background: var(--bg-elevated);

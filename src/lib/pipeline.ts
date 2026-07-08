@@ -17,6 +17,8 @@ export interface PipelineProgress {
 
 type ProgressCallback = (progress: PipelineProgress) => void;
 
+const CONCURRENCY = 1;
+
 function quizItemToQuizData(item: QuizItem, conceptId: string): QuizData {
   return {
     kind: 'quiz',
@@ -32,6 +34,12 @@ function quizItemToQuizData(item: QuizItem, conceptId: string): QuizData {
     attempts: [],
     state: 'untested',
   };
+}
+
+function createMutex() {
+  let p: Promise<unknown> = Promise.resolve();
+  return <T>(fn: () => Promise<T>): Promise<T> =>
+    (p = p.then(() => fn(), () => fn())) as Promise<T>;
 }
 
 export async function runPipeline(
@@ -72,42 +80,46 @@ export async function runPipeline(
     return fixed + lines * LINE_HEIGHT;
   };
 
-  let cursorX = 100;
-
   const allNodes: CanvasNode[] = [];
   const edges: CanvasEdge[] = [];
   const generatedConcepts: Array<{ id: string; title: string; explanation: string; example: string }> = [];
-  let globalChainTailId: string | null = null;
+  const conceptLastNodeIds: (string | null)[] = [];
+  let completedCount = 0;
 
   const { updateCurrent } = useSessionStore.getState();
+  const withMutex = createMutex();
+  const persist = () => withMutex(() =>
+    updateCurrent({ nodes: [...allNodes], edges: [...edges], updatedAt: Date.now() })
+  );
 
-  const persist = async () => {
-    await updateCurrent({ nodes: [...allNodes], edges: [...edges], updatedAt: Date.now() });
-  };
+  // --- Phase 0: Push all concept shells immediately ---
+  concepts.forEach((concept, i) => {
+    const cursorX = 100 + i * PAIR_WIDTH;
+    allNodes.push({
+      id: concept.id,
+      type: 'concept',
+      position: { x: cursorX, y: START_Y + 100 },
+      data: {
+        kind: 'concept',
+        index: i,
+        title: concept.title,
+        explanation: concept.explanation,
+        example: 'Loading...',
+        sourceUrl,
+      } satisfies ConceptData,
+    });
+  });
+  await persist();
 
-  for (let i = 0; i < concepts.length; i++) {
+  // --- Phase 1: Generate content for all concepts in parallel ---
+  notify('detail', `Generating content (0/${concepts.length} done\u2026)`);
+
+  const processConcept = async (concept: typeof concepts[number], i: number): Promise<void> => {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    const concept = concepts[i];
-    notify('detail', `Loading concept ${i + 1} of ${concepts.length}…`);
+
+    const cursorX = 100 + i * PAIR_WIDTH;
 
     try {
-      // Push the concept shell immediately so the user sees it (position refined after LLM)
-      const initConceptY = START_Y + 100;
-      allNodes.push({
-        id: concept.id,
-        type: 'concept',
-        position: { x: cursorX, y: initConceptY },
-        data: {
-          kind: 'concept',
-          index: i,
-          title: concept.title,
-          explanation: concept.explanation,
-          example: 'Loading...',
-          sourceUrl,
-        } satisfies ConceptData,
-      });
-      await persist();
-
       const messages: ChatMessage[] = [
         { role: 'system', content: buildContentSystemPrompt(persona, topic) },
         { role: 'user', content: buildContentUserMessage(concept) },
@@ -148,7 +160,7 @@ export async function runPipeline(
       const totalColumnHeight = n > 0 ? quizHeights.reduce((a, b) => a + b + GAP_ROW, 0) - GAP_ROW : 0;
       const conceptY = n > 0 ? START_Y + Math.floor((totalColumnHeight - estimateConceptHeight(content.detail.explanation)) / 2) : START_Y;
 
-      // Update concept position + hydrate data
+      // Update concept shell with real data + refined position
       const nodeIndex = allNodes.findIndex(c => c.id === concept.id);
       if (nodeIndex !== -1) {
         allNodes[nodeIndex] = {
@@ -175,7 +187,6 @@ export async function runPipeline(
           data: quizData,
         });
 
-        // Fan-out edge: concept → each quiz
         edges.push({
           id: `edge-${concept.id}-${quizId}`,
           source: concept.id,
@@ -186,35 +197,63 @@ export async function runPipeline(
         quizY += quizHeights[qi] + GAP_ROW;
       });
 
-      cursorX += PAIR_WIDTH;
-
-      if (i < concepts.length - 1) {
-        const nextConceptId = concepts[i + 1].id;
-        edges.push({
-          id: `edge-${currentTailId}-${nextConceptId}`,
-          source: currentTailId,
-          target: nextConceptId,
-          type: 'wiggly',
-        });
-      }
-      globalChainTailId = currentTailId;
+      conceptLastNodeIds[i] = currentTailId;
 
       await persist();
-
-      if (i < concepts.length - 1) {
-        await new Promise(r => setTimeout(r, 2000));
-      }
+      completedCount++;
+      notify('detail', `Generating content (${completedCount}/${concepts.length} done\u2026)`);
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') throw err;
       console.error(`[pipeline] failed on concept ${concept.id}:`, err);
       notify('error', `Failed to load ${concept.title}`, err instanceof Error ? err.message : 'Unknown error');
-      throw err;
+      conceptLastNodeIds[i] = null;
     }
+  };
+
+  // Run concepts with bounded concurrency
+  const effectiveConcurrency = Math.min(CONCURRENCY, concepts.length);
+
+  if (effectiveConcurrency >= concepts.length) {
+    await Promise.all(concepts.map((c, i) => processConcept(c, i)));
+  } else {
+    let next = 0;
+    let abortErr: DOMException | null = null;
+    const workers = Array.from({ length: effectiveConcurrency }, async () => {
+      while (next < concepts.length && !abortErr) {
+        const i = next++;
+        try {
+          await processConcept(concepts[i], i);
+        } catch (err) {
+          if (err instanceof DOMException && err.name === 'AbortError') {
+            abortErr = err;
+          } else {
+            throw err;
+          }
+        }
+      }
+    });
+    await Promise.all(workers);
+    if (abortErr) throw abortErr;
   }
 
-  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  // --- Phase 2: Connect inter-concept chain edges ---
+  for (let i = 0; i < concepts.length; i++) {
+    const lastId = conceptLastNodeIds[i];
+    if (lastId && i < concepts.length - 1) {
+      const nextId = concepts[i + 1].id;
+      edges.push({
+        id: `edge-${lastId}-${nextId}`,
+        source: lastId,
+        target: nextId,
+        type: 'wiggly',
+      });
+    }
+  }
+  await persist();
 
+  // --- Phase 3: Summary ---
   if (generatedConcepts.length > 0) {
-    notify('summary', 'Creating summary & final quiz…');
+    notify('summary', 'Creating summary & final quiz\u2026');
     try {
       const summaryMessages = [
         { role: 'system' as const, content: buildSummarySystemPrompt(persona, topic) },
@@ -231,17 +270,19 @@ export async function runPipeline(
         finalQuiz: parsed.finalQuiz.map(item => quizItemToQuizData(item, '__summary__')),
       };
 
+      const lastX = 100 + concepts.length * PAIR_WIDTH;
       allNodes.push({
         id: '__summary__',
         type: 'summary',
-        position: { x: cursorX, y: START_Y },
+        position: { x: lastX, y: START_Y },
         data: summaryData,
       });
 
-      if (globalChainTailId) {
+      const lastChainTail = [...conceptLastNodeIds].reverse().find(id => id !== null);
+      if (lastChainTail) {
         edges.push({
           id: 'edge-summary',
-          source: globalChainTailId,
+          source: lastChainTail,
           target: '__summary__',
           type: 'wiggly',
         });

@@ -8,7 +8,6 @@
   background: var(--bg-elevated);
   box-shadow: var(--shadow-card);
   text-align: left;
-  min-width: 132px;
   cursor: pointer;
   transition: transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
 }

@@ -57,16 +57,14 @@ chat() with outline prompt         → src/lib/prompts/outline.ts      (stage: '
 createSession({...})               → sessionStore.create             (writes IDB + sets currentId)
 await select(session.id)
 setPage('canvas')                  → Transition to canvas early so we can stream nodes in real-time
-runPipeline(title, concepts, ...)  → src/lib/pipeline.ts            (incremental updates via updateCurrent)
-  - For each concept:
-      chat() with content prompt  → src/lib/prompts/content.ts      (combined detail + quiz in one payload)
-      parseContentResponse()      → src/lib/llm/contentParser.ts
-      updateCurrent(...)          → Canvas automatically renders the new nodes
-      sleep(2000)                 → Delay to avoid rate limits
-  - After all concepts:
-      chat() with summary prompt  → src/lib/prompts/summary.ts
-      parseSummaryResponse()
-      updateCurrent(...)          → Append summary node
+runPipeline(title, concepts, ...)  → src/lib/pipeline.ts            (parallel via bounded concurrency pool)
+  - Phase 0: Push all concept shells (placeholder nodes), persist once
+  - Phase 1: Run all concepts through bounded pool (default Infinity = Promise.all):
+      processConcept: chat() → parseContentResponse() → push quizzes/edges → persist()
+      Each persist guarded by a mutex so concurrent IDB writes don't race
+      Failed concepts are skipped (caught locally); abort propagates
+  - Phase 2: Connect inter-concept chain edges (lastQuizOf_i → concept_{i+1})
+  - Phase 3: Summary (sequential, runs once all concepts done)
 await select(session.id)           # re-pin in case of concurrent store updates
 ```
 
@@ -96,6 +94,7 @@ Quiz answers are graded by sending the user's answer + the quiz's `rationale`/`c
    - In `App.tsx`, always `await createSession(...)` and `await select(session.id)` before AND after `runPipeline`. Never call `createSession` without awaiting.
    - In `sessionStore.ts`, always use the updater form `set((state) => ...)` and the `upsertSession` helper — never replace `sessions` with a snapshot captured before an awaited IDB write.
    - `updateCurrent` must read the authoritative copy from IDB (`getSession`) before merging the patch, not the in-memory `sessions` array, so concurrent updates don't lose fields.
+   - In `pipeline.ts`, concurrent `processConcept` calls each call `persist()` after pushing their nodes/edges. A mutex (`createMutex`) serializes the IDB read→write cycle so parallel workers don't clobber each other's updates.
 2. **Summary failure is non-fatal.** In `pipeline.ts`, the summary step's `try/catch` swallows errors and sets `summaryData = null`. The canvas just won't have a `__summary__` node. Don't "fix" this by re-throwing unless you intend to fail the whole generate flow when the summary API hiccups.
 3. **`CanvasPage` empty state.** `if (!session || nodes.length === 0)` shows a "No canvas data yet" panel. If you see this in production it's almost always the store race above or `updateCurrent` not having run — check the store, not the canvas component.
 4. **MobileFocusView hijacks the canvas** on small screens (`useIsMobile()`). When debugging "canvas is broken", first check viewport width or you'll be looking at a different component entirely (`src/features/canvas/MobileFocusView.tsx`).
@@ -138,3 +137,4 @@ src/
 - **2026-06-03** — Fixed overlapping nodes: removed `useJourneyLayout` hook entirely. Pipeline now assigns positions at node creation time using fixed estimated widths (`ESTIMATED_WIDTH` constants in pipeline.ts). Nodes no longer overlap — each gets its column determined at creation time.
 - **2026-07-05** — Added TTS support via Mistral Voxtral (`src/lib/llm/tts.ts`). Falls back to browser Web Speech API when Mistral TTS is unavailable or NVIDIA provider is selected.
 - **2026-07-06** — Fixed abort signal not propagating through `chat()`. Root cause: `tryEndpoint`'s third parameter type declared `signal?: AbortSignal` and destructured as `const { ..., signal: userSignal, ... } = opts`, but the caller `chat()` passed a `shared` object with a `userSignal` property (not `signal`). So `userSignal` was always `undefined` inside `tryEndpoint`, meaning caller-provided `AbortSignal` was never passed to `anySignal()`. Fix: changed the type to `userSignal?: AbortSignal` and destructured directly as `userSignal`. See `src/lib/llm/chat.ts:42-50`.
+- **2026-07-07** — Parallelized per-concept content generation in pipeline. Replaced sequential `for` loop with bounded-concurrency pool (`CONCURRENCY` const in `pipeline.ts`, default `Infinity`). Concept shells pushed upfront; all LLM calls fire in parallel. A mutex (`createMutex`) serializes `updateCurrent` writes to prevent IDB races. Inter-concept chain edges built after all concepts resolve. Removed 2s sleep between concepts. Failed concepts are caught and skipped (non-fatal). See `src/lib/pipeline.ts`.

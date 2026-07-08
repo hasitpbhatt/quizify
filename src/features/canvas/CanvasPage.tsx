@@ -358,6 +358,12 @@ export function CanvasPage({ progress }: CanvasPageProps) {
         hasit.in
       </a>
 
+      {progress && progress.stage === 'detail' && (
+        <div className={styles.progressBadge}>
+          {progress.label}
+        </div>
+      )}
+
       <div className={styles.actionsRow} style={notebookMode ? { display: 'none' } : undefined}>
         <div className={styles.exportWrapper} ref={exportRef}>
           <button className={styles.actionBtn} onClick={() => setShowExport(v => !v)} title="Export">

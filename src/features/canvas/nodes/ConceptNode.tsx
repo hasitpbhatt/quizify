@@ -16,7 +16,18 @@ function ConceptNodeComponent(props: NodeProps) {
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [entered, setEntered] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const prevExample = useRef(data.example);
+
+  useEffect(() => {
+    if (prevExample.current === 'Loading...' && data.example !== 'Loading...') {
+      setEntered(true);
+    }
+    prevExample.current = data.example;
+  }, [data.example]);
+
+  const isShell = data.example === 'Loading...';
 
   useEffect(() => {
     return () => {
@@ -65,7 +76,7 @@ function ConceptNodeComponent(props: NodeProps) {
   };
 
   return (
-    <div className={styles.node}>
+    <div className={`${styles.node}${isShell ? ` ${styles.loading}` : ''}${entered ? ` ${styles.entered}` : ''}`}>
       <Handle type="target" position={Position.Left} />
       <div className={styles.title}>{data.title}</div>
       <div className={styles.explanation}>
