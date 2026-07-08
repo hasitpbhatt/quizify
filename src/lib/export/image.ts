@@ -1,4 +1,4 @@
-import { toPng } from 'html-to-image';
+import html2canvas from 'html2canvas';
 import type { ReactFlowInstance } from '@xyflow/react';
 import type { Session } from '@/shared/types';
 import { downloadBlob, sessionFilename } from './types';
@@ -16,15 +16,20 @@ export async function exportCanvasAsPng(
   await new Promise(resolve => requestAnimationFrame(resolve));
 
   try {
-    const dataUrl = await toPng(container, {
+    const canvas = await html2canvas(container, {
       backgroundColor: '#ffffff',
-      pixelRatio: 2,
-      cacheBust: true,
+      scale: 2,
+      useCORS: true,
+      logging: false,
     });
 
-    const res = await fetch(dataUrl);
-    const blob = await res.blob();
-    downloadBlob(blob, sessionFilename(session, 'png'));
+    const blob = await new Promise<Blob | null>(resolve =>
+      canvas.toBlob(resolve, 'image/png'),
+    );
+
+    if (blob) {
+      downloadBlob(blob, sessionFilename(session, 'png'));
+    }
   } finally {
     reactFlowInstance.setViewport(viewport, { duration: 0 });
   }
