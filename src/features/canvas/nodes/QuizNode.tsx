@@ -2,6 +2,8 @@ import { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import styles from './QuizNode.module.css';
 import type { QuizData } from '@/shared/types';
+import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
+import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
 
 const badgeColors: Record<string, { bg: string; text: string }> = {
   untested: { bg: 'var(--bg-elevated)', text: 'var(--text-secondary)' },
@@ -12,7 +14,7 @@ const badgeColors: Record<string, { bg: string; text: string }> = {
   mastered: { bg: 'rgba(34,197,94,0.15)', text: '#22c55e' },
 };
 
-function QuizNodeComponent(props: NodeProps) {
+function QuizNodeInner(props: NodeProps) {
   const data = props.data as unknown as QuizData;
   const formatLabel = data.format
     .replace(/([A-Z])/g, ' $1')
@@ -42,4 +44,12 @@ function QuizNodeComponent(props: NodeProps) {
   );
 }
 
-export const QuizNode = memo(QuizNodeComponent);
+function QuizNodeWrapper(props: NodeProps) {
+  return (
+    <ErrorBoundary name="QuizNode" fallback={<NodeErrorFallback nodeId={props.id} type="quiz" />}>
+      <QuizNodeInner {...props} />
+    </ErrorBoundary>
+  );
+}
+
+export const QuizNode = memo(QuizNodeWrapper);

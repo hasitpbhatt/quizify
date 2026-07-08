@@ -4,8 +4,10 @@ import styles from './SummaryNode.module.css';
 import { useTypingAnimation } from '@/features/canvas/useTypingAnimation';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import type { SummaryData } from '@/shared/types';
+import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
+import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
 
-function SummaryNodeComponent(props: NodeProps) {
+function SummaryNodeInner(props: NodeProps) {
   const data = props.data as unknown as SummaryData;
   const notebookMode = useNotebookStore((s) => s.notebookMode);
 
@@ -92,4 +94,12 @@ function SummaryNodeComponent(props: NodeProps) {
   );
 }
 
-export const SummaryNode = memo(SummaryNodeComponent);
+function SummaryNodeWrapper(props: NodeProps) {
+  return (
+    <ErrorBoundary name="SummaryNode" fallback={<NodeErrorFallback nodeId={props.id} type="summary" />}>
+      <SummaryNodeInner {...props} />
+    </ErrorBoundary>
+  );
+}
+
+export const SummaryNode = memo(SummaryNodeWrapper);

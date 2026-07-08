@@ -27,6 +27,9 @@ import { Plus, BookOpen, Play, Pause, Square, Download, ChevronDown } from 'luci
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
 import { exportSessionJson } from '@/lib/export/json';
+import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
+import { CanvasErrorFallback } from '@/lib/components/CanvasErrorFallback';
+import { QuizErrorFallback } from '@/lib/components/QuizErrorFallback';
 import { downloadSessionMarkdown } from '@/lib/export/markdown';
 import { exportCanvasAsPng } from '@/lib/export/image';
 import '@/styles/notebook.css';
@@ -114,9 +117,10 @@ function filterVisibleNodes(
 
 interface CanvasPageProps {
   progress?: { stage: string; label: string };
+  onHome?: () => void;
 }
 
-export function CanvasPage({ progress }: CanvasPageProps) {
+export function CanvasPage({ progress, onHome }: CanvasPageProps) {
   const currentId = useSessionStore(s => s.currentId);
   const sessions = useSessionStore(s => s.sessions);
   const session = sessions.find(s => s.id === currentId);
@@ -322,6 +326,12 @@ export function CanvasPage({ progress }: CanvasPageProps) {
   }
 
   return (
+    <ErrorBoundary
+      name="Canvas"
+      fallback={(error: Error, reset: () => void) => (
+        <CanvasErrorFallback error={error} onReset={reset} onHome={onHome ?? (() => {})} />
+      )}
+    >
     <div className={styles.container} data-notebook={notebookMode ? 'true' : undefined}>
       <ReactFlow
         nodes={nodes}
@@ -407,22 +417,27 @@ export function CanvasPage({ progress }: CanvasPageProps) {
       )}
 
       {activeQuiz && (
-        <QuizInteraction
-          quiz={activeQuiz.quiz}
-          quizId={activeQuiz.quizId}
-          conceptTitle={activeQuiz.conceptTitle}
-          onClose={handleCloseQuiz}
-        />
+        <ErrorBoundary name="QuizInteraction" fallback={<QuizErrorFallback onClose={handleCloseQuiz} />}>
+          <QuizInteraction
+            quiz={activeQuiz.quiz}
+            quizId={activeQuiz.quizId}
+            conceptTitle={activeQuiz.conceptTitle}
+            onClose={handleCloseQuiz}
+          />
+        </ErrorBoundary>
       )}
 
       {summaryQuiz && session && (
-        <SummaryQuizInteraction
-          sessionId={session.id}
-          quizData={(session.nodes.find(n => n.id === '__summary__')?.data as SummaryData)?.finalQuiz ?? []}
-          onClose={handleCloseSummaryQuiz}
-          onRetake={handleRetakeSummary}
-        />
+        <ErrorBoundary name="SummaryQuiz" fallback={<QuizErrorFallback onClose={handleCloseSummaryQuiz} />}>
+          <SummaryQuizInteraction
+            sessionId={session.id}
+            quizData={(session.nodes.find(n => n.id === '__summary__')?.data as SummaryData)?.finalQuiz ?? []}
+            onClose={handleCloseSummaryQuiz}
+            onRetake={handleRetakeSummary}
+          />
+        </ErrorBoundary>
       )}
     </div>
+    </ErrorBoundary>
   );
 }

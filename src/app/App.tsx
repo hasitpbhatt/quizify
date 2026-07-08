@@ -14,6 +14,7 @@ import { outlineTask } from '@/lib/tasks/outlineTask';
 import { getProviderConfig } from '@/lib/llm/providers';
 import { runPipeline, type PipelineStep } from '@/lib/pipeline';
 import { useToastStore } from '@/shared/stores/toastStore';
+import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 
 export type JourneyStage = 'fetch' | 'outline' | PipelineStep;
 export type JourneyState = 'pending' | 'active' | 'done' | 'error';
@@ -166,7 +167,7 @@ export function App() {
   ) : page === 'canvas' ? (
     <>
       <Toolbar onNewSession={() => setPage('welcome')} />
-      <ReactFlowProvider><CanvasPage progress={progress} /></ReactFlowProvider>
+      <ReactFlowProvider><CanvasPage progress={progress} onHome={() => setPage('welcome')} /></ReactFlowProvider>
     </>
   ) : (
     <WelcomeModal
@@ -179,9 +180,31 @@ export function App() {
   );
 
   return (
-    <>
+    <ErrorBoundary
+      name="App"
+      fallback={(error: Error, reset: () => void) => (
+        <div style={{ padding: 40, textAlign: 'center', fontFamily: 'var(--font-ui, sans-serif)' }}>
+          <h2 style={{ marginBottom: 8 }}>Something went wrong</h2>
+          <p style={{ color: 'var(--text-secondary, #888)', marginBottom: 16 }}>{error.message}</p>
+          <button
+            onClick={() => { reset(); window.location.reload(); }}
+            style={{
+              padding: '8px 20px',
+              borderRadius: 6,
+              border: 'none',
+              background: 'var(--accent, #4f46e5)',
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: 14,
+            }}
+          >
+            Reload
+          </button>
+        </div>
+      )}
+    >
       {main}
       <Toaster />
-    </>
+    </ErrorBoundary>
   );
 }

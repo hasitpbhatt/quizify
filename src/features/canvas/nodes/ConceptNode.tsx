@@ -6,8 +6,10 @@ import { fetchTtsBlob } from '@/lib/llm/tts';
 import { useTypingAnimation } from '@/features/canvas/useTypingAnimation';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import type { ConceptData } from '@/shared/types';
+import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
+import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
 
-function ConceptNodeComponent(props: NodeProps) {
+function ConceptNodeInner(props: NodeProps) {
   const data = props.data as unknown as ConceptData;
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const textToRead = `${data.title}. ${data.explanation}`;
@@ -103,4 +105,12 @@ function ConceptNodeComponent(props: NodeProps) {
   );
 }
 
-export const ConceptNode = memo(ConceptNodeComponent);
+function ConceptNodeWrapper(props: NodeProps) {
+  return (
+    <ErrorBoundary name="ConceptNode" fallback={<NodeErrorFallback nodeId={props.id} type="concept" />}>
+      <ConceptNodeInner {...props} />
+    </ErrorBoundary>
+  );
+}
+
+export const ConceptNode = memo(ConceptNodeWrapper);

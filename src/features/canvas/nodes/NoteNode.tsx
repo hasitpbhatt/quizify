@@ -3,8 +3,10 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import type { NoteData, CanvasNode } from '@/shared/types';
 import styles from './NoteNode.module.css';
+import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
+import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
 
-function NoteNodeComponent(props: NodeProps) {
+function NoteNodeInner(props: NodeProps) {
   const data = props.data as unknown as NoteData;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(data.text);
@@ -87,4 +89,12 @@ function NoteNodeComponent(props: NodeProps) {
   );
 }
 
-export const NoteNode = memo(NoteNodeComponent);
+function NoteNodeWrapper(props: NodeProps) {
+  return (
+    <ErrorBoundary name="NoteNode" fallback={<NodeErrorFallback nodeId={props.id} type="note" />}>
+      <NoteNodeInner {...props} />
+    </ErrorBoundary>
+  );
+}
+
+export const NoteNode = memo(NoteNodeWrapper);
