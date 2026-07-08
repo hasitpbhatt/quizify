@@ -1,9 +1,8 @@
-import type { LlmProvider, Persona, CanvasNode, CanvasEdge, ConceptData, QuizData, SummaryData, ChatMessage } from '@/shared/types';
-import { chat } from '@/lib/llm/chat';
-import { buildContentSystemPrompt, buildContentUserMessage } from '@/lib/prompts/content';
-import { parseContentResponse, type ContentResponse, type QuizItem } from '@/lib/llm/contentParser';
-import { buildSummarySystemPrompt, buildSummaryUserMessage } from '@/lib/prompts/summary';
-import { parseSummaryResponse } from '@/lib/llm/summaryParser';
+import type { LlmProvider, Persona, CanvasNode, CanvasEdge, ConceptData, QuizData, SummaryData } from '@/shared/types';
+import { executePromptTask } from '@/lib/llm/promptTask';
+import { contentTask } from '@/lib/tasks/contentTask';
+import { summaryTask } from '@/lib/tasks/summaryTask';
+import type { QuizItem } from '@/lib/llm/contentParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useToastStore } from '@/shared/stores/toastStore';
 
@@ -20,20 +19,7 @@ type ProgressCallback = (progress: PipelineProgress) => void;
 const CONCURRENCY = 1;
 
 function quizItemToQuizData(item: QuizItem, conceptId: string): QuizData {
-  return {
-    kind: 'quiz',
-    parentConceptId: conceptId,
-    format: item.format,
-    prompt: item.prompt,
-    options: item.options ?? undefined,
-    blankedSentence: item.blankedSentence ?? undefined,
-    items: item.items ?? undefined,
-    correctAnswer: item.correctAnswer,
-    acceptableAnswers: item.acceptableAnswers ?? undefined,
-    rationale: item.rationale,
-    attempts: [],
-    state: 'untested',
-  };
+  return { kind: 'quiz', parentConceptId: conceptId, attempts: [], state: 'untested', ...item };
 }
 
 function createMutex() {
@@ -120,32 +106,12 @@ export async function runPipeline(
     const cursorX = 100 + i * PAIR_WIDTH;
 
     try {
-      const messages: ChatMessage[] = [
-        { role: 'system', content: buildContentSystemPrompt(persona, topic) },
-        { role: 'user', content: buildContentUserMessage(concept) },
-      ];
-
-      let content: ContentResponse | null = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const res = await chat(messages, {
-          apiKey, provider, signal, responseFormat: 'json',
-          onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
-        });
-        try {
-          content = parseContentResponse(res.content);
-          break;
-        } catch (err) {
-          if (attempt === 0) {
-            console.warn(`[pipeline] ParseError for concept ${concept.id}, retrying. Raw:\n${res.content.slice(0, 500)}`);
-            messages.push({ role: 'user', content: 'Your previous response could not be parsed as valid JSON. Return ONLY valid JSON matching the requested schema — no markdown fences, no extra text.' });
-          } else {
-            throw err;
-          }
-        }
-      }
-      if (!content) {
-        throw new Error(`Failed to parse LLM response for concept ${concept.id} after retry`);
-      }
+      const content = await executePromptTask(contentTask, {
+        apiKey, provider, persona, signal,
+        context: { topic },
+        onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
+        onParseRetry: (raw) => console.warn(`[pipeline] ParseError for concept ${concept.id}, retrying. Raw:\n${raw.slice(0, 500)}`),
+      }, concept);
 
       generatedConcepts.push({
         id: concept.id,
@@ -255,15 +221,11 @@ export async function runPipeline(
   if (generatedConcepts.length > 0) {
     notify('summary', 'Creating summary & final quiz\u2026');
     try {
-      const summaryMessages = [
-        { role: 'system' as const, content: buildSummarySystemPrompt(persona, topic) },
-        { role: 'user' as const, content: buildSummaryUserMessage(generatedConcepts) },
-      ];
-      const summaryRes = await chat(summaryMessages, {
-        apiKey, provider, signal, responseFormat: 'json',
+      const parsed = await executePromptTask(summaryTask, {
+        apiKey, provider, persona, signal,
+        context: { topic },
         onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
-      });
-      const parsed = parseSummaryResponse(summaryRes.content);
+      }, generatedConcepts);
       const summaryData: SummaryData = {
         kind: 'summary',
         recap: parsed.recap,

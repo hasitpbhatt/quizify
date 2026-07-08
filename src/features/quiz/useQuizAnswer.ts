@@ -1,8 +1,7 @@
 import { useState, useCallback } from 'react';
-import { chat } from '@/lib/llm/chat';
+import { executePromptTask } from '@/lib/llm/promptTask';
+import { gradeTask } from '@/lib/tasks/gradeTask';
 import { getGradingModel } from '@/lib/llm/providers';
-import { buildGradeSystemPrompt, buildGradeUserMessage } from '@/lib/prompts/grade';
-import { parseGradeResponse } from '@/lib/llm/gradeParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useToastStore } from '@/shared/stores/toastStore';
@@ -83,19 +82,19 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
 
       if (quiz.format === 'shortAnswer' || quiz.format === 'freeText') {
         try {
-          const messages = [
-            { role: 'system' as const, content: buildGradeSystemPrompt(quiz.parentConceptId) },
-            { role: 'user' as const, content: buildGradeUserMessage(quiz.prompt, typeof given === 'string' ? given : JSON.stringify(given), quiz.correctAnswer) },
-          ];
-          const res = await chat(messages, {
-            apiKey, provider, model: getGradingModel(provider),
+          result = await executePromptTask(gradeTask, {
+            apiKey, provider, persona: 'curious', signal: undefined,
+            context: { conceptTitle: quiz.parentConceptId },
+            model: getGradingModel(provider),
             onRetry: (info) => {
               setRetryInfo({ attempt: info.attempt, maxRetries: info.maxRetries });
               useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`);
             },
+          }, {
+            prompt: quiz.prompt,
+            given: typeof given === 'string' ? given : JSON.stringify(given),
+            correctAnswer: quiz.correctAnswer,
           });
-          const parsed = parseGradeResponse(res.content);
-          result = parsed;
         } catch {
           setRetryInfo(null);
           const givenStr = typeof given === 'string' ? given.trim().toLowerCase() : given.join(' ').toLowerCase();

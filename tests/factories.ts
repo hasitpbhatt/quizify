@@ -136,10 +136,7 @@ export function makeQuizItem(overrides?: Partial<QuizItem>): QuizItem {
     format: 'multipleChoice',
     prompt: 'Test question?',
     options: ['Option A', 'Option B', 'Option C', 'Option D'],
-    blankedSentence: null,
-    items: null,
     correctAnswer: 'Option B',
-    acceptableAnswers: null,
     rationale: 'Option B is correct.',
     ...overrides,
   };

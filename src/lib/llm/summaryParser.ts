@@ -25,11 +25,11 @@ function parseQuizItem(raw: unknown, index: number): QuizItem {
   return {
     format: item.format as QuizFormat,
     prompt: item.prompt,
-    options: Array.isArray(item.options) ? item.options : null,
-    blankedSentence: typeof item.blankedSentence === 'string' ? item.blankedSentence : null,
-    items: Array.isArray(item.items) ? item.items : null,
+    options: Array.isArray(item.options) ? item.options : undefined,
+    blankedSentence: typeof item.blankedSentence === 'string' ? item.blankedSentence : undefined,
+    items: Array.isArray(item.items) ? item.items : undefined,
     correctAnswer: item.correctAnswer,
-    acceptableAnswers: Array.isArray(item.acceptableAnswers) ? item.acceptableAnswers : null,
+    acceptableAnswers: Array.isArray(item.acceptableAnswers) ? item.acceptableAnswers : undefined,
     rationale: item.rationale,
   };
 }

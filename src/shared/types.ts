@@ -102,13 +102,6 @@ export interface Session {
   scores: Record<string, { best: number; attempts: number }>;
 }
 
-export interface SourceResult {
-  content: string;
-  fetched: boolean;
-  hostname: string;
-  source: 'jina' | 'allorigins' | 'corsproxy' | 'cors-eu' | 'cache' | 'llm-knowledge';
-}
-
 export interface GenerationProgress {
   total: number;
   completed: number;

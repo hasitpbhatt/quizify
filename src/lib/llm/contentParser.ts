@@ -5,11 +5,11 @@ import type { QuizFormat } from '@/shared/types';
 export interface QuizItem {
   format: QuizFormat;
   prompt: string;
-  options: string[] | null;
-  blankedSentence: string | null;
-  items: string[] | null;
+  options?: string[];
+  blankedSentence?: string;
+  items?: string[];
   correctAnswer: string;
-  acceptableAnswers: string[] | null;
+  acceptableAnswers?: string[];
   rationale: string;
 }
 
@@ -88,13 +88,13 @@ export function parseContentResponse(raw: string): ContentResponse {
         return {
           format: quiz.format as QuizFormat,
           prompt: quiz.prompt,
-          options: Array.isArray(quiz.options) ? quiz.options : null,
-          blankedSentence: typeof quiz.blankedSentence === 'string' ? quiz.blankedSentence : null,
-          items: Array.isArray(quiz.items) ? quiz.items : null,
+          options: Array.isArray(quiz.options) ? quiz.options : undefined,
+          blankedSentence: typeof quiz.blankedSentence === 'string' ? quiz.blankedSentence : undefined,
+          items: Array.isArray(quiz.items) ? quiz.items : undefined,
           correctAnswer: quiz.correctAnswer,
-          acceptableAnswers: Array.isArray(quiz.acceptableAnswers) ? quiz.acceptableAnswers : null,
+          acceptableAnswers: Array.isArray(quiz.acceptableAnswers) ? quiz.acceptableAnswers : undefined,
           rationale: quiz.rationale,
-        } satisfies QuizItem;
+        } as QuizItem;
       } catch (e) {
         console.warn('[contentParser] skipping malformed quiz item', e);
         return null;
