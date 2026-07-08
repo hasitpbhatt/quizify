@@ -48,10 +48,10 @@ function toReactFlowNodes(canvasNodes: CanvasNode[], currentConceptIndex = Infin
       ...(n.data.kind === 'concept' && (n.data as ConceptData).index < currentConceptIndex
         ? { skipTyping: true }
         : {}),
-    } as unknown as Record<string, unknown>,
+    },
     draggable: n.draggable,
     selected: n.selected,
-  }));
+  })) as Node[];
 }
 
 function toReactFlowEdges(canvasEdges: CanvasEdge[]): Edge[] {

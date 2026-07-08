@@ -30,7 +30,7 @@ function NoteNodeInner(props: NodeProps) {
     const trimmed = draft.trim();
     if (trimmed === data.text) return;
 
-    const node = (props as unknown as { id: string }).id;
+    const node = props.id;
     const store = useSessionStore.getState();
     const session = store.sessions.find(s => s.id === store.currentId);
     if (!session) return;
@@ -55,7 +55,7 @@ function NoteNodeInner(props: NodeProps) {
   }, [data.text, handleSave]);
 
   const handleDelete = useCallback(() => {
-    const nodeId = (props as unknown as { id: string }).id;
+    const nodeId = props.id;
     const store = useSessionStore.getState();
     const session = store.sessions.find(s => s.id === store.currentId);
     if (!session) return;

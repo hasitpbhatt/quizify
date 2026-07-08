@@ -13,7 +13,7 @@ function ConceptNodeInner(props: NodeProps) {
   const data = props.data as unknown as ConceptData;
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const textToRead = `${data.title}. ${data.explanation}`;
-  const skipTyping = (props.data as unknown as Record<string, unknown>).skipTyping === true;
+  const skipTyping = props.data.skipTyping === true;
   const { revealed, isAnimating } = useTypingAnimation(props.id, textToRead, skipTyping);
 
   const [isPlaying, setIsPlaying] = useState(false);
