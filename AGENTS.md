@@ -90,6 +90,8 @@ Quiz answers are graded by sending the user's answer + the quiz's `rationale`/`c
 
 ## Gotchas — read these before touching store/pipeline code
 
+0. **Dual-width maintenance: CSS `.node` widths × notebook.css `max-width`.** Each node type has a fixed `width` in its `.module.css` (concept: 520px, quiz: 480px, summary: 600px, note: 480px). Notebook mode overrides these with `width: auto; max-width: 520px` in `src/styles/notebook.css:29`. Whenever you change the CSS widths, **you must also update `notebook.css:29`'s `max-width`** so notebook view doesn't clip the enlarged nodes.
+
 1. **State-store race (FIXED, keep it fixed).** `sessionStore.create` and `runPipeline`'s `updateCurrent` both await IndexedDB writes and then `set({ sessions })`. If they run concurrently they used to clobber each other's `sessions` array, leaving `session.nodes` empty and the canvas blank. Rules that prevent regressions:
    - In `App.tsx`, always `await createSession(...)` and `await select(session.id)` before AND after `runPipeline`. Never call `createSession` without awaiting.
    - In `sessionStore.ts`, always use the updater form `set((state) => ...)` and the `upsertSession` helper — never replace `sessions` with a snapshot captured before an awaited IDB write.
