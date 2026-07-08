@@ -3,6 +3,15 @@
    Applied when <body data-notebook="true">
    ============================================================ */
 
+[data-notebook="true"] {
+  --ink-color: #1a365d; /* deep navy blue ink for light theme */
+}
+
+[data-theme='dark'][data-notebook="true"],
+[data-theme='dark'] [data-notebook="true"] {
+  --ink-color: #a3c4f3; /* light gel pen blue for dark theme */
+}
+
 /* --- Ruled-line background (like a physical notebook) --- */
 [data-notebook="true"] .react-flow__background {
   background-image:
@@ -15,7 +24,7 @@
   background-color: transparent !important;
 }
 
-/* --- Strip all card styling from every node type --- */
+/* --- Strip all card styling from every node type except NoteNode --- */
 [data-notebook="true"] [class*="node"] {
   background: transparent !important;
   backdrop-filter: none !important;
@@ -27,29 +36,58 @@
   width: auto !important;
   min-width: 200px !important;
   max-width: 780px !important;
+  font-family: var(--font-canvas), 'Caveat', cursive !important;
+  color: var(--ink-color) !important;
+  /* subtle slant to feel organic and hand-written */
+  transform: rotate(-0.2deg);
 }
 
 [data-notebook="true"] [class*="node"]:hover {
-  transform: none !important;
+  transform: rotate(-0.2deg) !important;
   box-shadow: none !important;
   border-color: transparent !important;
+}
+
+/* --- Restore NoteNode sticky note container styling --- */
+[data-notebook="true"] .react-flow__node-note [class*="node"] {
+  background: var(--note-bg) !important;
+  border: none !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: var(--note-shadow) !important;
+  padding: var(--space-4) var(--space-5) !important;
+  width: 360px !important;
+  transform: rotate(-1.5deg) !important;
+  color: var(--note-text) !important; /* keep original note text color */
+}
+
+[data-notebook="true"] .react-flow__node-note [class*="node"]:hover {
+  transform: rotate(-2deg) scale(1.02) !important;
+}
+
+[data-notebook="true"] .react-flow__node-note [class*="text"],
+[data-notebook="true"] .react-flow__node-note textarea {
+  color: var(--note-text) !important;
 }
 
 /* --- Title / header styling for notebook mode --- */
 [data-notebook="true"] [class*="title"],
 [data-notebook="true"] [class*="header"] {
-  font-size: var(--fs-h1);
-  font-weight: var(--fw-title);
-  color: var(--text-primary);
+  font-family: var(--font-canvas), 'Caveat', cursive !important;
+  font-size: 2.1rem !important;
+  font-weight: 700 !important;
+  color: var(--ink-color) !important;
   margin-bottom: var(--space-2);
+  line-height: 1.2 !important;
 }
 
 /* --- Explanation / body text --- */
 [data-notebook="true"] [class*="explanation"],
 [data-notebook="true"] [class*="recapItem"] {
-  font-size: var(--fs-body);
-  color: var(--text-primary);
-  line-height: var(--lh-relaxed);
+  font-family: var(--font-canvas), 'Caveat', cursive !important;
+  font-size: 1.45rem !important;
+  font-weight: 500 !important;
+  color: var(--ink-color) !important;
+  line-height: 1.7 !important;
   margin-bottom: var(--space-3);
 }
 
@@ -57,17 +95,30 @@
 [data-notebook="true"] [class*="footer"] {
   display: flex !important;
   align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-  font-family: var(--font-ui);
-  font-size: var(--fs-small);
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  font-family: var(--font-canvas), 'Caveat', cursive !important;
+  font-size: 1.25rem !important;
+  color: var(--ink-color) !important;
+}
+
+[data-notebook="true"] [class*="footer"] span {
+  font-family: var(--font-canvas), 'Caveat', cursive !important;
+  font-size: 1.25rem !important;
+  color: var(--ink-color) !important;
 }
 
 [data-notebook="true"] [class*="quizBadge"] {
   display: inline !important;
-  font-size: var(--fs-small);
+  font-family: var(--font-canvas), 'Caveat', cursive !important;
+  font-size: 1.2rem !important;
   padding: 2px 8px;
   border-radius: var(--radius-pill);
+}
+
+[data-notebook="true"] [class*="badge"] {
+  font-family: var(--font-canvas), 'Caveat', cursive !important;
+  font-size: 1.2rem !important;
 }
 
 [data-notebook="true"] [class*="playButton"],
@@ -77,15 +128,26 @@
   display: none !important;
 }
 
+/* --- Quiz format text styling --- */
+[data-notebook="true"] [class*="format"] {
+  font-family: var(--font-canvas), 'Caveat', cursive !important;
+  font-size: 1.2rem !important;
+  font-weight: 700 !important;
+  color: var(--accent) !important;
+  margin-bottom: var(--space-1);
+}
+
 /* --- Quiz prompt looks like inline text in notebook mode --- */
 [data-notebook="true"] [class*="quizPrompt"],
 [data-notebook="true"] [class*="prompt"] {
-  font-size: var(--fs-body);
-  color: var(--text-primary);
-  font-style: italic;
+  font-family: var(--font-canvas), 'Caveat', cursive !important;
+  font-size: 1.45rem !important;
+  color: var(--ink-color) !important;
+  font-style: normal !important;
   padding-left: var(--space-4);
   border-left: 2px solid var(--accent-subtle);
   margin-bottom: var(--space-2);
+  line-height: 1.5 !important;
 }
 
 /* --- Make quiz nodes obviously clickable in notebook mode --- */
@@ -95,7 +157,7 @@
 }
 
 [data-notebook="true"] [data-node-type="quiz"]:hover {
-  opacity: 0.7;
+  opacity: 0.75;
 }
 
 /* --- Handles (the React Flow connection dots) — hide in notebook --- */
@@ -120,7 +182,7 @@
   animation: notebookBlink 0.6s step-end infinite;
   color: var(--accent);
   font-weight: 300;
-  font-size: var(--fs-body);
+  font-size: 1.4rem;
   margin-left: 1px;
 }
 

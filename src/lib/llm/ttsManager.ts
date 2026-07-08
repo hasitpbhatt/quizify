@@ -15,6 +15,7 @@ export interface TtsCallbacks {
 type TtsState = 'idle' | 'playing' | 'paused' | 'stopped';
 
 interface TtsSubscription {
+  id: string;
   nodeId: string;
   onSegmentStart?: (nodeId: string) => void;
   onCharProgress?: (nodeId: string, charIndex: number) => void;
@@ -27,7 +28,7 @@ class TtsManagerSingleton {
   private state: TtsState = 'idle';
 
   private callbacks: TtsCallbacks = {};
-  private subscriptions = new Map<string, TtsSubscription>();
+  private subscriptions: TtsSubscription[] = [];
 
   // Audio element for Mistral Voxtral
   private audioEl: HTMLAudioElement | null = null;
@@ -130,20 +131,23 @@ class TtsManagerSingleton {
   /**
    * Subscribe to TTS events for a specific node.
    * Multiple nodes can subscribe independently without overwriting each other.
+   * Returns a unique subscription ID.
    */
   subscribe(nodeId: string, cb: {
     onSegmentStart?: (nodeId: string) => void;
     onCharProgress?: (nodeId: string, charIndex: number) => void;
     onSegmentEnd?: (nodeId: string) => void;
-  }): void {
-    this.subscriptions.set(nodeId, { nodeId, ...cb });
+  }): string {
+    const id = Math.random().toString(36).slice(2);
+    this.subscriptions.push({ id, nodeId, ...cb });
+    return id;
   }
 
   /**
-   * Unsubscribe a node from TTS events.
+   * Unsubscribe a subscription by ID.
    */
-  unsubscribe(nodeId: string): void {
-    this.subscriptions.delete(nodeId);
+  unsubscribe(subId: string): void {
+    this.subscriptions = this.subscriptions.filter(s => s.id !== subId);
   }
 
   /**
@@ -153,20 +157,39 @@ class TtsManagerSingleton {
     return this.queue.some(s => s.nodeId === nodeId);
   }
 
+  /**
+   * Manually complete a segment, useful for local fallback animations.
+   */
+  finishSegment(nodeId: string): void {
+    this.notifySegmentEnd(nodeId);
+  }
+
   // ==================== Internal ====================
 
   private notifySegmentStart(nodeId: string): void {
-    this.subscriptions.get(nodeId)?.onSegmentStart?.(nodeId);
+    this.subscriptions.forEach(s => {
+      if (s.nodeId === nodeId) {
+        s.onSegmentStart?.(nodeId);
+      }
+    });
     this.callbacks.onSegmentStart?.(nodeId);
   }
 
   private notifyCharProgress(nodeId: string, charIndex: number): void {
-    this.subscriptions.get(nodeId)?.onCharProgress?.(nodeId, charIndex);
+    this.subscriptions.forEach(s => {
+      if (s.nodeId === nodeId) {
+        s.onCharProgress?.(nodeId, charIndex);
+      }
+    });
     this.callbacks.onCharProgress?.(nodeId, charIndex);
   }
 
   private notifySegmentEnd(nodeId: string): void {
-    this.subscriptions.get(nodeId)?.onSegmentEnd?.(nodeId);
+    this.subscriptions.forEach(s => {
+      if (s.nodeId === nodeId) {
+        s.onSegmentEnd?.(nodeId);
+      }
+    });
     this.callbacks.onSegmentEnd?.(nodeId);
   }
 

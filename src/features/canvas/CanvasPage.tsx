@@ -137,6 +137,28 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
   const segmentIndex = useNotebookStore(s => s.segmentIndex);
   const totalSegments = useNotebookStore(s => s.totalSegments);
 
+  const focusOnActiveConcept = useCallback((conceptId: string, includeQuizzes = false) => {
+    if (!session) return;
+    const nodesToFocus = [conceptId];
+    if (includeQuizzes) {
+      const quizIds = session.nodes
+        .filter(n => n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === conceptId)
+        .map(n => n.id);
+      nodesToFocus.push(...quizIds);
+    }
+    
+    // Smoothly pan and zoom to fit these nodes
+    setTimeout(() => {
+      reactFlow.fitView({
+        nodes: nodesToFocus.map(id => ({ id })),
+        duration: 800,
+        padding: 0.25,
+        minZoom: 0.7,
+        maxZoom: 0.95,
+      });
+    }, 100); // slight delay to ensure nodes are fully layouted
+  }, [session, reactFlow]);
+
   const conceptTitles = useMemo(() => {
     const map = new Map<string, string>();
     if (session) {
@@ -284,16 +306,17 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
             quizIds.forEach(id => next.add(id));
             return next;
           });
+          focusOnActiveConcept(currentConcept.id, true);
         }
       }
     };
 
-    ttsManager.subscribe(currentConcept.id, { onSegmentEnd });
+    const subId = ttsManager.subscribe(currentConcept.id, { onSegmentEnd });
 
     return () => {
-      ttsManager.unsubscribe(currentConcept.id);
+      ttsManager.unsubscribe(subId);
     };
-  }, [notebookMode, currentConceptIndex, session, concepts]);
+  }, [notebookMode, currentConceptIndex, session, concepts, focusOnActiveConcept]);
 
   // In notebook mode: enqueue TTS for the current concept when it becomes active
   useEffect(() => {
@@ -311,7 +334,8 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     }
 
     setRevealedQuizIds(new Set());
-  }, [currentConceptIndex, notebookMode, session, concepts]);
+    focusOnActiveConcept(currentConcept.id, false);
+  }, [currentConceptIndex, notebookMode, session, concepts, focusOnActiveConcept]);
 
   if (!session || nodes.length === 0) {
     return (

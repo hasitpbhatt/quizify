@@ -14,7 +14,7 @@ function ConceptNodeInner(props: NodeProps) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const textToRead = `${data.title}. ${data.explanation}`;
   const skipTyping = props.data.skipTyping === true;
-  const { revealed, isAnimating } = useTypingAnimation(props.id, textToRead, skipTyping);
+  const { revealed } = useTypingAnimation(props.id, textToRead, skipTyping);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -77,18 +77,37 @@ function ConceptNodeInner(props: NodeProps) {
     }
   };
 
+  const titleText = data.title;
+  const explanationText = data.explanation;
+  const titlePrefixLength = titleText.length + 2; // for ". "
+
+  const titleRevealed = notebookMode ? Math.min(revealed, titleText.length) : titleText.length;
+  const explanationRevealed = notebookMode ? Math.max(0, revealed - titlePrefixLength) : explanationText.length;
+
+  const isTitleAnimating = notebookMode && revealed < titleText.length;
+  const isExplanationAnimating = notebookMode && revealed >= titleText.length && revealed < textToRead.length;
+
   return (
     <div className={`${styles.node}${isShell ? ` ${styles.loading}` : ''}${entered ? ` ${styles.entered}` : ''}`}>
       <Handle type="target" position={Position.Left} />
-      <div className={styles.title}>{data.title}</div>
+      <div className={styles.title}>
+        {notebookMode ? (
+          <>
+            {titleText.slice(0, titleRevealed)}
+            {isTitleAnimating && <span className="notebookCursor" />}
+          </>
+        ) : (
+          titleText
+        )}
+      </div>
       <div className={styles.explanation}>
         {notebookMode ? (
           <>
-            {textToRead.slice(0, revealed)}
-            {isAnimating && <span className="notebookCursor" />}
+            {explanationText.slice(0, explanationRevealed)}
+            {isExplanationAnimating && <span className="notebookCursor" />}
           </>
         ) : (
-          data.explanation
+          explanationText
         )}
       </div>
       {!notebookMode && (

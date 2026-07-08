@@ -20,6 +20,12 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
   useEffect(() => {
     if (!notebookMode || fullText.length === 0 || skipAnimation) {
       setRevealed(fullText.length);
+      if (notebookMode) {
+        // Run in next tick to avoid React render phase warnings
+        setTimeout(() => {
+          ttsManager.finishSegment(nodeId);
+        }, 0);
+      }
       return;
     }
 
@@ -40,6 +46,8 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
                 clearInterval(fallbackIntervalRef.current);
                 fallbackIntervalRef.current = null;
               }
+              // Notify that typing animation finished
+              ttsManager.finishSegment(nodeId);
               return totalChars;
             }
             return next;
@@ -75,14 +83,14 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
       }
     };
 
-    ttsManager.subscribe(nodeId, {
+    const subId = ttsManager.subscribe(nodeId, {
       onSegmentStart: onStart,
       onCharProgress: onProgress,
       onSegmentEnd: onEnd,
     });
 
     return () => {
-      ttsManager.unsubscribe(nodeId);
+      ttsManager.unsubscribe(subId);
       if (fallbackTimeoutRef.current) {
         clearTimeout(fallbackTimeoutRef.current);
         fallbackTimeoutRef.current = null;
