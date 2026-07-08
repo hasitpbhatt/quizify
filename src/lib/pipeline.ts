@@ -50,14 +50,14 @@ export async function runPipeline(
 
   const topic = outlineTitle || concepts.map(c => c.title).join(', ');
 
-  const COL_WIDTH = 300;
+  const COL_WIDTH = 600;
   const GAP_COL = 60;
   const GAP_ROW = 40;
   const PAIR_WIDTH = 2 * COL_WIDTH + GAP_COL;
   const START_Y = 100;
 
-  const CHARS_PER_LINE_QUIZ = 24;
-  const CHARS_PER_LINE_CONCEPT = 27;
+  const CHARS_PER_LINE_QUIZ = 48;
+  const CHARS_PER_LINE_CONCEPT = 54;
   const LINE_HEIGHT = 21;
 
   const estimateQuizHeight = (prompt: string): number => {
