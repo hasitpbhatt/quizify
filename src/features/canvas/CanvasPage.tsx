@@ -438,6 +438,17 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
       </div>
 
       {notebookMode && (
+        <button
+          className={styles.exitNotebookBtn}
+          onClick={toggleNotebookMode}
+          title="Exit notebook view"
+          type="button"
+        >
+          <X size={16} />
+        </button>
+      )}
+
+      {notebookMode && (
         <div className="notebookControls">
           <button onClick={toggleNotebookMode} title="Exit Notebook">
             <X size={14} />

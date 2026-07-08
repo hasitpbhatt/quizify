@@ -127,3 +127,29 @@
 .react-flow__controls-button:hover {
   background: var(--bg-subtle);
 }
+
+.exitNotebookBtn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 11;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-glass);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-md);
+  transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+
+.exitNotebookBtn:hover {
+  transform: scale(1.08);
+  background: var(--bg-elevated);
+}

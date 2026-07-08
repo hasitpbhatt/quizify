@@ -18,7 +18,9 @@ export function PersonaCard({ persona, label, sublabel, description, icon: Icon,
     <button
       className={clsx(styles.card, selected && styles.selected)}
       onClick={() => onSelect(persona)}
-      aria-pressed={selected}
+      role="radio"
+      aria-checked={selected}
+      aria-label={`${label}: ${description}`}
       type="button"
     >
       <Icon size={24} className={styles.icon} />

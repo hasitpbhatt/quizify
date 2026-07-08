@@ -50,6 +50,7 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
   const [showJina, setShowJina] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [exampleUrl, setExampleUrl] = useState('');
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
   const handleSubmit = () => {
     if (!submitEnabled) return;
@@ -65,7 +66,7 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
     <div className={styles.overlay}>
       <div className={styles.ambient} aria-hidden />
 
-      <main className={styles.modal}>
+      <main className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="welcome-heading">
         {error && (
           <div className={styles.errorBanner} role="alert">
             <span>{error}</span>
@@ -77,7 +78,7 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
             <Sparkles size={14} />
             <span>Learn anything, visually</span>
           </div>
-          <h1 className={styles.heading}>Turn any topic into a canvas you actually remember.</h1>
+          <h1 id="welcome-heading" className={styles.heading}>Turn any topic into a canvas you actually remember.</h1>
           <p className={styles.subheading}>
             Paste a URL or type a topic and Quizify breaks it into concepts, quizzes, and a final recap — laid out on an infinite canvas.
           </p>
@@ -92,6 +93,7 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
               type="text"
               placeholder="Paste a URL or type a topic — e.g. an article link or 'agentic AI'"
               value={url}
+              autoFocus
               onChange={(e) => { setUrl(e.target.value); setExampleUrl(''); }}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
               autoComplete="off"
@@ -124,7 +126,7 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
 
         <section className={styles.section}>
           <label className={styles.label}>How should we teach you?</label>
-          <div className={styles.personaGrid}>
+          <div className={styles.personaGrid} role="radiogroup" aria-label="Teaching style">
             {PERSONAS.map((p) => (
               <PersonaCard
                 key={p.value}
@@ -156,7 +158,7 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
                 .map((s) => {
                   const Icon = PERSONA_ICONS[s.persona] ?? Sparkles;
                   return (
-                    <div key={s.id} className={styles.sessionCard} onClick={() => onSelectSession(s.id)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') onSelectSession(s.id); }}>
+                    <div key={s.id} className={styles.sessionCard} onClick={() => { onSelectSession(s.id); setConfirmingDelete(null); }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectSession(s.id); } }}>
                       <Icon size={16} />
                       <div className={styles.sessionInfo}>
                         <span className={styles.sessionName}>{s.name}</span>
@@ -168,11 +170,19 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
                       </div>
                       <button
                         className={styles.sessionDelete}
-                        onClick={(e) => { e.stopPropagation(); removeSession(s.id); }}
-                        aria-label="Delete session"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirmingDelete === s.id) {
+                            removeSession(s.id);
+                            setConfirmingDelete(null);
+                          } else {
+                            setConfirmingDelete(s.id);
+                          }
+                        }}
+                        aria-label={confirmingDelete === s.id ? `Confirm delete ${s.name}` : `Delete session ${s.name}`}
                         type="button"
                       >
-                        <X size={14} />
+                        {confirmingDelete === s.id ? 'Confirm?' : <X size={14} />}
                       </button>
                     </div>
                   );

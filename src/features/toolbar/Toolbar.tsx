@@ -12,6 +12,7 @@ export function Toolbar({ onNewSession }: ToolbarProps) {
   const { sessions, currentId, load, select, remove } = useSessionStore();
   const { theme, setTheme } = useSettingsStore();
   const [open, setOpen] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   const cycleTheme = () => {
@@ -29,6 +30,7 @@ export function Toolbar({ onNewSession }: ToolbarProps) {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false);
+        setConfirmingDelete(null);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -88,17 +90,25 @@ export function Toolbar({ onNewSession }: ToolbarProps) {
                 className={`${styles.dropdownItem} ${s.id === currentId ? styles.dropdownItemActive : ''}`}
                 role="option"
                 aria-selected={s.id === currentId}
-                onClick={() => { select(s.id); setOpen(false); }}
+                onClick={() => { select(s.id); setOpen(false); setConfirmingDelete(null); }}
               >
                 <span>{s.name}</span>
                 <span className={styles.dropdownItemMeta}>{formatDate(s.updatedAt)}</span>
                 <button
                   className={styles.deleteBtn}
-                  onClick={(e) => { e.stopPropagation(); remove(s.id); }}
-                  aria-label={`Delete session ${s.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirmingDelete === s.id) {
+                      remove(s.id);
+                      setConfirmingDelete(null);
+                    } else {
+                      setConfirmingDelete(s.id);
+                    }
+                  }}
+                  aria-label={confirmingDelete === s.id ? `Confirm delete ${s.name}` : `Delete session ${s.name}`}
                   type="button"
                 >
-                  <X size={14} />
+                  {confirmingDelete === s.id ? 'Confirm?' : <X size={14} />}
                 </button>
               </div>
             ))}

@@ -54,7 +54,6 @@
   width: auto !important;
   min-width: 200px !important;
   max-width: 500px !important;
-  font-family: var(--font-canvas), 'Caveat', cursive !important;
   color: var(--ink-color) !important;
   /* subtle slant to feel organic and hand-written */
   transform: rotate(-0.2deg);
@@ -84,6 +83,7 @@
 
 [data-notebook="true"] .react-flow__node-note [class*="text"],
 [data-notebook="true"] .react-flow__node-note textarea {
+  font-family: var(--font-canvas), 'Caveat', cursive !important;
   color: var(--note-text) !important;
 }
 
@@ -115,27 +115,23 @@
   align-items: center;
   gap: var(--space-3);
   margin-top: var(--space-3);
-  font-family: var(--font-canvas), 'Caveat', cursive !important;
   font-size: 1.15rem !important;
   color: var(--ink-color) !important;
 }
 
 [data-notebook="true"] [class*="footer"] span {
-  font-family: var(--font-canvas), 'Caveat', cursive !important;
   font-size: 1.15rem !important;
   color: var(--ink-color) !important;
 }
 
 [data-notebook="true"] [class*="quizBadge"] {
   display: inline !important;
-  font-family: var(--font-canvas), 'Caveat', cursive !important;
   font-size: 1.1rem !important;
   padding: 2px 8px;
   border-radius: var(--radius-pill);
 }
 
 [data-notebook="true"] [class*="badge"] {
-  font-family: var(--font-canvas), 'Caveat', cursive !important;
   font-size: 1.1rem !important;
 }
 
@@ -280,6 +276,7 @@
 [data-notebook="true"] [class*="results"],
 [data-notebook="true"] [class*="quizCount"],
 [data-notebook="true"] [class*="quizBadge"],
+[data-notebook="true"] [class*="footer"],
 .notebookControls,
 .notebookControls button,
 .notebookControls span,
