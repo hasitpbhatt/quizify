@@ -35,12 +35,17 @@ import styles from './CanvasPage.module.css';
 const nodeTypes = { concept: ConceptNode, quiz: QuizNode, summary: SummaryNode, note: NoteNode };
 const edgeTypes = { wiggly: WigglyEdge };
 
-function toReactFlowNodes(canvasNodes: CanvasNode[]): Node[] {
+function toReactFlowNodes(canvasNodes: CanvasNode[], currentConceptIndex = Infinity): Node[] {
   return canvasNodes.map(n => ({
     id: n.id,
     type: n.type,
     position: n.position,
-    data: n.data as unknown as Record<string, unknown>,
+    data: {
+      ...n.data,
+      ...(n.data.kind === 'concept' && (n.data as ConceptData).index < currentConceptIndex
+        ? { skipTyping: true }
+        : {}),
+    } as unknown as Record<string, unknown>,
     draggable: n.draggable,
     selected: n.selected,
   }));
@@ -158,8 +163,8 @@ export function CanvasPage({ progress }: CanvasPageProps) {
   }, [session, currentConceptIndex, revealedQuizIds, notebookMode]);
 
   const nodes: Node[] = useMemo(
-    () => toReactFlowNodes(visibleData.nodes),
-    [visibleData.nodes],
+    () => toReactFlowNodes(visibleData.nodes, currentConceptIndex),
+    [visibleData.nodes, currentConceptIndex],
   );
   const edges: Edge[] = useMemo(
     () => toReactFlowEdges(visibleData.edges),

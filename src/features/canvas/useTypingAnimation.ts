@@ -10,7 +10,7 @@ import { useNotebookStore } from '@/shared/stores/notebookStore';
  * Falls back to a local timer if TTS doesn't start within 2 seconds.
  * In default mode, reveals the full text immediately.
  */
-export function useTypingAnimation(nodeId: string, fullText: string) {
+export function useTypingAnimation(nodeId: string, fullText: string, skipAnimation = false) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const [revealed, setRevealed] = useState(fullText.length);
   const hasHadTts = useRef(false);
@@ -18,7 +18,7 @@ export function useTypingAnimation(nodeId: string, fullText: string) {
   const fallbackIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (!notebookMode || fullText.length === 0) {
+    if (!notebookMode || fullText.length === 0 || skipAnimation) {
       setRevealed(fullText.length);
       return;
     }
@@ -95,13 +95,13 @@ export function useTypingAnimation(nodeId: string, fullText: string) {
         setRevealed(fullText.length);
       }
     };
-  }, [nodeId, fullText, notebookMode]);
+  }, [nodeId, fullText, notebookMode, skipAnimation]);
 
   useEffect(() => {
-    if (!notebookMode) {
+    if (!notebookMode || skipAnimation) {
       setRevealed(fullText.length);
     }
-  }, [notebookMode, fullText]);
+  }, [notebookMode, fullText, skipAnimation]);
 
   return { revealed, isAnimating: revealed < fullText.length };
 }

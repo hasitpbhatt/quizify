@@ -11,7 +11,8 @@ function ConceptNodeComponent(props: NodeProps) {
   const data = props.data as unknown as ConceptData;
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const textToRead = `${data.title}. ${data.explanation}`;
-  const { revealed, isAnimating } = useTypingAnimation(props.id, textToRead);
+  const skipTyping = (props.data as unknown as Record<string, unknown>).skipTyping === true;
+  const { revealed, isAnimating } = useTypingAnimation(props.id, textToRead, skipTyping);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
