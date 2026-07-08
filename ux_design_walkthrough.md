@@ -1,48 +1,43 @@
-# Walkthrough: Quizify UX & Aesthetics Refinement
+# Walkthrough: UX Fixes, Drag-and-Drop, and progression Protection
 
-All planned changes have been successfully implemented and validated! Below is a summary of the improvements made to desktop canvas views, notebook views, and mobile views.
+All planned fixes have been successfully implemented and verified! Here is a summary of the improvements made to desktop canvas views, notebook views, progression logic, quiz formats, and unit tests.
 
 ---
 
 ## 1. Summary of Changes
 
 ### Desktop Canvas & Notebook Mode
-* **Exit Button in Notebook HUD**: Resolved the navigation trap in [CanvasPage.tsx](file:///c:/Users/Lenovo/daily/quizify/src/features/canvas/CanvasPage.tsx) by adding a close button (`X` icon) that calls `toggleNotebookMode`.
-* **Persistent Controls**: Removed the `.hidden` behavior so the notebook controls HUD remains persistently visible at the bottom while in notebook mode.
-* **Audio Stop Gating**: Disabled the TTS stop button (`Square` icon) when audio is idle to prevent unwanted interaction.
+* **Auto-Stop TTS on Exit**: Configured a `useEffect` inside [CanvasPage.tsx](file:///c:/Users/Lenovo/daily/quizify/src/features/canvas/CanvasPage.tsx) that triggers `ttsManager.stop()` immediately when `notebookMode` transitions to `false`. This prevents audio narration from continuing when toggling back to standard view.
+* **Fix Quiz Card Flickering Bug**: Introduced a `lastConceptIndexRef` ref inside [CanvasPage.tsx](file:///c:/Users/Lenovo/daily/quizify/src/features/canvas/CanvasPage.tsx). The `revealedQuizIds` state is now only reset, and the camera is only refocused, when the concept index actually changes (e.g. progressing forward to a new concept). Selecting a quiz node no longer resets the revealed quiz nodes list, eliminating card flickering/unmounting.
 
-### Skeuomorphic Styles & Typographical Hierarchy
-* **Ruled Paper Background**: Modified [notebook.css](file:///c:/Users/Lenovo/daily/quizify/src/styles/notebook.css) to apply the ruled lines to `.react-flow__pane` (which is always rendered) rather than the unmounted `.react-flow__background`.
-* **Warm Cream Texture & Margin**:
-  * Added a warm cream background (`#FAF8F5`) for light theme and a dark paper slate background (`#12110E`) for dark theme.
-  * Added a vertical pinkish-red paper margin line on the left side of the workspace container.
-* **Legibility Overrides**: Restored the modern sans-serif `Inter` font for buttons, counts, badges, and the control HUD text, reserving cursive `Caveat` only for written concept headings and text paragraphs.
+### Progression protection
+* **Attempts History Validation**: Modified `getUnlockedConceptIndex` in [progression.ts](file:///c:/Users/Lenovo/daily/quizify/src/lib/progression.ts) to verify if a quiz has *ever* been answered correctly in the past (`q.data.attempts.some(att => att.grade === 'correct')`) rather than looking solely at the current state. This ensures that failing a retake of an older quiz does not roll back the user's progress or lock future concepts.
 
-### Mobile Parity & Navigation Drawer
-* **Notebook State Parity**: Configured the mobile layout in [MobileFocusView.tsx](file:///c:/Users/Lenovo/daily/quizify/src/features/canvas/MobileFocusView.tsx) to read `notebookMode`. Added a `data-notebook` conditional attribute to the wrapper element.
-* **Warm Paper Overrides**: Updated [MobileFocusView.module.css](file:///c:/Users/Lenovo/daily/quizify/src/features/canvas/MobileFocusView.module.css) to override card styles in mobile notebook mode (cream/charcoal paper background, left-side red margin line, cursive fonts, and sans-serif controls).
-* **Floating Mobile Player HUD**: Added an audio controller bar directly above the navigation bar in [MobileFocusView.tsx](file:///c:/Users/Lenovo/daily/quizify/src/features/canvas/MobileFocusView.tsx) with play, pause, stop, and segment labels when notebook mode is active.
-* **Outline Drawer**:
-  * Added an **Outline** button next to the Map button at the top header of the screen.
-  * Created an overlay drawer slide-up listing each node's type and title. Clicking any outline item jumps the mobile viewport index directly to that card and closes the drawer.
+### Drag-and-Drop Ordering Format
+* **HTML5 Drag-and-Drop List**: Replaced click arrows with native HTML5 drag-and-drop handlers inside [Ordering.tsx](file:///c:/Users/Lenovo/daily/quizify/src/features/quiz/formats/Ordering.tsx). As items are dragged over one another, the list dynamically sorts to provide instantaneous layout feedback.
+* **Visual Styling & Drag Grabs**: Updated [Ordering.module.css](file:///c:/Users/Lenovo/daily/quizify/src/features/quiz/formats/Ordering.module.css) to add drag icons (`☰`), active dragging states (dashed lines and scale animations), and grab cursors.
+
+### Codebase Test Suite Repairs
+* **useQuizAnswer.test.ts**: Removed unused imports of `localGrade` and `computeState`.
+* **useWelcomeState.test.ts**: Removed the unused `beforeEach` import.
+* **json.test.ts**: Restructured `scores` assertions to match the `Session` record type format (`{ concept1: { best: 80, attempts: 1 } }`).
+* **types.test.ts**: Removed the unused `vi` import.
+* **sessionStore.test.ts**: Removed unused `vi` and `Session` imports.
 
 ---
 
 ## 2. Verification & Validation Results
 
 ### 1. TypeScript & Type Checking
-* Executed type checking successfully in the workspace:
+* Executed type checking successfully across both the source code and the unit tests:
   ```bash
   npm run typecheck
   ```
   * **Result**: `0` TypeScript compilation errors or warnings.
 
 ### 2. Production Bundle Compilation
-* Built the production assets using Vite:
+* Built the production assets successfully:
   ```bash
   npm run build
   ```
-  * **Result**: Build completed successfully in `8.74s`, producing the compiled client bundles:
-    * `dist/index.html`
-    * `dist/assets/index-Bju3WkXm.js`
-    * `dist/assets/index-wXDdRDlt.css`
+  * **Result**: Clean build in `7.31s` with all compilation checks passing.

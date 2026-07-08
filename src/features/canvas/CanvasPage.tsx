@@ -183,6 +183,8 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     [session?.nodes],
   );
 
+  const lastConceptIndexRef = useRef(currentConceptIndex);
+
   const visibleData = useMemo(() => {
     if (!session) return { nodes: [], edges: [] };
     return filterVisibleNodes(session.nodes, session.edges, currentConceptIndex, revealedQuizIds, notebookMode);
@@ -325,6 +327,13 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     const currentConcept = concepts.find(c => c.data.index === currentConceptIndex);
     if (!currentConcept) return;
 
+    // Only reset revealed quizzes and refocus when the concept index actually changes
+    if (lastConceptIndexRef.current !== currentConceptIndex) {
+      setRevealedQuizIds(new Set());
+      focusOnActiveConcept(currentConcept.id, false);
+      lastConceptIndexRef.current = currentConceptIndex;
+    }
+
     const text = `${currentConcept.data.title}. ${currentConcept.data.explanation}`;
     if (!ttsManager.hasSegment(currentConcept.id)) {
       ttsManager.enqueue({ nodeId: currentConcept.id, text });
@@ -332,10 +341,14 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     if (!ttsManager.isPlaying && !ttsManager.isPaused) {
       ttsManager.start();
     }
-
-    setRevealedQuizIds(new Set());
-    focusOnActiveConcept(currentConcept.id, false);
   }, [currentConceptIndex, notebookMode, session, concepts, focusOnActiveConcept]);
+
+  // Stop TTS narration when exiting notebook mode
+  useEffect(() => {
+    if (!notebookMode) {
+      ttsManager.stop();
+    }
+  }, [notebookMode]);
 
   if (!session || nodes.length === 0) {
     return (

@@ -12,7 +12,10 @@ export function getUnlockedConceptIndex(nodes: CanvasNode[]): number {
     );
     if (quizzes.length === 0) continue;
     const allCorrect = quizzes.every(
-      q => q.data.state === 'correct' || q.data.state === 'mastered',
+      q =>
+        q.data.state === 'correct' ||
+        q.data.state === 'mastered' ||
+        (q.data.attempts && q.data.attempts.some(att => att.grade === 'correct')),
     );
     if (!allCorrect) return i;
   }

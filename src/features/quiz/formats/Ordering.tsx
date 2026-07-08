@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import styles from './Ordering.module.css';
 
 interface Props {
@@ -9,35 +9,49 @@ interface Props {
 
 export function Ordering({ items, disabled, onSubmit }: Props) {
   const [order, setOrder] = useState(() => [...items].sort(() => Math.random() - 0.5));
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
-  const moveItem = useCallback((fromIndex: number, direction: -1 | 1) => {
-    const toIndex = fromIndex + direction;
-    if (toIndex < 0 || toIndex >= order.length) return;
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    if (disabled) return;
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index || disabled) return;
+
     const next = [...order];
-    [next[fromIndex], next[toIndex]] = [next[toIndex], next[fromIndex]];
+    const draggedItem = next[draggedIndex];
+    next.splice(draggedIndex, 1);
+    next.splice(index, 0, draggedItem);
+    setDraggedIndex(index);
     setOrder(next);
-  }, [order]);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+  };
 
   return (
     <div className={styles.list}>
-      {order.map((item, i) => (
-        <div key={item} className={styles.item}>
-          <span className={styles.index}>{i + 1}.</span>
-          <span className={styles.label}>{item}</span>
-          <div className={styles.arrowGroup}>
-            <button
-              className={styles.arrowBtn}
-              onClick={() => moveItem(i, -1)}
-              disabled={i === 0 || disabled}
-            >▲</button>
-            <button
-              className={styles.arrowBtn}
-              onClick={() => moveItem(i, 1)}
-              disabled={i === order.length - 1 || disabled}
-            >▼</button>
+      {order.map((item, i) => {
+        const isDragging = i === draggedIndex;
+        return (
+          <div
+            key={item}
+            className={`${styles.item} ${isDragging ? styles.dragging : ''} ${disabled ? styles.disabledItem : ''}`}
+            draggable={!disabled}
+            onDragStart={(e) => handleDragStart(e, i)}
+            onDragOver={(e) => handleDragOver(e, i)}
+            onDragEnd={handleDragEnd}
+          >
+            <div className={styles.dragHandle}>☰</div>
+            <span className={styles.index}>{i + 1}.</span>
+            <span className={styles.label}>{item}</span>
           </div>
-        </div>
-      ))}
+        );
+      })}
       <button
         className={styles.submitBtn}
         onClick={() => onSubmit(order)}
