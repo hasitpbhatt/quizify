@@ -5,6 +5,7 @@ import type { CanvasNode, ConceptData, QuizData, NoteData, SummaryData } from '@
 import { QuizInteraction } from '@/features/quiz/QuizInteraction';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
+import { Play, Pause, Square, List } from 'lucide-react';
 import styles from './MobileFocusView.module.css';
 
 interface Props {
@@ -51,6 +52,7 @@ function renderContent(node: CanvasNode): { title?: string; body: string } {
 export function MobileFocusView({ nodes, progress }: Props) {
   const [index, setIndex] = useState(0);
   const [showMinimap, setShowMinimap] = useState(false);
+  const [showOutline, setShowOutline] = useState(false);
   const [activeQuiz, setActiveQuiz] = useState<{ quizId: string; quiz: QuizData; conceptTitle: string } | null>(null);
 
   // Clamp index when nodes shrink
@@ -65,8 +67,38 @@ export function MobileFocusView({ nodes, progress }: Props) {
   const node = nodes[index];
   const total = nodes.length;
 
-  // Auto-TTS on card change in notebook mode
   const notebookMode = useNotebookStore(s => s.notebookMode);
+  const ttsPlaying = useNotebookStore(s => s.ttsPlaying);
+  const ttsPaused = useNotebookStore(s => s.ttsPaused);
+  const segmentIndex = useNotebookStore(s => s.segmentIndex);
+  const totalSegments = useNotebookStore(s => s.totalSegments);
+
+  const handlePlayPause = useCallback(() => {
+    if (ttsPaused) {
+      ttsManager.resume();
+    } else if (!ttsPlaying) {
+      if (node) {
+        if (node.data.kind === 'concept') {
+          const c = node.data as ConceptData;
+          const text = `${c.title}. ${c.explanation}`;
+          ttsManager.enqueue({ nodeId: node.id, text });
+        } else if (node.data.kind === 'summary') {
+          const s = node.data as SummaryData;
+          const text = s.recap.join('. ');
+          ttsManager.enqueue({ nodeId: node.id, text });
+        }
+      }
+      ttsManager.start();
+    } else {
+      ttsManager.pause();
+    }
+  }, [ttsPlaying, ttsPaused, node]);
+
+  const handleStopTts = useCallback(() => {
+    ttsManager.stop();
+  }, []);
+
+  // Auto-TTS on card change in notebook mode
   useEffect(() => {
     if (!notebookMode || !node) return;
     if (node.data.kind === 'concept') {
@@ -118,7 +150,7 @@ export function MobileFocusView({ nodes, progress }: Props) {
   const isGenerating = progress && progress.stage !== 'done';
 
   return (
-    <div className={styles.wrapper}>
+    <div className={styles.wrapper} data-notebook={notebookMode ? 'true' : undefined}>
       {isGenerating && (
         <div className={styles.progressBar}>
           <span className={styles.progressDot} />
@@ -126,9 +158,15 @@ export function MobileFocusView({ nodes, progress }: Props) {
         </div>
       )}
 
-      <button className={styles.minimapBtn} onClick={() => setShowMinimap(v => !v)}>
-        {showMinimap ? '✕ Map' : '☰ Map'}
-      </button>
+      <div className={styles.topActions}>
+        <button className={styles.topActionBtn} onClick={() => setShowOutline(v => !v)}>
+          <List size={14} />
+          <span>Outline</span>
+        </button>
+        <button className={styles.topActionBtn} onClick={() => setShowMinimap(v => !v)}>
+          {showMinimap ? '✕ Map' : '☰ Map'}
+        </button>
+      </div>
 
       <div className={styles.card}>
         {node ? (
@@ -147,6 +185,22 @@ export function MobileFocusView({ nodes, progress }: Props) {
         )}
       </div>
 
+      {notebookMode && (
+        <div className={styles.mobileTtsControls}>
+          <button onClick={handlePlayPause} className={styles.playPauseBtn} title="Play/Pause">
+            {ttsPaused ? <Play size={14} /> : ttsPlaying ? <Pause size={14} /> : <Play size={14} />}
+          </button>
+          <button onClick={handleStopTts} className={styles.stopBtn} disabled={!ttsPlaying && !ttsPaused} title="Stop">
+            <Square size={14} />
+          </button>
+          <span className={styles.mobileTtsLabel}>
+            {totalSegments > 0
+              ? `${segmentIndex + 1} / ${totalSegments}`
+              : 'Queued'}
+          </span>
+        </div>
+      )}
+
       <div className={styles.nav}>
         <button className={styles.navBtn} onClick={goPrev} disabled={index === 0 || total === 0}>‹</button>
         <span className={styles.counter}>{total > 0 ? `${index + 1} / ${total}` : '0 / 0'}</span>
@@ -160,6 +214,38 @@ export function MobileFocusView({ nodes, progress }: Props) {
           conceptTitle={activeQuiz.conceptTitle}
           onClose={closeQuiz}
         />
+      )}
+
+      {showOutline && (
+        <div className={styles.outlineOverlay} onClick={() => setShowOutline(false)}>
+          <div className={styles.outlinePanel} onClick={e => e.stopPropagation()}>
+            <div className={styles.outlineHeader}>
+              <span className={styles.outlineHeaderTitle}>Outline</span>
+              <button className={styles.closeOutlineBtn} onClick={() => setShowOutline(false)}>✕</button>
+            </div>
+            <div className={styles.outlineList}>
+              {nodes.map((n, i) => {
+                const isCurrent = i === index;
+                const kind = formatKind(n);
+                const { title: nodeTitle } = renderContent(n);
+                const displayTitle = nodeTitle || (n.data.kind === 'note' ? (n.data as NoteData).text.slice(0, 30) + '...' : kind);
+                return (
+                  <button
+                    key={n.id}
+                    className={`${styles.outlineItem} ${isCurrent ? styles.activeOutlineItem : ''}`}
+                    onClick={() => {
+                      setIndex(i);
+                      setShowOutline(false);
+                    }}
+                  >
+                    <span className={styles.outlineKind}>{kind}</span>
+                    <span className={styles.outlineTitle}>{displayTitle}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       )}
 
       {showMinimap && (

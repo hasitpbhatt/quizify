@@ -1,0 +1,7 @@
+- `[x]` Fix the Notebook Navigation Trap on Desktop (`CanvasPage.tsx`)
+- `[x]` Refine Notebook Skeuomorphic Styles on Desktop (`notebook.css`)
+- `[x]` Exclude UI Controls from cursive overrides on Desktop (`notebook.css`)
+- `[x]` Implement Notebook State Parity and TTS controls on Mobile (`MobileFocusView.tsx`)
+- `[x]` Add Outline Jump Drawer on Mobile (`MobileFocusView.tsx`)
+- `[x]` Refine mobile styles and paper layout overrides (`MobileFocusView.module.css`)
+- `[x]` Verify build and TypeScript correctness

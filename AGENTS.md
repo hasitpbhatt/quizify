@@ -88,7 +88,7 @@ Quiz answers are graded by sending the user's answer + the quiz's `rationale`/`c
 
 ## Gotchas — read these before touching store/pipeline code
 
-0. **Dual-width maintenance: CSS `.node` widths × notebook.css `max-width`.** Each node type has a fixed `width` in its `.module.css` (concept: 520px, quiz: 480px, summary: 600px, note: 480px). Notebook mode overrides these with `width: auto; max-width: 520px` in `src/styles/notebook.css:29`. Whenever you change the CSS widths, **you must also update `notebook.css:29`'s `max-width`** so notebook view doesn't clip the enlarged nodes.
+0. **Dual-width maintenance: CSS `.node` widths × notebook.css `max-width`.** Each node type has a fixed `width` in its `.module.css` (concept: 390px, quiz: 360px, summary: 450px, note: 360px). Notebook mode overrides these with `width: auto; max-width: 450px` in `src/styles/notebook.css:38` — capped at the widest non-notebook node (summary). Whenever you change the CSS widths, **you must also update `notebook.css:38`'s `max-width`** so notebook view doesn't clip or run wider than the non-notebook view.
 
 1. **State-store race (FIXED, keep it fixed).** `sessionStore.create` and `runPipeline`'s `updateCurrent` both await IndexedDB writes and then `set({ sessions })`. If they run concurrently they used to clobber each other's `sessions` array, leaving `session.nodes` empty and the canvas blank. Rules that prevent regressions:
    - In `App.tsx`, always `await createSession(...)` and `await select(session.id)` before AND after `runPipeline`. Never call `createSession` without awaiting.
@@ -109,11 +109,12 @@ Quiz answers are graded by sending the user's answer + the quiz's `rationale`/`c
 src/
   app/                 App.tsx (orchestrator), ProgressScreen, theme, useToast
   features/
-    canvas/            CanvasPage + nodes/ + edges/
+    canvas/            CanvasPage + nodes/ + edges/ + useTypingAnimation
     quiz/              QuizInteraction, SummaryQuizInteraction, formats/
     toolbar/           Toolbar
     welcome/           WelcomeModal, PersonaCard, useWelcomeState
   lib/
+    components/        ErrorBoundary, NodeErrorFallback, CanvasErrorFallback, QuizErrorFallback
     db/                db.ts (IDB), sessionsDb.ts, sourceCache.ts
     llm/               chat.ts, errors.ts, *Parser.ts, providers.ts, tts.ts
     prompts/           outline.ts, detail.ts, quiz.ts, summary.ts, grade.ts
@@ -130,9 +131,12 @@ src/
 ## Change history (so we don't re-solve the same bug)
 
 - **2026-07-05** — Fixed "blank canvas then back to welcome" race. Root cause: `App.handleGenerate` called `createSession(...)` without `await`, then `await runPipeline(...)` whose final `updateCurrent` wrote nodes/edges. The two async IDB→Zustand updates raced and the loser clobbered `sessions`, leaving `session.nodes` empty. Fix: await `createSession` + `select` before/after the pipeline, and rewrite `sessionStore` to use `set((state) => ...)` updater form, a shared `upsertSession` helper, and IDB-fresh reads inside `updateCurrent`. See `src/app/App.tsx` and `src/shared/stores/sessionStore.ts`.
+- **2026-07-07** — Eliminated 4 unnecessary `as unknown as` casts: NoteNode's `(props as unknown as {id:string})` → `props.id`, ConceptNode's `(props.data as unknown as Record<...>).skipTyping` → `props.data.skipTyping`, CanvasPage's data field cast → function-level `as Node[]`. 5 casts remain where `Record<string, unknown>` ↔ specific types structurally require the `unknown` bridge. See `src/features/canvas/nodes/` and `CanvasPage.tsx`.
+- **2026-07-07** — Error boundaries at 4 layers (`ErrorBoundary` class component in `src/lib/components/`): app root, canvas container, per-node wrapper, quiz interaction. Each has a distinct fallback (CanvasErrorFallback with retry/home, NodeErrorFallback showing nodeId+type, QuizErrorFallback with close). No more white-screen crashes from a single bad node.
+- **2026-07-07** — `.tsbuildinfo` files untracked and gitignored: added `*.tsbuildinfo` to `.gitignore`, `git rm --cached` the tracked files.
 - **2026-06-01** — Added NVIDIA free API support alongside Mistral. Introduced `LlmProvider` type, `providers.ts` config, `provider` field in settings store, dynamic `baseUrl`/`model` in `chat.ts`, provider selector UI in Welcome modal. Fallback model retries on 429/5xx with 3 retries + exponential backoff. Source fetching fallback now uses the selected provider, not hardcoded Mistral.
 - **2026-07-05** — Added third "Quizify (Default)" provider (`'default'`). A Cloudflare Pages Function at `functions/api/chat.ts` proxies to Mistral with a server-side key. The provider has `requiresApiKey: false`, hiding the API key field from the Welcome modal. Vite dev proxy at `/api/chat`. Requires `MISTRAL_API_KEY` env var.
-- **2026-07-07** — Planned Notebook View: toggleable notebook-style canvas with ruled-line background, transparent nodes (no card styling), character-by-character typewriter animation via `useTypingAnimation` hook, and auto-synced TTS via new `TtsManager` singleton. Full plan in `notes/2026-07-07.md`. New files: `notebook.css`, `notebookStore.ts`, `ttsManager.ts`, `useTypingAnimation.ts`.
+- **2026-07-07** — Notebook View (implemented): toggleable notebook-style canvas with ruled-line background (handwriting font `Indie Flower`, red margin line), transparent nodes (no card styling), character-by-character typewriter animation via `useTypingAnimation` hook (requestAnimationFrame-based), and auto-synced TTS via `TtsManager` singleton. Camera auto-focuses on the current concept via `setCenter`. Quiz nodes reveal only after the parent concept's TTS finishes (progression gating via `revealedQuizIds` Set + `ttsManager.subscribe`). New files: `notebook.css`, `notebookStore.ts`, `ttsManager.ts`, `useTypingAnimation.ts`.
 - **2026-06-02** — Replaced column-first grid with horizontal chain layout. Removed `autoGridLayout.ts`, replaced with `useJourneyLayout` hook in pipeline.ts. Changed handle positions from Top/Bottom to Left/Right on concept nodes. Pipeline creates linear chain edges (concept→quiz→next concept→...).
 - **2026-06-03** — Fixed overlapping nodes: removed `useJourneyLayout` hook entirely. Pipeline now assigns positions at node creation time using fixed estimated widths (`ESTIMATED_WIDTH` constants in pipeline.ts). Nodes no longer overlap — each gets its column determined at creation time.
 - **2026-07-05** — Added TTS support via Mistral Voxtral (`src/lib/llm/tts.ts`). Falls back to browser Web Speech API when Mistral TTS is unavailable or NVIDIA provider is selected.

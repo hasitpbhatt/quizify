@@ -1,5 +1,121 @@
 # Engineering Log
 
+## 2026-07-07 — Notebook mode max-width capped at 450px (match non-notebook widest node)
+
+**Context**: Notebook mode set all nodes to `width: auto; max-width: 780px`, while
+non-notebook nodes had fixed widths (concept 390px, quiz 360px, summary 450px,
+note 360px). Nodes in notebook mode could grow up to 780px — nearly double the
+widest non-notebook node — causing inconsistent content reflow when switching
+modes. The AGENTS.md gotcha #0 referenced stale values (520px at line 29).
+
+**Decision**: Cap notebook max-width at 450px, matching the widest non-notebook
+node (summary). Updated AGENTS.md gotcha to reflect current widths (450px, line 38).
+The `width: auto` in notebook mode still allows content-based sizing, but within
+the same ceiling as non-notebook.
+
+**Tradeoffs**:
+- **+** Widths are now consistent between modes — no jarring reflow on switch
+- **+** Gotcha is accurate again
+- **−** Handwriting font is wider per character, so very long text may wrap more
+  in notebook mode than before (mitigated: 450px is still generous)
+
+## 2026-07-07 — Notebook mode: handwriting styles, progression gating, camera focus
+
+**Context**: Notebook view had basic ruled lines and card removal, but didn't look
+handwritten, quizzes appeared before the concept was fully narrated, and the canvas
+didn't follow the current active concept when scrolling.
+
+**Decision**: Three distinct improvements:
+1. **Handwriting styles** — `font-family: 'Indie Flower'`, adjusted line-height and
+   letter-spacing for a handwritten feel; ruled-line background enhanced with a red
+   margin line
+2. **Progression gating** — `revealedQuizIds` Set paired with `ttsManager.subscribe`
+   to track when a concept's TTS finishes; quizzes only render after the parent
+   concept is fully spoken
+3. **Camera focus** — `setCenter` from React Flow snaps the viewport to each concept
+   as it becomes active; smooth transition keeps the active concept centered
+
+**Tradeoffs**:
+- **+** Notebook view now looks and feels like a real handwritten notebook
+- **+** Quiz reveal order matches narrative flow (listen to concept → answer quiz)
+- **+** Camera follows the user's reading flow, no manual scrolling needed
+- **−** Progression gating adds coupling between TTS and quiz rendering
+- **−** `setCenter` can be jarring if the user manually scrolls
+
+## 2026-07-07 — Character-by-character smooth typing animation
+
+**Context**: The typewriter effect was a simple string-slice that restarted on every
+re-render and didn't support cursor sync, skip, or per-character timing.
+
+**Decision**: Rewrite `useTypingAnimation` using `requestAnimationFrame` for
+per-character revelation. Key features:
+- `revealed` counter + `isAnimating` flag control rendering
+- `skipTyping` parameter fast-reveals already-seen content
+- Works for both ConceptNode (title + explanation) and SummaryNode (recap bullets
+  with per-bullet offsets)
+- Paired with quiz overlap prevention: quizzes only reveal after the concept's TTS
+  finishes (integrated with progression gating in the notebook)
+
+**Tradeoffs**:
+- **+** Smooth character-by-character reveal at configurable speed
+- **+** Skip support avoids re-animating already-read content
+- **+** `requestAnimationFrame` is GPU-synced, no layout thrashing
+- **−** More complex than slice-based animation (~67 lines vs ~20)
+- **−** Animation state must be tracked per-node (Zustand or local state)
+
+## 2026-07-07 — Eliminated `as unknown as` casts (4 removed, 5 kept)
+
+**Context**: 9+ `as unknown as` casts scattered across node components, CanvasPage,
+and MobileFocusView, reducing type safety and readability.
+
+**Decision**: Removed 4 unnecessary casts:
+1. `ConceptNode.tsx:16` — `(props.data as unknown as Record<...>).skipTyping` →
+   `props.data.skipTyping === true` (no cast needed; `props.data` is already
+   `Record<string, unknown>`)
+2. `NoteNode.tsx:33,58` — `(props as unknown as { id: string }).id` → `props.id`
+   (native property, `props` type includes `id`)
+3. `CanvasPage.tsx:51` — inline `as unknown as Record<string, unknown>` on data
+   field → function-level `as Node[]` on the return
+
+Retained 5 where `Record<string, unknown>` ↔ specific `XxxData` types structurally
+require the `unknown` bridge (TypeScript's contravariance for index signatures).
+
+**Tradeoffs**:
+- **+** 4 fewer unsafe casts — cleaner code, better type inference
+- **+** Remaining 5 are now explicitly recognized as necessary (documented)
+- **−** Cannot fully eliminate due to TypeScript's `Record<string, unknown>` vs
+  specific type limitation
+
+## 2026-07-07 — Error boundaries at 4 layers
+
+**Context**: A crash in any single node component or the quiz interaction caused a
+white screen — the entire React app unmounted with no error recovery.
+
+**Decision**: Wrap 4 layers with `ErrorBoundary` (custom class component, zero deps):
+1. **App root** — full-page reset fallback (recovers to welcome screen)
+2. **Canvas container** — `CanvasErrorFallback` with Retry / Home buttons
+3. **Per-node** — `NodeErrorFallback` showing `nodeId + type`, keeps other nodes alive
+4. **Quiz interaction** — `QuizErrorFallback` with close button to dismiss
+
+Each has `reset()` to re-mount children, and `onReset` callbacks for parent recovery.
+
+**Tradeoffs**:
+- **+** Crashes are isolated — one bad node doesn't kill the entire canvas
+- **+** Clear fallback UI per layer, not just "something went wrong"
+- **+** Zero external dependencies (class component, `componentDidCatch`)
+- **−** Error boundaries don't catch async errors or event handlers
+- **−** ~200 lines of fallback UI to maintain
+
+## 2026-07-07 — `.tsbuildinfo` files untracked
+
+**Context**: `tsconfig.tsbuildinfo` and `tsconfig.node.tsbuildinfo` were tracked in
+git, accumulating noise in every diff.
+
+**Decision**: Add `*.tsbuildinfo` to `.gitignore`, then `git rm --cached` the two
+tracked files.
+
+**Tradeoffs**: Trivial change — standard `.gitignore` hygiene.
+
 ## 2026-07-07 — Parallel Concept Content Generation (then reverted to sequential)
 
 **Context**: Per-concept LLM calls were sequential with a 2s sleep between each.

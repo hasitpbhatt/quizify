@@ -13,15 +13,33 @@
 }
 
 /* --- Ruled-line background (like a physical notebook) --- */
-[data-notebook="true"] .react-flow__background {
+[data-notebook="true"] .react-flow__pane {
+  background-color: #FAF8F5 !important;
   background-image:
+    /* Red margin line */
+    linear-gradient(90deg, transparent 79px, rgba(239, 68, 68, 0.2) 79px, rgba(239, 68, 68, 0.2) 80px, transparent 80px),
+    /* Ruled lines */
     repeating-linear-gradient(
       transparent,
-      transparent 23px,
-      var(--border-hairline) 23px,
-      var(--border-hairline) 24px
+      transparent 27px,
+      rgba(84, 87, 232, 0.08) 27px,
+      rgba(84, 87, 232, 0.08) 28px
     ) !important;
-  background-color: transparent !important;
+  background-size: 100% 100%, 100% 28px;
+}
+
+[data-theme='dark'] [data-notebook="true"] .react-flow__pane {
+  background-color: #12110E !important;
+  background-image:
+    /* Soft pinkish margin line for dark theme */
+    linear-gradient(90deg, transparent 79px, rgba(239, 68, 68, 0.15) 79px, rgba(239, 68, 68, 0.15) 81px, transparent 81px),
+    /* Light blue ruled lines for dark theme */
+    repeating-linear-gradient(
+      transparent,
+      transparent 27px,
+      rgba(163, 196, 243, 0.06) 27px,
+      rgba(163, 196, 243, 0.06) 28px
+    ) !important;
 }
 
 /* --- Strip all card styling from every node type except NoteNode --- */
@@ -35,7 +53,7 @@
   padding: 4px 0 !important;
   width: auto !important;
   min-width: 200px !important;
-  max-width: 780px !important;
+  max-width: 450px !important;
   font-family: var(--font-canvas), 'Caveat', cursive !important;
   color: var(--ink-color) !important;
   /* subtle slant to feel organic and hand-written */
@@ -213,9 +231,11 @@
   transition: opacity var(--dur) var(--ease-out);
 }
 
-.notebookControls.hidden {
-  opacity: 0;
-  pointer-events: none;
+.notebookDivider {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 var(--space-2);
 }
 
 .notebookControls button {
@@ -232,9 +252,15 @@
   transition: background var(--dur-fast) var(--ease-out);
 }
 
-.notebookControls button:hover {
+.notebookControls button:hover:not(:disabled) {
   background: var(--accent-subtle);
   color: var(--accent);
+}
+
+.notebookControls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  color: var(--text-tertiary);
 }
 
 .notebookControls .progressLabel {
@@ -242,4 +268,21 @@
   white-space: nowrap;
   min-width: 120px;
   text-align: center;
+}
+
+/* --- Exclude functional UI elements from handwritten cursive style --- */
+[data-notebook="true"] button,
+[data-notebook="true"] [class*="Btn"],
+[data-notebook="true"] [class*="button"],
+[data-notebook="true"] [class*="Button"],
+[data-notebook="true"] [class*="badge"],
+[data-notebook="true"] [class*="Badge"],
+[data-notebook="true"] [class*="results"],
+[data-notebook="true"] [class*="quizCount"],
+[data-notebook="true"] [class*="quizBadge"],
+.notebookControls,
+.notebookControls button,
+.notebookControls span,
+.notebookControls div {
+  font-family: var(--font-ui), -apple-system, BlinkMacSystemFont, system-ui, sans-serif !important;
 }

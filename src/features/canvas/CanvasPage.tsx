@@ -23,7 +23,7 @@ import { NoteNode } from './nodes/NoteNode';
 import { MobileFocusView } from './MobileFocusView';
 import { useIsMobile } from '@/shared/useMediaQuery';
 import type { NoteData } from '@/shared/types';
-import { Plus, BookOpen, Play, Pause, Square, Download, ChevronDown } from 'lucide-react';
+import { Plus, BookOpen, Play, Pause, Square, Download, ChevronDown, X } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
 import { exportSessionJson } from '@/lib/export/json';
@@ -425,11 +425,15 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
       </div>
 
       {notebookMode && (
-        <div className={`notebookControls ${!ttsPlaying && !ttsPaused ? 'hidden' : ''}`}>
+        <div className="notebookControls">
+          <button onClick={toggleNotebookMode} title="Exit Notebook">
+            <X size={14} />
+          </button>
+          <div className="notebookDivider" />
           <button onClick={handlePlayPause} title={ttsPaused ? 'Resume' : 'Play/Pause'}>
             {ttsPaused ? <Play size={14} /> : ttsPlaying ? <Pause size={14} /> : <Play size={14} />}
           </button>
-          <button onClick={handleStopTts} title="Stop">
+          <button onClick={handleStopTts} title="Stop" disabled={!ttsPlaying && !ttsPaused}>
             <Square size={14} />
           </button>
           <span className="progressLabel">
