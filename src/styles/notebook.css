@@ -53,7 +53,7 @@
   padding: 4px 0 !important;
   width: auto !important;
   min-width: 200px !important;
-  max-width: 450px !important;
+  max-width: 500px !important;
   font-family: var(--font-canvas), 'Caveat', cursive !important;
   color: var(--ink-color) !important;
   /* subtle slant to feel organic and hand-written */

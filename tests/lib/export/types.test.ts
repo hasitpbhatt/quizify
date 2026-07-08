@@ -67,7 +67,7 @@ describe('formatDate', () => {
     const result = formatDate(1700000000000);
     expect(result).toBeTruthy();
     expect(typeof result).toBe('string');
-    expect(result).toContain('2024');
+    expect(result).toContain('2023');
   });
 
   it('handles current timestamp', () => {

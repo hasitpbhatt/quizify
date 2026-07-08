@@ -7,7 +7,7 @@ describe('EXAMPLE_CHIPS', () => {
   });
 
   it('has Wikipedia photosynthesis chip', () => {
-    const chip = EXAMPLE_CHIPS.find(c => c.label.includes('Photosynthesis'));
+    const chip = EXAMPLE_CHIPS.find(c => c.label.toLowerCase().includes('photosynthesis'));
     expect(chip).toBeDefined();
     expect(chip?.url).toContain('wikipedia.org');
   });

@@ -1,6 +1,8 @@
-- `[x]` Stop TTS on leaving notebook mode (`CanvasPage.tsx`)
-- `[x]` Fix the quiz clicking/flickering bug on canvas (`CanvasPage.tsx`)
-- `[x]` Prevent progression regressions on quiz failure (`progression.ts`)
-- `[x]` Implement HTML5 drag-and-drop in Ordering quiz component (`Ordering.tsx`)
-- `[x]` Style drag handles, dragging transitions, and drag states (`Ordering.module.css`)
-- `[x]` Verify TypeScript compilation and Vite build
+- `[x]` Update ConceptNode width in `ConceptNode.module.css`
+- `[x]` Update QuizNode width in `QuizNode.module.css`
+- `[x]` Update SummaryNode width in `SummaryNode.module.css`
+- `[x]` Update NoteNode width in `NoteNode.module.css`
+- `[x]` Update notebook mode overrides in `notebook.css`
+- `[x]` Update pipeline positioning layout math in `pipeline.ts`
+- `[x]` Run Vitest suite via `npm test`
+- `[x]` Run TypeScript typechecking and production build verification

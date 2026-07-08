@@ -15,15 +15,19 @@ describe('settingsStore', () => {
   });
 
   describe('initial state from localStorage', () => {
-    it('loads apiKey from localStorage', () => {
+    it('loads apiKey from localStorage', async () => {
+      vi.resetModules();
       localStorage.setItem('quizify:apiKey', 'test-key');
-      const { apiKey } = useSettingsStore.getState();
+      const { useSettingsStore: reloadedStore } = await import('@/shared/stores/settingsStore');
+      const { apiKey } = reloadedStore.getState();
       expect(apiKey).toBe('test-key');
     });
 
-    it('loads provider from localStorage', () => {
+    it('loads provider from localStorage', async () => {
+      vi.resetModules();
       localStorage.setItem('quizify:provider', 'mistral');
-      const { provider } = useSettingsStore.getState();
+      const { useSettingsStore: reloadedStore } = await import('@/shared/stores/settingsStore');
+      const { provider } = reloadedStore.getState();
       expect(provider).toBe('mistral');
     });
   });

@@ -10,7 +10,7 @@ export function getUnlockedConceptIndex(nodes: CanvasNode[]): number {
       (n): n is CanvasNode & { data: QuizData } =>
         n.data.kind === 'quiz' && n.data.parentConceptId === concepts[i].id,
     );
-    if (quizzes.length === 0) continue;
+    if (quizzes.length === 0) return i;
     const allCorrect = quizzes.every(
       q =>
         q.data.state === 'correct' ||

@@ -57,7 +57,7 @@ describe('exportSessionMarkdown', () => {
   });
 
   it('renders quiz nodes with prompt and answer', () => {
-    const session = makeSession({ nodes: [quizNode('q1', 'c1')] });
+    const session = makeSession({ nodes: [conceptNode('c1', 0, 'C1'), quizNode('q1', 'c1')] });
     const md = exportSessionMarkdown(session);
     expect(md).toContain('What is 2+2?');
     expect(md).toContain('**Answer:** 4');
@@ -74,13 +74,13 @@ describe('exportSessionMarkdown', () => {
   });
 
   it('renders note nodes as blockquotes', () => {
-    const session = makeSession({ nodes: [noteNode('n1', 'My personal note')] });
+    const session = makeSession({ nodes: [conceptNode('c1', 0, 'C1'), noteNode('n1', 'My personal note', 'c1')] });
     const md = exportSessionMarkdown(session);
     expect(md).toContain('> _Note:_ My personal note');
   });
 
   it('skips empty notes', () => {
-    const session = makeSession({ nodes: [noteNode('n1', '')] });
+    const session = makeSession({ nodes: [conceptNode('c1', 0, 'C1'), noteNode('n1', '', 'c1')] });
     const md = exportSessionMarkdown(session);
     expect(md).not.toContain('> _Note:_');
   });
@@ -100,7 +100,7 @@ describe('exportSessionMarkdown', () => {
 
   it('handles ordering quiz format label', () => {
     const node: CanvasNode = { id: 'q1', type: 'quiz', position: { x: 0, y: 0 }, data: { kind: 'quiz', parentConceptId: 'c1', format: 'ordering', prompt: 'Order the steps', correctAnswer: 'A,B,C', rationale: 'R', items: ['A', 'B', 'C'], attempts: [], state: 'untested' } };
-    const session = makeSession({ nodes: [node] });
+    const session = makeSession({ nodes: [conceptNode('c1', 0, 'C1'), node] });
     const md = exportSessionMarkdown(session);
     expect(md).toContain('Ordering');
     expect(md).toContain('1. A');
@@ -109,15 +109,16 @@ describe('exportSessionMarkdown', () => {
 
   it('renders fillBlank with blankedSentence', () => {
     const node: CanvasNode = { id: 'q1', type: 'quiz', position: { x: 0, y: 0 }, data: { kind: 'quiz', parentConceptId: 'c1', format: 'fillBlank', prompt: 'Fill in the blank', correctAnswer: 'world', rationale: 'R', blankedSentence: 'Hello ___!', acceptableAnswers: ['world', 'earth'], attempts: [], state: 'untested' } };
-    const session = makeSession({ nodes: [node] });
+    const session = makeSession({ nodes: [conceptNode('c1', 0, 'C1'), node] });
     const md = exportSessionMarkdown(session);
-    expect(md).toContain('Hello ___!');
-    expect(md).toContain('_Acceptable:_ earth');
+    expect(md).toContain('Hello \\_\\_\\_!');
+    expect(md).toContain('_Acceptable:_ world, earth');
   });
 
   it('renders summary with final quiz count', () => {
-    const fq: CanvasNode = { id: 'fq', type: 'quiz', position: { x: 0, y: 0 }, data: { kind: 'quiz', parentConceptId: '__summary__', format: 'trueFalse', prompt: 'Is the sky blue?', correctAnswer: 'True', rationale: 'R', options: ['True', 'False'], attempts: [], state: 'untested' } };
-    const session = makeSession({ nodes: [summaryNode('s1'), fq] });
+    const fq = { id: 'fq', parentConceptId: '__summary__', format: 'trueFalse', prompt: 'Is the sky blue?', correctAnswer: 'True', rationale: 'R', options: ['True', 'False'], attempts: [], state: 'untested' } as any;
+    const sNode: CanvasNode = { id: 's1', type: 'summary', position: { x: 0, y: 0 }, data: { kind: 'summary', recap: ['Key point 1'], finalQuiz: [fq] } };
+    const session = makeSession({ nodes: [sNode] });
     const md = exportSessionMarkdown(session);
     expect(md).toContain('Final Quiz');
   });

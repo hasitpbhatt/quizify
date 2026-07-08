@@ -135,7 +135,7 @@ describe('pushConceptShells', () => {
 
     const n1 = nodes[1];
     expect(n1.id).toBe('c2');
-    expect(n1.position.x).toBe(100 + 960);
+    expect(n1.position.x).toBe(100 + 1040);
     expect(n1.data).toMatchObject({ index: 1, title: 'Two' });
   });
 
@@ -374,7 +374,7 @@ describe('pushSummary', () => {
     expect(nodes).toHaveLength(1);
     expect(nodes[0].id).toBe('__summary__');
     expect(nodes[0].type).toBe('summary');
-    expect(nodes[0].position.x).toBe(100 + 960);
+    expect(nodes[0].position.x).toBe(100 + 1040);
 
     expect(edges).toHaveLength(1);
     expect(edges[0]).toMatchObject({ id: 'edge-summary', source: 'c1-quiz-0', target: '__summary__' });

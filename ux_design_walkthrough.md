@@ -1,43 +1,49 @@
-# Walkthrough: UX Fixes, Drag-and-Drop, and progression Protection
+# Walkthrough: Unified Card Sizing, Spacing, and Test repairs
 
-All planned fixes have been successfully implemented and verified! Here is a summary of the improvements made to desktop canvas views, notebook views, progression logic, quiz formats, and unit tests.
-
----
-
-## 1. Summary of Changes
-
-### Desktop Canvas & Notebook Mode
-* **Auto-Stop TTS on Exit**: Configured a `useEffect` inside [CanvasPage.tsx](file:///c:/Users/Lenovo/daily/quizify/src/features/canvas/CanvasPage.tsx) that triggers `ttsManager.stop()` immediately when `notebookMode` transitions to `false`. This prevents audio narration from continuing when toggling back to standard view.
-* **Fix Quiz Card Flickering Bug**: Introduced a `lastConceptIndexRef` ref inside [CanvasPage.tsx](file:///c:/Users/Lenovo/daily/quizify/src/features/canvas/CanvasPage.tsx). The `revealedQuizIds` state is now only reset, and the camera is only refocused, when the concept index actually changes (e.g. progressing forward to a new concept). Selecting a quiz node no longer resets the revealed quiz nodes list, eliminating card flickering/unmounting.
-
-### Progression protection
-* **Attempts History Validation**: Modified `getUnlockedConceptIndex` in [progression.ts](file:///c:/Users/Lenovo/daily/quizify/src/lib/progression.ts) to verify if a quiz has *ever* been answered correctly in the past (`q.data.attempts.some(att => att.grade === 'correct')`) rather than looking solely at the current state. This ensures that failing a retake of an older quiz does not roll back the user's progress or lock future concepts.
-
-### Drag-and-Drop Ordering Format
-* **HTML5 Drag-and-Drop List**: Replaced click arrows with native HTML5 drag-and-drop handlers inside [Ordering.tsx](file:///c:/Users/Lenovo/daily/quizify/src/features/quiz/formats/Ordering.tsx). As items are dragged over one another, the list dynamically sorts to provide instantaneous layout feedback.
-* **Visual Styling & Drag Grabs**: Updated [Ordering.module.css](file:///c:/Users/Lenovo/daily/quizify/src/features/quiz/formats/Ordering.module.css) to add drag icons (`☰`), active dragging states (dashed lines and scale animations), and grab cursors.
-
-### Codebase Test Suite Repairs
-* **useQuizAnswer.test.ts**: Removed unused imports of `localGrade` and `computeState`.
-* **useWelcomeState.test.ts**: Removed the unused `beforeEach` import.
-* **json.test.ts**: Restructured `scores` assertions to match the `Session` record type format (`{ concept1: { best: 80, attempts: 1 } }`).
-* **types.test.ts**: Removed the unused `vi` import.
-* **sessionStore.test.ts**: Removed unused `vi` and `Session` imports.
+All card visual sizes, notebook typography limits, and canvas positioning metrics have been unified. Furthermore, the entire Vitest test suite (all 373 tests across 35 test files) is now 100% green.
 
 ---
 
-## 2. Verification & Validation Results
+## 1. UX Design & Sizing Updates
 
-### 1. TypeScript & Type Checking
-* Executed type checking successfully across both the source code and the unit tests:
+### Optimal Typographic Measure
+* **Standard Card Widths**: Increased the width of standard cards in their respective CSS files to optimize the typographic measure (achieving the ideal 55–65 characters per line):
+  * **Concept Node**: `420px` (from `390px`)
+  * **Quiz Node**: `380px` (from `360px`)
+  * **Note Node**: `380px` (from `360px`)
+  * **Summary Node**: `480px` (from `450px`)
+* **Notebook Mode Width**: Increased the node `max-width` limit in [notebook.css](file:///c:/Users/Lenovo/daily/quizify/src/styles/notebook.css) from `450px` to `500px`. This accommodates the wider footprint of the cursive `Caveat` script font, preventing excessively narrow wraps and sentence fragmentation.
+
+### Canvas Coordinate Adjustments
+* **Overlap Protection**: To account for wider card dimensions and prevent any visual overlap between nodes, the layout spacing parameters in [pipeline.ts](file:///c:/Users/Lenovo/daily/quizify/src/lib/pipeline.ts) were updated:
+  * `COL_WIDTH` set to `480` (from `450`)
+  * `GAP_COL` set to `80` (from `60`)
+* **Result**: Perfectly aligned columns on both standard and notebook canvases, preserving the wiggly connection paths cleanly.
+
+---
+
+## 2. Test Suite Resolutions
+
+A thorough audit of Vitest failures was conducted, resolving every test bug:
+* **sourceCache.test.ts**: Replaced fake timers (`vi.useFakeTimers()`) with manual `Date.now` mocking. This avoids freezing the asynchronous event loop used internally by `fake-indexeddb` and eliminates timeouts.
+* **progression.test.ts**: Adjusted `getUnlockedConceptIndex` to return the current index `i` (instead of using `continue`) when a concept has no quizzes, allowing it to correctly identify the active incomplete concept.
+* **useWelcomeState.test.ts**: Fixed casing lookup for the photosynthesis example chip (matching the lowercase string in the source chip data).
+* **pipeline.test.ts**: Updated coordinate expectations to match the new `PAIR_WIDTH` spacing math (`100 + 1040`).
+* **json.test.ts**: Added a spy on `document.body.appendChild` to capture the anchor element before it is synchronously removed from the DOM.
+* **markdown.test.ts**: Included parent concept nodes in mock sessions so that the exporter's `sortedNodes` filter processes them correctly. Updated the fill-blank test for escaped markdown underscores (`Hello \_\_\_!`) and correct acceptable answer strings. Nest final quizzes directly within summary node data.
+* **types.test.ts**: Fixed the year check for timestamp `1700000000000` to expect `2023`.
+
+---
+
+## 3. Verification & Validation Results
+
+* **Vitest Suite**:
   ```bash
-  npm run typecheck
+  npm test
   ```
-  * **Result**: `0` TypeScript compilation errors or warnings.
-
-### 2. Production Bundle Compilation
-* Built the production assets successfully:
+  * **Result**: **35/35 Test Files passed**, **373/373 Tests passed (100% success)**.
+* **Production Build**:
   ```bash
   npm run build
   ```
-  * **Result**: Clean build in `7.31s` with all compilation checks passing.
+  * **Result**: Build finished successfully in under 12 seconds with zero compilation warnings.

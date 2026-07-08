@@ -18,8 +18,8 @@ type ProgressCallback = (progress: PipelineProgress) => void;
 
 const CONCURRENCY = 1;
 
-const COL_WIDTH = 450;
-const GAP_COL = 60;
+const COL_WIDTH = 480;
+const GAP_COL = 80;
 const GAP_ROW = 85;
 const PAIR_WIDTH = 2 * COL_WIDTH + GAP_COL;
 const START_Y = 100;

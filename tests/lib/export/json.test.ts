@@ -22,10 +22,12 @@ describe('exportSessionJson', () => {
       scores: {},
     };
 
+    const appendSpy = vi.spyOn(document.body, 'appendChild');
+
     exportSessionJson(session);
 
-    expect(document.body.querySelector('a')).not.toBeNull();
-    const a = document.body.querySelector('a')!;
+    expect(appendSpy).toHaveBeenCalled();
+    const a = appendSpy.mock.calls[0][0] as HTMLAnchorElement;
     expect(a.download).toContain('.json');
   });
 
