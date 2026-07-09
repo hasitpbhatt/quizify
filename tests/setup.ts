@@ -67,6 +67,33 @@ Object.defineProperty(window, 'speechSynthesis', {
   value: { cancel: vi.fn(), speak: vi.fn(), pause: vi.fn(), resume: vi.fn(), getVoices: vi.fn().mockReturnValue([]), speaking: false, pending: false, paused: false },
 });
 
+class SpeechSynthesisUtteranceMock {
+  text: string;
+  lang: string = '';
+  voice: any = null;
+  volume: number = 1;
+  rate: number = 1;
+  pitch: number = 1;
+  onstart: any = null;
+  onend: any = null;
+  onerror: any = null;
+  onpause: any = null;
+  onresume: any = null;
+  onmark: any = null;
+  onboundary: any = null;
+  constructor(text?: string) {
+    this.text = text || '';
+  }
+}
+Object.defineProperty(window, 'SpeechSynthesisUtterance', {
+  writable: true,
+  value: SpeechSynthesisUtteranceMock,
+});
+Object.defineProperty(globalThis, 'SpeechSynthesisUtterance', {
+  writable: true,
+  value: SpeechSynthesisUtteranceMock,
+});
+
 // URL.createObjectURL / revokeObjectURL — ConceptNode uses them for TTS
 if (!globalThis.URL.createObjectURL) {
   globalThis.URL.createObjectURL = vi.fn(() => 'blob:mock');
