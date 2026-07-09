@@ -40,6 +40,12 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const { load: loadSessions, sessions, currentId, select } = useSessionStore();
+  const [previewData, setPreviewData] = useState<{
+    title: string;
+    snippet: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } | null>(null);
 
   // Restore canvas page on tab reload, and always load sessions on mount
   useEffect(() => {
@@ -92,6 +98,7 @@ export function App() {
     abortRef.current = null;
     setProgress({ stage: 'fetch', label: 'Reading the source…' });
     setError(null);
+    setPreviewData(null);
     setPage('welcome');
   }, []);
 
@@ -114,6 +121,50 @@ export function App() {
       // Stage 1 — fetch the source
       setProgress({ stage: 'fetch', label: 'Reading the source…' });
       const src = await fetchSourceContent(url, { apiKey, jinaToken, persona, provider });
+
+      if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+
+      // Intercept with Preview so user commits knowingly (skip in test mode)
+      const isTest = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
+      if (!isTest) {
+        await new Promise<void>((resolve, reject) => {
+          // Try to find a markdown header (# title) or fallback to hostname
+          let title = '';
+          const lines = src.content.split('\n');
+          for (const line of lines) {
+            const match = line.match(/^#+\s+(.+)$/);
+            if (match) {
+              title = match[1].trim();
+              break;
+            }
+          }
+          if (!title) {
+            title = extractHostname(src.url);
+          }
+
+          // Clean common markdown markup for snippet display
+          let cleanText = src.content
+            .replace(/[#*`_]/g, '')
+            .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+            .trim();
+          const sentences = cleanText.split(/[.!?]\s+/);
+          const snippet = sentences.slice(0, 3).join('. ') + (sentences.length > 3 ? '...' : '.');
+
+          setPreviewData({
+            title,
+            snippet,
+            onConfirm: () => {
+              setPreviewData(null);
+              resolve();
+            },
+            onCancel: () => {
+              setPreviewData(null);
+              handleCancel();
+              reject(new DOMException('Aborted', 'AbortError'));
+            }
+          });
+        });
+      }
 
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
 
@@ -150,7 +201,10 @@ export function App() {
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
       await select(session.id);
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setPage('welcome');
+        return;
+      }
       console.error('[app] generate failed:', err);
       setError(err instanceof Error ? err.message : 'Something went wrong.');
       setPage('welcome');
@@ -162,7 +216,12 @@ export function App() {
   const main = page === 'progress' ? (
     <>
       <Toolbar onNewSession={() => setPage('welcome')} />
-      <ProgressScreen progress={progress} error={error} onCancel={handleCancel} />
+      <ProgressScreen
+        progress={progress}
+        error={error}
+        onCancel={handleCancel}
+        previewData={previewData}
+      />
     </>
   ) : page === 'canvas' ? (
     <>

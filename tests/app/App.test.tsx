@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { App } from '@/app/App';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
-import { useSessionStore } from '@/shared/stores/sessionStore';
 
 const mockFetchSourceContent = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/fetchSourceContent', () => ({
@@ -110,7 +109,7 @@ vi.mock('@/app/Toaster', () => ({
 }));
 
 vi.mock('@/lib/components/ErrorBoundary', () => ({
-  ErrorBoundary: ({ children, fallback }: { children: React.ReactNode; fallback: (e: Error, reset: () => void) => React.ReactNode }) => {
+  ErrorBoundary: ({ children }: { children: React.ReactNode; fallback: any }) => {
     const MockErrorBoundary = ({ children: c }: { children: React.ReactNode }) => <>{c}</>;
     return <MockErrorBoundary>{children}</MockErrorBoundary>;
   },
@@ -122,7 +121,13 @@ const mockSessionStore = vi.hoisted(() => {
   const load = vi.fn().mockResolvedValue(undefined);
   const select = vi.fn().mockImplementation(async (id: string) => { currentId = id; });
   const create = vi.fn().mockResolvedValue({ id: 'new-session', name: 'Test', url: 'https://example.com', hostname: 'example.com', persona: 'student', createdAt: Date.now(), updatedAt: Date.now(), nodes: [], edges: [], scores: {} });
-  return {
+  
+  const fn = vi.fn().mockImplementation((selector) => {
+    const state = { load, select, create, currentId, sessions, loaded: true };
+    return selector ? selector(state) : state;
+  });
+
+  return Object.assign(fn, {
     load,
     select,
     create,
@@ -133,7 +138,7 @@ const mockSessionStore = vi.hoisted(() => {
     },
     subscribe: vi.fn(() => vi.fn()),
     getInitialState: () => ({ sessions: [], currentId: null, loaded: false, load: vi.fn(), select: vi.fn(), create: vi.fn(), updateCurrent: vi.fn(), remove: vi.fn(), addNote: vi.fn() }),
-  };
+  });
 });
 
 vi.mock('@/shared/stores/sessionStore', () => ({

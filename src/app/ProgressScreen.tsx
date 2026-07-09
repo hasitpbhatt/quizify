@@ -28,9 +28,15 @@ interface ProgressScreenProps {
   progress: JourneyProgress;
   error: string | null;
   onCancel: () => void;
+  previewData?: {
+    title: string;
+    snippet: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } | null;
 }
 
-export function ProgressScreen({ progress, error, onCancel }: ProgressScreenProps) {
+export function ProgressScreen({ progress, error, onCancel, previewData }: ProgressScreenProps) {
   const activeIndex = progress.stage === 'error' ? 0 : stageIndex(progress.stage);
   const [mounted, setMounted] = useState(false);
   const [showGame, setShowGame] = useState(false);
@@ -45,6 +51,39 @@ export function ProgressScreen({ progress, error, onCancel }: ProgressScreenProp
       i < activeIndex ? 'done' :
       i === activeIndex ? (progress.stage === 'done' ? 'done' : 'active') :
       'pending';
+  }
+
+  if (previewData && !error) {
+    return (
+      <div className={styles.screen}>
+        <div className={styles.card}>
+          <div className={styles.header}>
+            <div className={styles.orb} aria-hidden>
+              <span className={styles.orbCore} />
+              <span className={styles.orbRing} />
+              <span className={styles.orbRing2} />
+            </div>
+            <h1 className={styles.title}>Content Preview</h1>
+            <p className={styles.subtitle}>We fetched the content successfully. Does this look correct?</p>
+          </div>
+
+          <div className={styles.previewBox}>
+            <h3 className={styles.previewTitle}>{previewData.title}</h3>
+            <p className={styles.previewSnippet}>{previewData.snippet}</p>
+          </div>
+
+          <div className={styles.previewFooter}>
+            <button className={styles.previewCancelBtn} onClick={previewData.onCancel} type="button">
+              Cancel
+            </button>
+            <button className={styles.previewConfirmBtn} onClick={previewData.onConfirm} type="button">
+              Looks good, continue!
+            </button>
+          </div>
+        </div>
+        <div className={styles.ambient} aria-hidden data-mounted={mounted} />
+      </div>
+    );
   }
 
   if (showGame && !error) {
