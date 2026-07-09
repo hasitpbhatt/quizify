@@ -80,6 +80,9 @@ describe('notebook mode (notebookMode = true)', () => {
 
     act(() => {
       sub.onCharProgress('n1', 5);
+    });
+
+    act(() => {
       vi.advanceTimersByTime(40);
     });
 
@@ -94,6 +97,9 @@ describe('notebook mode (notebookMode = true)', () => {
 
     act(() => {
       sub.onSegmentEnd('n1');
+    });
+
+    act(() => {
       vi.advanceTimersByTime(200);
     });
 

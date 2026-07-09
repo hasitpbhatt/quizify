@@ -12,6 +12,7 @@ import { ttsManager } from '@/lib/llm/ttsManager';
 beforeEach(() => {
   // Reset singleton state between tests by calling stop
   ttsManager.stop();
+  ttsManager['state'] = 'idle';
   ttsManager['callbacks'] = {};
   ttsManager['subscriptions'] = [];
   vi.clearAllMocks();
