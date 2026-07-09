@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sparkles, GraduationCap, Briefcase, Microscope, Eye, EyeOff, ArrowRight, ChevronDown, Key, Cpu, Globe, X, Clock } from 'lucide-react';
 import { PersonaCard } from './PersonaCard';
 import { useWelcomeState, EXAMPLE_CHIPS } from './useWelcomeState';
@@ -51,6 +51,37 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
   const [showSettings, setShowSettings] = useState(false);
   const [exampleUrl, setExampleUrl] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+
+  // Focus trap for WelcomeModal and Delete Confirmation Modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const activeModal = document.querySelector('[role="alertdialog"]') || document.querySelector('[role="dialog"]');
+      if (!activeModal) return;
+
+      const focusableSelectors = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+      const focusableElements = Array.from(activeModal.querySelectorAll(focusableSelectors)) as HTMLElement[];
+      if (focusableElements.length === 0) return;
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          lastElement.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          firstElement.focus();
+          e.preventDefault();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [confirmingDelete]);
 
   const handleSubmit = () => {
     if (!submitEnabled) return;
@@ -172,17 +203,12 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
                         className={styles.sessionDelete}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirmingDelete === s.id) {
-                            removeSession(s.id);
-                            setConfirmingDelete(null);
-                          } else {
-                            setConfirmingDelete(s.id);
-                          }
+                          setConfirmingDelete(s.id);
                         }}
-                        aria-label={confirmingDelete === s.id ? `Confirm delete ${s.name}` : `Delete session ${s.name}`}
+                        aria-label={`Delete session ${s.name}`}
                         type="button"
                       >
-                        {confirmingDelete === s.id ? 'Confirm?' : <X size={14} />}
+                        <X size={14} />
                       </button>
                     </div>
                   );
@@ -233,9 +259,10 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
 
               {PROVIDERS[provider].requiresApiKey ? (
                 <div className={styles.field}>
-                  <label className={styles.fieldLabel}>{PROVIDERS[provider].apiKeyLabel}</label>
+                  <label className={styles.fieldLabel} htmlFor="provider-api-key">{PROVIDERS[provider].apiKeyLabel}</label>
                   <div className={styles.inputWrapper}>
                     <input
+                      id="provider-api-key"
                       className={styles.monoInput}
                       type={showKey ? 'text' : 'password'}
                       placeholder={PROVIDERS[provider].apiKeyPlaceholder}
@@ -263,12 +290,13 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
               )}
 
               <div className={styles.field}>
-                <label className={styles.fieldLabel}>
+                <label className={styles.fieldLabel} htmlFor="jina-token">
                   Jina Reader key{' '}
                   <span className={styles.optional}>(optional)</span>
                 </label>
                 <div className={styles.inputWrapper}>
                   <input
+                    id="jina-token"
                     className={styles.monoInput}
                     type={showJina ? 'text' : 'password'}
                     placeholder="Lifts rate limits"
@@ -292,6 +320,48 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
           )}
         </section>
       </main>
+
+      {confirmingDelete && (() => {
+        const sessionToDelete = sessions.find(s => s.id === confirmingDelete);
+        return (
+          <div className={styles.dialogOverlay} onClick={() => setConfirmingDelete(null)}>
+            <div
+              className={styles.dialogModal}
+              onClick={(e) => e.stopPropagation()}
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="delete-dialog-title"
+              aria-describedby="delete-dialog-desc"
+            >
+              <h2 id="delete-dialog-title" className={styles.dialogTitle}>Delete Session</h2>
+              <p id="delete-dialog-desc" className={styles.dialogDesc}>
+                Are you sure you want to delete the session "{sessionToDelete?.name || 'this session'}"? This action cannot be undone.
+              </p>
+              <div className={styles.dialogButtons}>
+                <button
+                  className={styles.dialogCancelBtn}
+                  onClick={() => setConfirmingDelete(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className={styles.dialogConfirmBtn}
+                  onClick={() => {
+                    if (confirmingDelete) {
+                      removeSession(confirmingDelete);
+                      setConfirmingDelete(null);
+                    }
+                  }}
+                  type="button"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

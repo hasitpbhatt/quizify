@@ -526,3 +526,95 @@
   .modal, .settingsPanel { animation: none; }
   .generateBtn:hover { transform: none; }
 }
+
+.dialogOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  animation: fadeIn var(--dur-fast) var(--ease-out);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.dialogModal {
+  width: min(400px, 90vw);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  animation: scaleIn var(--dur-fast) var(--ease-out);
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.dialogTitle {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-title);
+  color: var(--text-primary);
+}
+
+.dialogDesc {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  color: var(--text-secondary);
+  line-height: var(--lh-normal);
+}
+
+.dialogButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.dialogCancelBtn,
+.dialogConfirmBtn {
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-h2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-ui);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.dialogCancelBtn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.dialogCancelBtn:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.dialogConfirmBtn {
+  background: var(--danger);
+  border: none;
+  color: #fff;
+}
+
+.dialogConfirmBtn:hover {
+  background: #c92a2a;
+}
+
