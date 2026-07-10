@@ -9,6 +9,7 @@ import { useNotebookStore } from '@/shared/stores/notebookStore';
  * In notebook mode, starts at 0 and increments as TTS progresses.
  * Falls back to a local timer if TTS doesn't start within 2 seconds.
  * In default mode, reveals the full text immediately.
+ * Respects prefers-reduced-motion by skipping animation.
  */
 export function useTypingAnimation(nodeId: string, fullText: string, skipAnimation = false) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
@@ -18,6 +19,11 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
   const hasHadTts = useRef(false);
   const fallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fallbackIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const chaseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Check for reduced motion preference
+  const prefersReducedMotion =
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // Sync targetRef with raw revealed progress
   useEffect(() => {
@@ -25,7 +31,10 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
   }, [revealed]);
 
   useEffect(() => {
-    if (!notebookMode || fullText.length === 0 || skipAnimation) {
+    // Skip animation when reduced motion is preferred or skipAnimation is set
+    const shouldSkip = !notebookMode || fullText.length === 0 || skipAnimation || prefersReducedMotion;
+
+    if (shouldSkip) {
       setRevealed(fullText.length);
       setDisplayedRevealed(fullText.length);
       targetRef.current = fullText.length;
@@ -86,7 +95,7 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
 
     const onProgress = (nid: string, charIndex: number) => {
       if (nid === nodeId) {
-        setRevealed(Math.min(charIndex, fullText.length));
+        setRevealed((prev) => Math.min(charIndex, fullText.length, prev + 50));
       }
     };
 
@@ -116,37 +125,55 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
         setRevealed(fullText.length);
       }
     };
-  }, [nodeId, fullText, notebookMode, skipAnimation]);
+  }, [nodeId, fullText, notebookMode, skipAnimation, prefersReducedMotion]);
 
   // Smoothly chase target character count for character-by-character feel
   useEffect(() => {
-    if (!notebookMode || skipAnimation) {
+    if (!notebookMode || skipAnimation || prefersReducedMotion) {
       setDisplayedRevealed(fullText.length);
       return;
     }
 
-    const intervalId = setInterval(() => {
+    chaseIntervalRef.current = setInterval(() => {
       setDisplayedRevealed((prev) => {
         const target = targetRef.current;
         if (prev < target) {
-          return prev + 1;
+          const next = prev + 1;
+          // If we've reached or passed the target, stop the interval
+          if (next >= target) {
+            if (chaseIntervalRef.current) {
+              clearInterval(chaseIntervalRef.current);
+              chaseIntervalRef.current = null;
+            }
+          }
+          return next;
+        }
+        // Only stop the interval when the full text is revealed,
+        // not during initial idle state (where prev === target === 0)
+        if (prev >= fullText.length) {
+          if (chaseIntervalRef.current) {
+            clearInterval(chaseIntervalRef.current);
+            chaseIntervalRef.current = null;
+          }
         }
         return prev;
       });
     }, 20); // ~50 chars/sec speed
 
     return () => {
-      clearInterval(intervalId);
+      if (chaseIntervalRef.current) {
+        clearInterval(chaseIntervalRef.current);
+        chaseIntervalRef.current = null;
+      }
     };
-  }, [notebookMode, skipAnimation, fullText.length]);
+  }, [notebookMode, skipAnimation, fullText.length, prefersReducedMotion]);
 
   useEffect(() => {
-    if (!notebookMode || skipAnimation) {
+    if (!notebookMode || skipAnimation || prefersReducedMotion) {
       setRevealed(fullText.length);
       setDisplayedRevealed(fullText.length);
     }
-  }, [notebookMode, fullText, skipAnimation]);
+  }, [notebookMode, fullText, skipAnimation, prefersReducedMotion]);
 
   return { revealed: displayedRevealed, isAnimating: displayedRevealed < fullText.length };
 }
-

@@ -1,4 +1,3 @@
-
 export interface TtsSegment {
   nodeId: string;
   text: string;
@@ -11,7 +10,7 @@ export interface TtsCallbacks {
   onQueueEnd?: () => void;
 }
 
-type TtsState = 'idle' | 'playing' | 'paused' | 'stopped';
+export type TtsState = 'idle' | 'playing' | 'paused' | 'stopped';
 
 interface TtsSubscription {
   id: string;
@@ -32,6 +31,19 @@ class TtsManagerSingleton {
   private charCount = 0;
   private utterance: SpeechSynthesisUtterance | null = null;
 
+  /** Feature-detect speechSynthesis at construction time */
+  readonly speechSynthesisAvailable: boolean;
+
+  /** Tracks segments that have already ended, for idempotent finishSegment */
+  private endedSegments: Set<string>;
+  private stateListeners: Array<(state: TtsState) => void>;
+
+  constructor() {
+    this.speechSynthesisAvailable = typeof window !== 'undefined' && 'speechSynthesis' in window;
+    this.endedSegments = new Set();
+    this.stateListeners = [];
+  }
+
   // ==================== Public API ====================
 
   enqueue(segment: TtsSegment): void {
@@ -44,6 +56,7 @@ class TtsManagerSingleton {
 
   clearQueue(): void {
     this.queue = [];
+    this.endedSegments.clear();
   }
 
   start(): void {
@@ -54,25 +67,29 @@ class TtsManagerSingleton {
 
   pause(): void {
     if (this.state !== 'playing') return;
-    if (window.speechSynthesis.speaking) {
+    if (this.speechSynthesisAvailable && window.speechSynthesis.speaking) {
       window.speechSynthesis.pause();
     }
     this.state = 'paused';
+    this.notifyStateListeners();
   }
 
   resume(): void {
     if (this.state !== 'paused') return;
-    if (window.speechSynthesis.paused) {
+    if (this.speechSynthesisAvailable && window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
     }
     this.state = 'playing';
+    this.notifyStateListeners();
   }
 
   stop(): void {
     this.cleanup();
     this.state = 'stopped';
+    this.notifyStateListeners();
     this.currentIdx = -1;
     this.queue = [];
+    this.endedSegments.clear();
     this.callbacks.onQueueEnd?.();
   }
 
@@ -120,7 +137,7 @@ class TtsManagerSingleton {
     onCharProgress?: (nodeId: string, charIndex: number) => void;
     onSegmentEnd?: (nodeId: string) => void;
   }): string {
-    const id = Math.random().toString(36).slice(2);
+    const id = crypto.randomUUID?.() ?? nodeId + '-' + Date.now() + '-' + Math.random().toString(36).slice(2);
     this.subscriptions.push({ id, nodeId, ...cb });
     return id;
   }
@@ -129,11 +146,21 @@ class TtsManagerSingleton {
     this.subscriptions = this.subscriptions.filter(s => s.id !== subId);
   }
 
+  subscribeState(listener: (state: TtsState) => void): () => void {
+    this.stateListeners.push(listener);
+    // Immediately invoke with current state
+    listener(this.state);
+    return () => {
+      this.stateListeners = this.stateListeners.filter(l => l !== listener);
+    };
+  }
+
   hasSegment(nodeId: string): boolean {
     return this.queue.some(s => s.nodeId === nodeId);
   }
 
   finishSegment(nodeId: string): void {
+    if (this.endedSegments.has(nodeId)) return;
     this.notifySegmentEnd(nodeId);
   }
 
@@ -157,7 +184,12 @@ class TtsManagerSingleton {
     this.callbacks.onCharProgress?.(nodeId, charIndex);
   }
 
+  private notifyStateListeners(): void {
+    this.stateListeners.forEach(l => l(this.state));
+  }
+
   private notifySegmentEnd(nodeId: string): void {
+    this.endedSegments.add(nodeId);
     this.subscriptions.forEach(s => {
       if (s.nodeId === nodeId) {
         s.onSegmentEnd?.(nodeId);
@@ -166,20 +198,31 @@ class TtsManagerSingleton {
     this.callbacks.onSegmentEnd?.(nodeId);
   }
 
-  private async playNext(): Promise<void> {
+  private playNext(): void {
     this.currentIdx++;
     if (this.currentIdx >= this.queue.length) {
       this.state = 'idle';
+      this.notifyStateListeners();
       this.callbacks.onQueueEnd?.();
       return;
     }
 
     const segment = this.queue[this.currentIdx];
     this.state = 'playing';
+    this.notifyStateListeners();
     this.charCount = 0;
     this.notifySegmentStart(segment.nodeId);
 
-    // Rely solely on browser SpeechSynthesis for simplicity and stability
+    if (!this.speechSynthesisAvailable) {
+      // Simulate completion when browser speech synthesis is unavailable
+      setTimeout(() => {
+        this.notifyCharProgress(segment.nodeId, segment.text.length);
+        this.notifySegmentEnd(segment.nodeId);
+        this.playNext();
+      }, 50);
+      return;
+    }
+
     this.playSpeechSynthesis(segment);
   }
 
@@ -222,7 +265,9 @@ class TtsManagerSingleton {
 
   private cleanup(): void {
     this.cleanupSpeech();
-    window.speechSynthesis.cancel();
+    if (this.speechSynthesisAvailable) {
+      window.speechSynthesis.cancel();
+    }
   }
 }
 

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ParseError } from '@/lib/llm/errors';
 import type { Persona, LlmProvider, ChatMessage } from '@/shared/types';
 
 const mockChat = vi.hoisted(() => vi.fn<(...args: unknown[]) => Promise<{ content: string }>>());

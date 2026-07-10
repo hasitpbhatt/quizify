@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import styles from './SummaryQuizInteraction.module.css';
 import type { QuizData } from '@/shared/types';
 import { MultipleChoice } from './formats/MultipleChoice';
@@ -14,6 +14,60 @@ interface Props {
   onRetake: () => void;
   initialScores: Record<string, { best: number; attempts: number }>;
   onUpdateScores: (scores: Record<string, { best: number; attempts: number }>) => void;
+}
+
+/** Focus trap hook: keeps focus within the dialog and auto-focuses a target element on mount */
+function useFocusTrap(containerRef: React.RefObject<HTMLElement | null>, autoFocusSelector?: string) {
+  const prevFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    prevFocusRef.current = document.activeElement as HTMLElement;
+
+    const target = autoFocusSelector
+      ? container.querySelector<HTMLElement>(autoFocusSelector)
+      : null;
+    if (target) {
+      target.focus();
+    } else {
+      const focusable = container.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length > 0) focusable[0].focus();
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const focusable = container.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    container.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      container.removeEventListener('keydown', handleKeyDown);
+      prevFocusRef.current?.focus();
+    };
+  }, [containerRef, autoFocusSelector]);
 }
 
 function parseScores(scores: Record<string, { best: number; attempts: number }>): boolean[] {
@@ -34,10 +88,13 @@ export function SummaryQuizInteraction({ quizData, onClose, onRetake, initialSco
   const [currentIndex, setCurrentIndex] = useState(0);
   const [results, setResults] = useState<boolean[]>(() => parseScores(initialScores));
   const [showResults, setShowResults] = useState(false);
+  const overlayRef = useRef<HTMLDivElement>(null);
 
   const current = quizData[currentIndex];
   const total = quizData.length;
   const done = results.length;
+
+  useFocusTrap(overlayRef, showResults ? '.summary-close-btn' : '.summary-first-focus');
 
   const handleAnswer = useCallback((correct: boolean) => {
     setResults(prev => {
@@ -83,7 +140,7 @@ export function SummaryQuizInteraction({ quizData, onClose, onRetake, initialSco
     const unattempted = total - results.length;
 
     return (
-      <div className={styles.overlay} onClick={onClose}>
+      <div className={styles.overlay} onClick={onClose} ref={overlayRef} role="dialog" aria-modal="true" aria-label="Summary quiz results">
         <div className={styles.panel} onClick={e => e.stopPropagation()}>
           <div className={styles.resultsPanel}>
             <div className={styles.masteryPct}>{masteryPct}%</div>
@@ -104,7 +161,7 @@ export function SummaryQuizInteraction({ quizData, onClose, onRetake, initialSco
             </div>
             <div className={styles.actions}>
               <button className={styles.primaryBtn} onClick={retakeAll}>Retake All</button>
-              <button className={styles.secondaryBtn} onClick={onClose}>Close</button>
+              <button className={[styles.secondaryBtn, 'summary-close-btn'].join(' ')} onClick={onClose}>Close</button>
             </div>
           </div>
         </div>
@@ -128,9 +185,9 @@ export function SummaryQuizInteraction({ quizData, onClose, onRetake, initialSco
   };
 
   return (
-    <div className={styles.overlay} onClick={onClose}>
+    <div className={styles.overlay} onClick={onClose} ref={overlayRef} role="dialog" aria-modal="true" aria-label={'Summary quiz: ' + current.prompt}>
       <div className={styles.panel} onClick={e => e.stopPropagation()}>
-        <div className={styles.questionCounter}>
+        <div className={[styles.questionCounter, 'summary-first-focus'].join(' ')} tabIndex={-1}>
           Question {currentIndex + 1} of {total}
         </div>
         <div className={styles.prompt}>{current.prompt}</div>
@@ -156,17 +213,17 @@ export function SummaryQuizInteraction({ quizData, onClose, onRetake, initialSco
 
         <div className={styles.nav}>
           <button className={styles.navBtn} onClick={goPrev} disabled={currentIndex === 0}>
-            ← Previous
+            &larr; Previous
           </button>
           <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-ui)' }}>
             {done} of {total} answered
           </span>
           {currentIndex < total - 1 ? (
             <button className={styles.navBtn} onClick={goNext} disabled={answered !== true}>
-              Next →
+              Next &rarr;
             </button>
           ) : (
-            <button className={styles.navBtn} style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }} onClick={finishQuiz}>
+            <button className={[styles.navBtn, 'summary-first-focus'].join(' ')} style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }} onClick={finishQuiz}>
               Show Results
             </button>
           )}

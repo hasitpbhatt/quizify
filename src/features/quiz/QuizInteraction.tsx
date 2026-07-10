@@ -26,11 +26,71 @@ const badgeColors: Record<string, string> = {
   mastered: '#22c55e',
 };
 
+/** Focus trap hook: keeps focus within the dialog and auto-focuses a target element on mount */
+function useFocusTrap(containerRef: React.RefObject<HTMLElement | null>, autoFocusSelector?: string) {
+  const prevFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Save previous focus
+    prevFocusRef.current = document.activeElement as HTMLElement;
+
+    // Auto-focus target element or first focusable element
+    const target = autoFocusSelector
+      ? container.querySelector<HTMLElement>(autoFocusSelector)
+      : null;
+    if (target) {
+      target.focus();
+    } else {
+      const focusable = container.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length > 0) focusable[0].focus();
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const focusable = container.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    container.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      container.removeEventListener('keydown', handleKeyDown);
+      // Restore focus to previously active element
+      prevFocusRef.current?.focus();
+    };
+  }, [containerRef, autoFocusSelector]);
+}
+
 export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) {
   const { submit, submitting, error, attempts, retryInfo } = useQuizAnswer(quiz, quizId);
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const promptId = 'quiz-prompt-' + quizId;
+
+  useFocusTrap(overlayRef, '.quiz-close-btn');
 
   const handleSubmit = useCallback(async (answer: string | string[]) => {
     const { apiKey, provider } = useSettingsStore.getState();
@@ -57,6 +117,9 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
   return (
     <div
       ref={overlayRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={promptId}
       onClick={e => { if (e.target === overlayRef.current) onClose(); }}
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
@@ -83,19 +146,22 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
             }}>
               {formatLabel} &middot; {conceptTitle}
             </div>
-            <div style={{
-              fontSize: 15, fontWeight: 500, color: 'var(--text-primary)',
-              fontFamily: 'var(--font-ui)', lineHeight: 1.4,
-            }}>
+            <div
+              id={promptId}
+              style={{
+                fontSize: 15, fontWeight: 500, color: 'var(--text-primary)',
+                fontFamily: 'var(--font-ui)', lineHeight: 1.4,
+              }}
+            >
               {quiz.prompt}
             </div>
           </div>
-          <button onClick={onClose} style={{
+          <button onClick={onClose} className="quiz-close-btn" style={{
             padding: '4px 10px', borderRadius: 4, border: '1px solid var(--border)',
             background: 'var(--bg-elevated)', color: 'var(--text-secondary)',
             cursor: 'pointer', fontFamily: 'var(--font-ui)', fontSize: 12,
           }}>
-            ✕
+            âœ•
           </button>
         </div>
 
@@ -125,7 +191,7 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
                 color: 'var(--text-secondary)', fontSize: 13,
               }}>
                 {retryInfo
-                  ? `Grading timed out, retrying\u2026 (${retryInfo.attempt + 1}/${retryInfo.maxRetries + 1})`
+                  ? 'Grading timed out, retrying\u2026 (' + (retryInfo.attempt + 1) + '/' + (retryInfo.maxRetries + 1) + ')'
                   : 'Grading\u2026'}
               </div>
             )}
@@ -140,11 +206,11 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
                 : result.grade === 'partial'
                 ? 'rgba(234,179,8,0.1)'
                 : 'rgba(239,68,68,0.1)',
-              border: `1px solid ${
-                result.grade === 'correct' ? '#22c55e'
-                : result.grade === 'partial' ? '#eab308'
-                : '#ef4444'
-              }`,
+              border: result.grade === 'correct'
+                ? '1px solid #22c55e'
+                : result.grade === 'partial'
+                ? '1px solid #eab308'
+                : '1px solid #ef4444',
             }}>
               <div style={{
                 fontWeight: 600, fontSize: 14, marginBottom: 4,
@@ -153,9 +219,9 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
                   : '#ef4444',
                 fontFamily: 'var(--font-ui)',
               }}>
-                {result.grade === 'correct' ? '✓ Correct'
+                {result.grade === 'correct' ? '\u2713 Correct'
                   : result.grade === 'partial' ? '~ Partial'
-                  : '✗ Incorrect'}
+                  : '\u2717 Incorrect'}
               </div>
               <div style={{
                 fontSize: 13, color: 'var(--text-primary)',
@@ -250,19 +316,20 @@ function ConfettiExplosion() {
         const ty = Math.sin(angle) * velocity;
         const delay = Math.random() * 0.15;
         const size = 5 + Math.random() * 6;
-        const color = ['#5457E8', '#2E9E5B', '#D9A441', '#D14B4B', '#9b5de5', '#f15bb5', '#00f5d4'][Math.floor(Math.random() * 7)];
-        
+        const colors = ['#5457E8', '#2E9E5B', '#D9A441', '#D14B4B', '#9b5de5', '#f15bb5', '#00f5d4'];
+        const color = colors[Math.floor(Math.random() * colors.length)];
+
         return (
           <span
             key={i}
             className="confetti-particle"
             style={{
-              '--tx': `${tx}px`,
-              '--ty': `${ty}px`,
+              '--tx': tx + 'px',
+              '--ty': ty + 'px',
               '--bg': color,
-              width: `${size}px`,
-              height: `${size}px`,
-              animationDelay: `${delay}s`,
+              width: size + 'px',
+              height: size + 'px',
+              animationDelay: delay + 's',
             } as any}
           />
         );
@@ -270,4 +337,3 @@ function ConfettiExplosion() {
     </div>
   );
 }
-

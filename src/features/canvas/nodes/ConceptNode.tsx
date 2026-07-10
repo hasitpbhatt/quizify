@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useEffect } from 'react';
+import { memo, useState, useRef, useEffect, useCallback } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Volume2, Loader2, Square } from 'lucide-react';
 import styles from './ConceptNode.module.css';
@@ -20,6 +20,7 @@ function ConceptNodeInner(props: NodeProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [entered, setEntered] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const currentBlobUrlRef = useRef<string | null>(null);
   const prevExample = useRef(data.example);
 
   useEffect(() => {
@@ -31,17 +32,21 @@ function ConceptNodeInner(props: NodeProps) {
 
   const isShell = data.example === 'Loading...';
 
+  // Cleanup audio resources on unmount
   useEffect(() => {
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
-        URL.revokeObjectURL(audioRef.current.src);
+        if (currentBlobUrlRef.current) {
+          URL.revokeObjectURL(currentBlobUrlRef.current);
+          currentBlobUrlRef.current = null;
+        }
       }
       window.speechSynthesis.cancel();
     };
   }, []);
 
-  const handlePlay = async () => {
+  const handlePlay = useCallback(async () => {
     if (isPlaying) {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -56,7 +61,12 @@ function ConceptNodeInner(props: NodeProps) {
     try {
       const blob = await fetchTtsBlob(textToRead);
       if (blob) {
+        // Revoke previous blob URL before creating a new one
+        if (currentBlobUrlRef.current) {
+          URL.revokeObjectURL(currentBlobUrlRef.current);
+        }
         const url = URL.createObjectURL(blob);
+        currentBlobUrlRef.current = url;
         const audio = new Audio(url);
         audioRef.current = audio;
         audio.onended = () => setIsPlaying(false);
@@ -75,11 +85,11 @@ function ConceptNodeInner(props: NodeProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isPlaying, textToRead]);
 
   const titleText = data.title;
   const explanationText = data.explanation;
-  const titlePrefixLength = titleText.length + 2; // for ". "
+  const titlePrefixLength = titleText.length + 2;
 
   const titleRevealed = notebookMode ? Math.min(revealed, titleText.length) : titleText.length;
   const explanationRevealed = notebookMode ? Math.max(0, revealed - titlePrefixLength) : explanationText.length;
@@ -87,8 +97,14 @@ function ConceptNodeInner(props: NodeProps) {
   const isTitleAnimating = notebookMode && revealed < titleText.length;
   const isExplanationAnimating = notebookMode && revealed >= titleText.length && revealed < textToRead.length;
 
+  const nodeClass = [
+    styles.node,
+    isShell ? styles.loading : '',
+    entered ? styles.entered : '',
+  ].filter(Boolean).join(' ');
+
   return (
-    <div className={`${styles.node}${isShell ? ` ${styles.loading}` : ''}${entered ? ` ${styles.entered}` : ''}`}>
+    <div className={nodeClass}>
       <Handle type="target" position={Position.Left} />
       <div
         className={styles.title}

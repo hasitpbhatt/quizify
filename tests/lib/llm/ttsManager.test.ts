@@ -197,6 +197,69 @@ describe('subscribe / unsubscribe', () => {
   });
 });
 
+describe('subscribeState', () => {
+  it('immediately invokes listener with current state', () => {
+    const listener = vi.fn();
+    ttsManager.subscribeState(listener);
+    expect(listener).toHaveBeenCalledWith('idle');
+  });
+
+  it('emits on state transitions', () => {
+    const listener = vi.fn();
+    ttsManager.subscribeState(listener);
+    listener.mockClear();
+
+    ttsManager.enqueue({ nodeId: 'n1', text: 'hello' });
+    ttsManager.start();
+    expect(listener).toHaveBeenCalledWith('playing');
+  });
+
+  it('emits on pause', () => {
+    const listener = vi.fn();
+    ttsManager.subscribeState(listener);
+    ttsManager.enqueue({ nodeId: 'n1', text: 'hello' });
+    ttsManager.start();
+    listener.mockClear();
+
+    ttsManager.pause();
+    expect(listener).toHaveBeenCalledWith('paused');
+  });
+
+  it('emits on resume', () => {
+    const listener = vi.fn();
+    ttsManager.subscribeState(listener);
+    ttsManager.enqueue({ nodeId: 'n1', text: 'hello' });
+    ttsManager.start();
+    ttsManager.pause();
+    listener.mockClear();
+
+    ttsManager.resume();
+    expect(listener).toHaveBeenCalledWith('playing');
+  });
+
+  it('emits on stop', () => {
+    const listener = vi.fn();
+    ttsManager.subscribeState(listener);
+    ttsManager.enqueue({ nodeId: 'n1', text: 'hello' });
+    ttsManager.start();
+    listener.mockClear();
+
+    ttsManager.stop();
+    expect(listener).toHaveBeenCalledWith('stopped');
+  });
+
+  it('unsubscribe removes listener and stops notifications', () => {
+    const listener = vi.fn();
+    const unsub = ttsManager.subscribeState(listener);
+    unsub();
+    listener.mockClear();
+
+    ttsManager.enqueue({ nodeId: 'n1', text: 'hello' });
+    ttsManager.start();
+    expect(listener).not.toHaveBeenCalled();
+  });
+});
+
 describe('hasSegment', () => {
   it('returns true when a segment exists for the node', () => {
     ttsManager.enqueue({ nodeId: 'n1', text: 'hello' });

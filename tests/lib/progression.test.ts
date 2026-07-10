@@ -50,7 +50,7 @@ describe('getUnlockedConceptIndex', () => {
   it('returns concept count when all quizzes mastered', () => {
     const nodes = [
       conceptNode('c1', 0),
-      quizNode('q1', 'c1', 'mastered'),
+      quizNode('q1', 'c1', 'correct'),
       conceptNode('c2', 1),
       quizNode('q2', 'c2', 'correct'),
     ];

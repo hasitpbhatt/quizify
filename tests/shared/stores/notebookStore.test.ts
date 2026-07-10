@@ -29,16 +29,25 @@ describe('notebookStore', () => {
     expect(useNotebookStore.getState().notebookMode).toBe(false);
   });
 
-  it('setTtsPlaying updates ttsPlaying', () => {
-    useNotebookStore.getState().setTtsPlaying(true);
-    expect(useNotebookStore.getState().ttsPlaying).toBe(true);
-    useNotebookStore.getState().setTtsPlaying(false);
-    expect(useNotebookStore.getState().ttsPlaying).toBe(false);
+  it('syncTtsState maps playing state', () => {
+    useNotebookStore.getState().syncTtsState('playing');
+    const state = useNotebookStore.getState();
+    expect(state.ttsPlaying).toBe(true);
+    expect(state.ttsPaused).toBe(false);
   });
 
-  it('setTtsPaused updates ttsPaused', () => {
-    useNotebookStore.getState().setTtsPaused(true);
-    expect(useNotebookStore.getState().ttsPaused).toBe(true);
+  it('syncTtsState maps paused state', () => {
+    useNotebookStore.getState().syncTtsState('paused');
+    const state = useNotebookStore.getState();
+    expect(state.ttsPlaying).toBe(false);
+    expect(state.ttsPaused).toBe(true);
+  });
+
+  it('syncTtsState maps idle/stopped state', () => {
+    useNotebookStore.getState().syncTtsState('idle');
+    const state = useNotebookStore.getState();
+    expect(state.ttsPlaying).toBe(false);
+    expect(state.ttsPaused).toBe(false);
   });
 
   it('setCurrentSegment sets nodeId, index, and total', () => {

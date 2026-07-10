@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { ReactFlow, Background, MiniMap, BackgroundVariant } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { CanvasNode, ConceptData, QuizData, NoteData, SummaryData } from '@/shared/types';
@@ -29,12 +29,12 @@ function renderContent(node: CanvasNode): { title?: string; body: string } {
   const d = node.data;
   if (d.kind === 'concept') {
     const c = d as ConceptData;
-    return { title: c.title, body: `${c.explanation}\n\n${c.example}` };
+    return { title: c.title, body: c.explanation + '\n\n' + c.example };
   }
   if (d.kind === 'quiz') {
     const q = d as QuizData;
     const statusLine = q.attempts.length > 0
-      ? `Attempts: ${q.attempts.length} · ${q.state}`
+      ? 'Attempts: ' + q.attempts.length + ' \u00b7 ' + q.state
       : '';
     return { title: q.prompt, body: statusLine };
   }
@@ -44,7 +44,7 @@ function renderContent(node: CanvasNode): { title?: string; body: string } {
   }
   if (d.kind === 'summary') {
     const s = d as SummaryData;
-    return { title: `${s.recap.length} recap points`, body: s.recap.join('\n') };
+    return { title: s.recap.length + ' recap points', body: s.recap.join('\n') };
   }
   return { body: '' };
 }
@@ -54,6 +54,7 @@ export function MobileFocusView({ nodes, progress }: Props) {
   const [showMinimap, setShowMinimap] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
   const [activeQuiz, setActiveQuiz] = useState<{ quizId: string; quiz: QuizData; conceptTitle: string } | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   // Clamp index when nodes shrink
   useEffect(() => {
@@ -63,6 +64,13 @@ export function MobileFocusView({ nodes, progress }: Props) {
       setIndex(i => Math.min(i, nodes.length - 1));
     }
   }, [nodes.length]);
+
+  // Reset scroll position when navigating to a new node
+  useEffect(() => {
+    if (cardRef.current) {
+      cardRef.current.scrollTop = 0;
+    }
+  }, [index]);
 
   const node = nodes[index];
   const total = nodes.length;
@@ -80,7 +88,7 @@ export function MobileFocusView({ nodes, progress }: Props) {
       if (node) {
         if (node.data.kind === 'concept') {
           const c = node.data as ConceptData;
-          const text = `${c.title}. ${c.explanation}`;
+          const text = c.title + '. ' + c.explanation;
           ttsManager.enqueue({ nodeId: node.id, text });
         } else if (node.data.kind === 'summary') {
           const s = node.data as SummaryData;
@@ -98,15 +106,18 @@ export function MobileFocusView({ nodes, progress }: Props) {
     ttsManager.stop();
   }, []);
 
-  // Auto-TTS on card change in notebook mode
+  // Auto-TTS on card change in notebook mode, with dedup check
   useEffect(() => {
     if (!notebookMode || !node) return;
     if (node.data.kind === 'concept') {
       const c = node.data as ConceptData;
-      const text = `${c.title}. ${c.explanation}`;
+      // Avoid enqueuing duplicate segments
+      if (ttsManager.hasSegment(node.id)) return;
+      const text = c.title + '. ' + c.explanation;
       ttsManager.enqueue({ nodeId: node.id, text });
     } else if (node.data.kind === 'summary') {
       const s = node.data as SummaryData;
+      if (ttsManager.hasSegment(node.id)) return;
       const text = s.recap.join('. ');
       ttsManager.enqueue({ nodeId: node.id, text });
     } else {
@@ -149,6 +160,10 @@ export function MobileFocusView({ nodes, progress }: Props) {
 
   const isGenerating = progress && progress.stage !== 'done';
 
+  const outlineItemClass = (isCurrent: boolean) => {
+    return [styles.outlineItem, isCurrent ? styles.activeOutlineItem : ''].filter(Boolean).join(' ');
+  };
+
   return (
     <div className={styles.wrapper} data-notebook={notebookMode ? 'true' : undefined}>
       {isGenerating && (
@@ -164,11 +179,11 @@ export function MobileFocusView({ nodes, progress }: Props) {
           <span>Outline</span>
         </button>
         <button className={styles.topActionBtn} onClick={() => setShowMinimap(v => !v)}>
-          {showMinimap ? '✕ Map' : '☰ Map'}
+          {showMinimap ? '\u2715 Map' : '\u2630 Map'}
         </button>
       </div>
 
-      <div className={styles.card}>
+      <div className={styles.card} ref={cardRef}>
         {node ? (
           <div className={styles.nodeContent}>
             <div className={styles.kindTag}>{kindLabel}</div>
@@ -195,16 +210,20 @@ export function MobileFocusView({ nodes, progress }: Props) {
           </button>
           <span className={styles.mobileTtsLabel}>
             {totalSegments > 0
-              ? `${segmentIndex + 1} / ${totalSegments}`
+              ? (segmentIndex + 1) + ' / ' + totalSegments
               : 'Queued'}
           </span>
         </div>
       )}
 
       <div className={styles.nav}>
-        <button className={styles.navBtn} onClick={goPrev} disabled={index === 0 || total === 0}>‹</button>
-        <span className={styles.counter}>{total > 0 ? `${index + 1} / ${total}` : '0 / 0'}</span>
-        <button className={styles.navBtn} onClick={goNext} disabled={index === total - 1 || total === 0}>›</button>
+        <button className={styles.navBtn} onClick={goPrev} disabled={index === 0 || total === 0} aria-label="Previous node">
+          &lsaquo;
+        </button>
+        <span className={styles.counter}>{total > 0 ? (index + 1) + ' / ' + total : '0 / 0'}</span>
+        <button className={styles.navBtn} onClick={goNext} disabled={index === total - 1 || total === 0} aria-label="Next node">
+          &rsaquo;
+        </button>
       </div>
 
       {activeQuiz && (
@@ -217,11 +236,11 @@ export function MobileFocusView({ nodes, progress }: Props) {
       )}
 
       {showOutline && (
-        <div className={styles.outlineOverlay} onClick={() => setShowOutline(false)}>
+        <div className={styles.outlineOverlay} onClick={() => setShowOutline(false)} role="dialog" aria-modal="true" aria-label="Outline">
           <div className={styles.outlinePanel} onClick={e => e.stopPropagation()}>
             <div className={styles.outlineHeader}>
               <span className={styles.outlineHeaderTitle}>Outline</span>
-              <button className={styles.closeOutlineBtn} onClick={() => setShowOutline(false)}>✕</button>
+              <button className={styles.closeOutlineBtn} onClick={() => setShowOutline(false)} aria-label="Close outline">\u2715</button>
             </div>
             <div className={styles.outlineList}>
               {nodes.map((n, i) => {
@@ -232,7 +251,7 @@ export function MobileFocusView({ nodes, progress }: Props) {
                 return (
                   <button
                     key={n.id}
-                    className={`${styles.outlineItem} ${isCurrent ? styles.activeOutlineItem : ''}`}
+                    className={outlineItemClass(isCurrent)}
                     onClick={() => {
                       setIndex(i);
                       setShowOutline(false);
@@ -251,7 +270,7 @@ export function MobileFocusView({ nodes, progress }: Props) {
       {showMinimap && (
         <div className={styles.minimapOverlay} onClick={() => setShowMinimap(false)}>
           <div className={styles.minimapPanel} onClick={e => e.stopPropagation()}>
-            <button className={styles.closeMinimapBtn} onClick={() => setShowMinimap(false)}>✕</button>
+            <button className={styles.closeMinimapBtn} onClick={() => setShowMinimap(false)}>\u2715</button>
             <ReactFlow
               nodes={nodes.map(n => ({
                 id: n.id,

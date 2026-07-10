@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useTypingAnimation } from '@/features/canvas/useTypingAnimation';
 
-const mockSubscribe = vi.hoisted(() => vi.fn(() => 'sub-1'));
+const mockSubscribe = vi.hoisted(() => vi.fn<(...args: unknown[]) => string>(() => 'sub-1'));
 const mockUnsubscribe = vi.hoisted(() => vi.fn());
 const mockFinishSegment = vi.hoisted(() => vi.fn());
 const mockHasSegment = vi.hoisted(() => vi.fn(() => false));
@@ -76,10 +76,10 @@ describe('notebook mode (notebookMode = true)', () => {
   it('updates revealed on TTS progress', () => {
     const { result } = renderHook(() => useTypingAnimation('n1', 'hello world'));
 
-    const sub = mockSubscribe.mock.calls[0][1];
+    const sub = mockSubscribe.mock.calls[0][1] as { onSegmentStart?: (nodeId: string) => void; onCharProgress?: (nodeId: string, charIndex: number) => void; onSegmentEnd?: (nodeId: string) => void; };
 
     act(() => {
-      sub.onCharProgress('n1', 5);
+      sub.onCharProgress!('n1', 5);
     });
 
     act(() => {
@@ -93,10 +93,10 @@ describe('notebook mode (notebookMode = true)', () => {
   it('reveals full text on TTS end', () => {
     const { result } = renderHook(() => useTypingAnimation('n1', 'hello'));
 
-    const sub = mockSubscribe.mock.calls[0][1];
+    const sub = mockSubscribe.mock.calls[0][1] as { onSegmentStart?: (nodeId: string) => void; onCharProgress?: (nodeId: string, charIndex: number) => void; onSegmentEnd?: (nodeId: string) => void; };
 
     act(() => {
-      sub.onSegmentEnd('n1');
+      sub.onSegmentEnd!('n1');
     });
 
     act(() => {
@@ -109,10 +109,10 @@ describe('notebook mode (notebookMode = true)', () => {
   it('cancels fallback timer when TTS starts', () => {
     renderHook(() => useTypingAnimation('n1', 'hello'));
 
-    const sub = mockSubscribe.mock.calls[0][1];
+    const sub = mockSubscribe.mock.calls[0][1] as { onSegmentStart?: (nodeId: string) => void; onCharProgress?: (nodeId: string, charIndex: number) => void; onSegmentEnd?: (nodeId: string) => void; };
 
     act(() => {
-      sub.onSegmentStart('n1');
+      sub.onSegmentStart!('n1');
     });
 
     // After TTS starts, the fallback timeout should be cleared

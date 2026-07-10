@@ -351,6 +351,14 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     }
   }, [notebookMode]);
 
+  // Sync ttsManager state → notebookStore so buttons reflect real TTS state
+  useEffect(() => {
+    const unsub = ttsManager.subscribeState((state) => {
+      useNotebookStore.getState().syncTtsState(state);
+    });
+    return unsub;
+  }, []);
+
   // Smooth orientation moment to focus on Concept 1 when loading a session
   useEffect(() => {
     if (!session || orientedSessionRef.current === session.id) return;

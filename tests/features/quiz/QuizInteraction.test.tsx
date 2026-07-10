@@ -4,7 +4,13 @@ import type { QuizData } from '@/shared/types';
 import { QuizInteraction } from '@/features/quiz/QuizInteraction';
 
 const mockSubmit = vi.hoisted(() => vi.fn());
-const mockUseQuizAnswer = vi.hoisted(() => vi.fn(() => ({
+const mockUseQuizAnswer = vi.hoisted(() => vi.fn<(...args: unknown[]) => {
+  submit: typeof mockSubmit;
+  submitting: boolean;
+  error: string | null;
+  attempts: Array<Record<string, unknown>>;
+  retryInfo: { attempt: number; maxRetries: number; delayMs: number; model: string } | null;
+}>(() => ({
   submit: mockSubmit,
   submitting: false,
   error: null,
@@ -204,7 +210,7 @@ describe('QuizInteraction', () => {
     expect(screen.getByText(/Grading timed out, retrying/)).toBeInTheDocument();
   });
 
-  it('shows "Grading…" when submitting without retryInfo', () => {
+  it('shows "Gradingâ€¦" when submitting without retryInfo', () => {
     mockUseQuizAnswer.mockReturnValue({
       submit: mockSubmit,
       submitting: true,
