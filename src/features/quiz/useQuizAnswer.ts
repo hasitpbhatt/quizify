@@ -14,7 +14,7 @@ export interface SubmitResult {
   idealAnswer: string;
 }
 
-function localGrade(quiz: QuizData, given: string | string[]): SubmitResult {
+export function localGrade(quiz: QuizData, given: string | string[]): SubmitResult {
   switch (quiz.format) {
     case 'multipleChoice':
     case 'trueFalse': {
@@ -55,7 +55,7 @@ function localGrade(quiz: QuizData, given: string | string[]): SubmitResult {
   }
 }
 
-function computeState(attempts: Attempt[]): QuizState {
+export function computeState(attempts: Attempt[]): QuizState {
   if (attempts.length === 0) return 'untested';
   const best = attempts.reduce((acc, a) => {
     const order = { correct: 2, partial: 1, incorrect: 0 } as const;

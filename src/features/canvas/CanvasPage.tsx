@@ -368,7 +368,8 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
 
     orientedSessionRef.current = session.id;
 
-    setTimeout(() => {
+    let pulseId: ReturnType<typeof setTimeout> | undefined;
+    const fitId = setTimeout(() => {
       // 1. Pan camera smoothly to the first concept node
       reactFlow.fitView({
         nodes: [{ id: firstConcept.id }],
@@ -381,7 +382,7 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
       const element = document.querySelector(`[data-id="${firstConcept.id}"]`);
       if (element) {
         element.classList.add(styles.pulseHighlight);
-        setTimeout(() => {
+        pulseId = setTimeout(() => {
           element.classList.remove(styles.pulseHighlight);
         }, 3000);
       }
@@ -389,6 +390,11 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
       // 3. A toast saying "Start here → [Concept title]"
       useToastStore.getState().add(`Start here → ${firstConcept.data.title}`);
     }, 800);
+
+    return () => {
+      clearTimeout(fitId);
+      if (pulseId !== undefined) clearTimeout(pulseId);
+    };
   }, [session, concepts, reactFlow]);
 
   // Migration: sessionStorage summary quiz results → Session.scores (IndexedDB)

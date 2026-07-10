@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { ReactFlow, Background, MiniMap, BackgroundVariant } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import type { CanvasNode, ConceptData, QuizData, NoteData, SummaryData } from '@/shared/types';
+import type { CanvasNode, QuizData, ConceptData } from '@/shared/types';
 import { QuizInteraction } from '@/features/quiz/QuizInteraction';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
@@ -17,8 +17,7 @@ function formatKind(node: CanvasNode): string {
   const d = node.data;
   if (d.kind === 'concept') return 'Concept';
   if (d.kind === 'quiz') {
-    const q = d as QuizData;
-    return q.format.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
+    return d.format.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
   }
   if (d.kind === 'note') return 'Note';
   if (d.kind === 'summary') return 'Summary';
@@ -28,23 +27,19 @@ function formatKind(node: CanvasNode): string {
 function renderContent(node: CanvasNode): { title?: string; body: string } {
   const d = node.data;
   if (d.kind === 'concept') {
-    const c = d as ConceptData;
-    return { title: c.title, body: c.explanation + '\n\n' + c.example };
+    return { title: d.title, body: d.explanation + '\n\n' + d.example };
   }
   if (d.kind === 'quiz') {
-    const q = d as QuizData;
-    const statusLine = q.attempts.length > 0
-      ? 'Attempts: ' + q.attempts.length + ' \u00b7 ' + q.state
+    const statusLine = d.attempts.length > 0
+      ? 'Attempts: ' + d.attempts.length + ' \u00b7 ' + d.state
       : '';
-    return { title: q.prompt, body: statusLine };
+    return { title: d.prompt, body: statusLine };
   }
   if (d.kind === 'note') {
-    const n = d as NoteData;
-    return { body: n.text };
+    return { body: d.text };
   }
   if (d.kind === 'summary') {
-    const s = d as SummaryData;
-    return { title: s.recap.length + ' recap points', body: s.recap.join('\n') };
+    return { title: d.recap.length + ' recap points', body: d.recap.join('\n') };
   }
   return { body: '' };
 }
@@ -87,12 +82,10 @@ export function MobileFocusView({ nodes, progress }: Props) {
     } else if (!ttsPlaying) {
       if (node) {
         if (node.data.kind === 'concept') {
-          const c = node.data as ConceptData;
-          const text = c.title + '. ' + c.explanation;
+          const text = node.data.title + '. ' + node.data.explanation;
           ttsManager.enqueue({ nodeId: node.id, text });
         } else if (node.data.kind === 'summary') {
-          const s = node.data as SummaryData;
-          const text = s.recap.join('. ');
+          const text = node.data.recap.join('. ');
           ttsManager.enqueue({ nodeId: node.id, text });
         }
       }
@@ -110,15 +103,12 @@ export function MobileFocusView({ nodes, progress }: Props) {
   useEffect(() => {
     if (!notebookMode || !node) return;
     if (node.data.kind === 'concept') {
-      const c = node.data as ConceptData;
-      // Avoid enqueuing duplicate segments
       if (ttsManager.hasSegment(node.id)) return;
-      const text = c.title + '. ' + c.explanation;
+      const text = node.data.title + '. ' + node.data.explanation;
       ttsManager.enqueue({ nodeId: node.id, text });
     } else if (node.data.kind === 'summary') {
-      const s = node.data as SummaryData;
       if (ttsManager.hasSegment(node.id)) return;
-      const text = s.recap.join('. ');
+      const text = node.data.recap.join('. ');
       ttsManager.enqueue({ nodeId: node.id, text });
     } else {
       return;
@@ -149,9 +139,8 @@ export function MobileFocusView({ nodes, progress }: Props) {
 
   const openQuiz = useCallback(() => {
     if (!node || node.data.kind !== 'quiz') return;
-    const quiz = node.data as QuizData;
-    const conceptTitle = conceptTitles.get(quiz.parentConceptId) ?? 'Concept';
-    setActiveQuiz({ quizId: node.id, quiz, conceptTitle });
+    const conceptTitle = conceptTitles.get(node.data.parentConceptId) ?? 'Concept';
+    setActiveQuiz({ quizId: node.id, quiz: node.data, conceptTitle });
   }, [node, conceptTitles]);
 
   const closeQuiz = useCallback(() => {
@@ -247,7 +236,7 @@ export function MobileFocusView({ nodes, progress }: Props) {
                 const isCurrent = i === index;
                 const kind = formatKind(n);
                 const { title: nodeTitle } = renderContent(n);
-                const displayTitle = nodeTitle || (n.data.kind === 'note' ? (n.data as NoteData).text.slice(0, 30) + '...' : kind);
+                const displayTitle = nodeTitle || (n.data.kind === 'note' ? n.data.text.slice(0, 30) + '...' : kind);
                 return (
                   <button
                     key={n.id}

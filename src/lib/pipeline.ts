@@ -16,7 +16,7 @@ export interface PipelineProgress {
 
 type ProgressCallback = (progress: PipelineProgress) => void;
 
-const CONCURRENCY = 1;
+const CONCURRENCY = Infinity;
 
 const COL_WIDTH = 480;
 const GAP_COL = 80;

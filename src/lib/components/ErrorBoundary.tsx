@@ -23,12 +23,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    if (this.props.name) {
-      console.group(`[ErrorBoundary:${this.props.name}]`);
-      console.error(error);
-      console.info('Component stack:', info.componentStack);
-      console.groupEnd();
-    }
+    const label = this.props.name ?? 'Unnamed';
+    console.group(`[ErrorBoundary:${label}]`);
+    console.error(error);
+    console.info('Component stack:', info.componentStack);
+    console.groupEnd();
     this.props.onError?.(error, info);
   }
 

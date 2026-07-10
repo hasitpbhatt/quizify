@@ -1,13 +1,7 @@
 import { truncateByParagraphs } from '@/lib/truncate';
 import { getCachedSource, setCachedSource } from '@/lib/db/sourceCache';
-import { getProviderConfig, getApiBase } from '@/lib/llm/providers';
+import { chat } from '@/lib/llm/chat';
 import type { LlmProvider, Persona } from '@/shared/types';
-
-const OPENCODE_HEADERS: Record<string, string> = {
-  'User-Agent': 'opencode/1.17.13 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14',
-  'x-opencode-client': 'cli',
-  'x-opencode-project': 'global',
-};
 
 export interface SourceResult {
   content: string;
@@ -34,6 +28,32 @@ export function isLikelyUrl(input: string): boolean {
 }
 
 const JINA_BASE = 'https://r.jina.ai';
+const FETCH_TIMEOUT_MS = 15_000;
+
+async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
+  const ac = new AbortController();
+  const timeout = setTimeout(() => ac.abort(new DOMException('Fetch timed out', 'TimeoutError')), FETCH_TIMEOUT_MS);
+  try {
+    const signal = init?.signal ? anySignal(init.signal, ac.signal) : ac.signal;
+    return await fetch(url, { ...init, signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function anySignal(...signals: (AbortSignal | undefined)[]): AbortSignal {
+  const controller = new AbortController();
+  for (const sig of signals) {
+    if (sig) {
+      if (sig.aborted) {
+        controller.abort(sig.reason);
+        return controller.signal;
+      }
+      sig.addEventListener('abort', () => controller.abort(sig.reason), { once: true });
+    }
+  }
+  return controller.signal;
+}
 
 async function fetchViaJina(url: string, jinaToken?: string): Promise<Response> {
   const headers: Record<string, string> = {
@@ -42,22 +62,22 @@ async function fetchViaJina(url: string, jinaToken?: string): Promise<Response> 
   if (jinaToken) {
     headers.Authorization = `Bearer ${jinaToken}`;
   }
-  return fetch(`${JINA_BASE}/${url}`, { headers });
+  return fetchWithTimeout(`${JINA_BASE}/${url}`, { headers });
 }
 
 async function fetchViaProxy(url: string, proxy: string): Promise<Response> {
   const proxyUrl = proxy.endsWith('/') ? `${proxy}${url}` : `${proxy}/${url}`;
-  return fetch(proxyUrl);
+  return fetchWithTimeout(proxyUrl);
 }
 
 const DEV_PROXY = '/__proxy?url=';
 
 async function fetchViaViteProxy(url: string): Promise<Response> {
-  return fetch(`${DEV_PROXY}${encodeURIComponent(url)}`);
+  return fetchWithTimeout(`${DEV_PROXY}${encodeURIComponent(url)}`);
 }
 
 async function fetchViaCfProxy(url: string): Promise<Response> {
-  return fetch(`/api/fetch?url=${encodeURIComponent(url)}`);
+  return fetchWithTimeout(`/api/fetch?url=${encodeURIComponent(url)}`);
 }
 
 async function fetchViaFallbacks(url: string): Promise<{ content: string; source: SourceResult['source'] } | null> {
@@ -118,32 +138,11 @@ async function fetchViaFallbacks(url: string): Promise<{ content: string; source
 }
 
 async function callLlm(prompt: string, apiKey: string, provider?: LlmProvider): Promise<string> {
-  const cfg = getProviderConfig(provider);
-  const apiBase = getApiBase(provider);
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(cfg.defaultBearerToken ? OPENCODE_HEADERS : {}),
-  };
-  const bearer = cfg.defaultBearerToken ?? (cfg.requiresApiKey ? apiKey : undefined);
-  if (bearer) {
-    headers.Authorization = `Bearer ${bearer}`;
-  }
-  const res = await fetch(apiBase, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      model: cfg.gradingModel,
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 4000,
-      temperature: 0.3,
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`${cfg.label} returned ${res.status}${body ? `: ${body.slice(0, 200)}` : ''}`);
-  }
-  const json = await res.json() as { choices: { message: { content: string } }[] };
-  return json.choices?.[0]?.message?.content ?? '';
+  const response = await chat(
+    [{ role: 'user', content: prompt }],
+    { apiKey, provider, maxTokens: 4000, temperature: 0.3 },
+  );
+  return response.content;
 }
 
 async function fetchSubjectFromLlm(subject: string, apiKey: string, provider?: LlmProvider): Promise<string> {

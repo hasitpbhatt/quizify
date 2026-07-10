@@ -5,9 +5,15 @@ import type { NoteData, CanvasNode } from '@/shared/types';
 import styles from './NoteNode.module.css';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
+import * as sessionsDb from '@/lib/db/sessionsDb';
+
+function toNoteData(data: Record<string, unknown>): NoteData {
+  if (data.kind !== 'note') throw new Error(`Expected note data, got ${String(data.kind)}`);
+  return data as unknown as NoteData;
+}
 
 function NoteNodeInner(props: NodeProps) {
-  const data = props.data as unknown as NoteData;
+  const data = toNoteData(props.data);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(data.text);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -25,22 +31,22 @@ function NoteNodeInner(props: NodeProps) {
     setDraft(data.text);
   }, [data.text]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     setEditing(false);
     const trimmed = draft.trim();
     if (trimmed === data.text) return;
 
-    const node = props.id;
-    const store = useSessionStore.getState();
-    const session = store.sessions.find(s => s.id === store.currentId);
-    if (!session) return;
+    const { currentId } = useSessionStore.getState();
+    if (!currentId) return;
+    const authoritative = await sessionsDb.getSession(currentId);
+    if (!authoritative) return;
 
-    const updatedNodes: CanvasNode[] = session.nodes.map(n =>
-      n.id === node
+    const updatedNodes: CanvasNode[] = authoritative.nodes.map(n =>
+      n.id === props.id
         ? { ...n, data: { ...n.data, text: trimmed } as NoteData }
         : n
     );
-    updateCurrent({ nodes: updatedNodes });
+    await updateCurrent({ nodes: updatedNodes });
   }, [draft, data.text, props, updateCurrent]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -54,15 +60,16 @@ function NoteNodeInner(props: NodeProps) {
     }
   }, [data.text, handleSave]);
 
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     const nodeId = props.id;
-    const store = useSessionStore.getState();
-    const session = store.sessions.find(s => s.id === store.currentId);
-    if (!session) return;
+    const { currentId } = useSessionStore.getState();
+    if (!currentId) return;
+    const authoritative = await sessionsDb.getSession(currentId);
+    if (!authoritative) return;
 
-    const updatedNodes = session.nodes.filter(n => n.id !== nodeId);
-    const updatedEdges = session.edges.filter(e => e.source !== nodeId && e.target !== nodeId);
-    updateCurrent({ nodes: updatedNodes, edges: updatedEdges });
+    const updatedNodes = authoritative.nodes.filter(n => n.id !== nodeId);
+    const updatedEdges = authoritative.edges.filter(e => e.source !== nodeId && e.target !== nodeId);
+    await updateCurrent({ nodes: updatedNodes, edges: updatedEdges });
   }, [props, updateCurrent]);
 
   return (

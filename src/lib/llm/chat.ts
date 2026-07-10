@@ -1,6 +1,7 @@
 import { AuthError, RateLimitError, NetworkError } from './errors';
 import { getProviderConfig, getApiBase } from './providers';
 import { sleep } from './sleep';
+import { useSettingsStore } from '@/shared/stores/settingsStore';
 import type { ChatMessage, LlmProvider } from '@/shared/types';
 
 export interface RetryInfo {
@@ -159,7 +160,7 @@ async function tryEndpoint(
 
 export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<ChatResponse> {
   const { apiKey, signal: userSignal, responseFormat, maxTokens = 4096 } = opts;
-  const provider = opts.provider ?? 'mistral';
+  const provider = opts.provider ?? useSettingsStore.getState().provider ?? 'mistral';
   const cfg = getProviderConfig(provider);
   const model = opts.model ?? cfg.defaultModel;
   const temperature = opts.temperature ?? 0.3;

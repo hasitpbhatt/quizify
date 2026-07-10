@@ -7,8 +7,13 @@ import type { SummaryData } from '@/shared/types';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
 
+function toSummaryData(data: Record<string, unknown>): SummaryData {
+  if (data.kind !== 'summary') throw new Error(`Expected summary data, got ${String(data.kind)}`);
+  return data as unknown as SummaryData;
+}
+
 function SummaryNodeInner(props: NodeProps) {
-  const data = props.data as unknown as SummaryData;
+  const data = toSummaryData(props.data);
   const notebookMode = useNotebookStore((s) => s.notebookMode);
 
   // Build cumulative character offsets for each recap bullet

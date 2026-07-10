@@ -25,7 +25,12 @@ function errStatus(status: number, body?: string) {
 }
 
 function urlOf(info: RequestInfo | URL): string {
-  return typeof info === 'string' ? info : info.toString();
+  if (typeof info === 'string') return info;
+  if (typeof info === 'object' && info !== null) {
+    if ('url' in info) return (info as { url: string }).url;
+    return info.toString();
+  }
+  return String(info);
 }
 
 /** Helper: creates a mock fetch that routes based on URL patterns. */
@@ -178,7 +183,7 @@ describe('fetchSourceContent', () => {
 
     it('throws descriptive error when LLM fails', async () => {
       mockWith({
-        'https://opencode.ai': () => Promise.resolve(errStatus(500)),
+        'https://opencode.ai': () => Promise.resolve(errStatus(400)),
       });
       await expect(
         fetchSourceContent('gravity', { apiKey: '', persona: 'student' })

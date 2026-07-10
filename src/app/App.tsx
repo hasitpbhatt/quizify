@@ -93,6 +93,14 @@ export function App() {
     return () => document.removeEventListener('visibilitychange', handler);
   }, [loadSessions]);
 
+  // Abort in-flight pipeline on unmount (navigating away mid-generation)
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, []);
+
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;

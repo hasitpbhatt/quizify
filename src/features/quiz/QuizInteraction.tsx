@@ -156,12 +156,12 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
               {quiz.prompt}
             </div>
           </div>
-          <button onClick={onClose} className="quiz-close-btn" style={{
+          <button onClick={onClose} className="quiz-close-btn" aria-label="Close quiz" style={{
             padding: '4px 10px', borderRadius: 4, border: '1px solid var(--border)',
             background: 'var(--bg-elevated)', color: 'var(--text-secondary)',
             cursor: 'pointer', fontFamily: 'var(--font-ui)', fontSize: 12,
           }}>
-            âœ•
+            ✕
           </button>
         </div>
 

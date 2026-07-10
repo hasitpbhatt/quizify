@@ -9,8 +9,13 @@ import type { ConceptData } from '@/shared/types';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
 
+function toConceptData(data: Record<string, unknown>): ConceptData {
+  if (data.kind !== 'concept') throw new Error(`Expected concept data, got ${String(data.kind)}`);
+  return data as unknown as ConceptData;
+}
+
 function ConceptNodeInner(props: NodeProps) {
-  const data = props.data as unknown as ConceptData;
+  const data = toConceptData(props.data);
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const textToRead = `${data.title}. ${data.explanation}`;
   const skipTyping = props.data.skipTyping === true;

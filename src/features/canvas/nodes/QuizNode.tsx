@@ -14,8 +14,13 @@ const badgeColors: Record<string, { bg: string; text: string }> = {
   mastered: { bg: 'rgba(34,197,94,0.15)', text: '#22c55e' },
 };
 
+function toQuizData(data: Record<string, unknown>): QuizData {
+  if (data.kind !== 'quiz') throw new Error(`Expected quiz data, got ${String(data.kind)}`);
+  return data as unknown as QuizData;
+}
+
 function QuizNodeInner(props: NodeProps) {
-  const data = props.data as unknown as QuizData;
+  const data = toQuizData(props.data);
   const formatLabel = data.format
     .replace(/([A-Z])/g, ' $1')
     .replace(/^./, s => s.toUpperCase())
