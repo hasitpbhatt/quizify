@@ -90,6 +90,28 @@ describe('notebook mode (notebookMode = true)', () => {
     expect(result.current.revealed).toBeGreaterThan(0);
   });
 
+  it('chases multiple TTS progress events without getting stuck', () => {
+    const { result } = renderHook(() => useTypingAnimation('n1', 'x'.repeat(100)));
+
+    const sub = mockSubscribe.mock.calls[0][1] as {
+      onCharProgress: (nodeId: string, charIndex: number) => void;
+    };
+
+    act(() => { sub.onCharProgress('n1', 30); });
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(result.current.revealed).toBe(30);
+
+    act(() => { sub.onCharProgress('n1', 80); });
+    act(() => { vi.advanceTimersByTime(2000); });
+    expect(result.current.revealed).toBe(80);
+    expect(result.current.isAnimating).toBe(true);
+
+    act(() => { sub.onCharProgress('n1', 100); });
+    act(() => { vi.advanceTimersByTime(500); });
+    expect(result.current.revealed).toBe(100);
+    expect(result.current.isAnimating).toBe(false);
+  });
+
   it('reveals full text on TTS end', () => {
     const { result } = renderHook(() => useTypingAnimation('n1', 'hello'));
 

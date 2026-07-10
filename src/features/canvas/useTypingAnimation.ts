@@ -138,15 +138,7 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
       setDisplayedRevealed((prev) => {
         const target = targetRef.current;
         if (prev < target) {
-          const next = prev + 1;
-          // If we've reached or passed the target, stop the interval
-          if (next >= target) {
-            if (chaseIntervalRef.current) {
-              clearInterval(chaseIntervalRef.current);
-              chaseIntervalRef.current = null;
-            }
-          }
-          return next;
+          return prev + 1;
         }
         // Only stop the interval when the full text is revealed,
         // not during initial idle state (where prev === target === 0)
