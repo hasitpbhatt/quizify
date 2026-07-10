@@ -12,7 +12,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { getUnlockedConceptIndex, getConceptIndex } from '@/lib/progression';
-import type { CanvasNode, CanvasEdge, QuizData, ConceptData, SummaryData } from '@/shared/types';
+import { SUMMARY_NODE_ID, type CanvasNode, type CanvasEdge, type QuizData, type NoteData, type ConceptData, type SummaryData } from '@/shared/types';
 import { ConceptNode } from './nodes/ConceptNode';
 import { QuizNode } from './nodes/QuizNode';
 import { SummaryNode } from './nodes/SummaryNode';
@@ -22,7 +22,6 @@ import { SummaryQuizInteraction } from '@/features/quiz/SummaryQuizInteraction';
 import { NoteNode } from './nodes/NoteNode';
 import { MobileFocusView } from './MobileFocusView';
 import { useIsMobile } from '@/shared/useMediaQuery';
-import type { NoteData } from '@/shared/types';
 import { Plus, BookOpen, Play, Pause, Square, Download, ChevronDown, X } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
@@ -32,6 +31,7 @@ import { CanvasErrorFallback } from '@/lib/components/CanvasErrorFallback';
 import { QuizErrorFallback } from '@/lib/components/QuizErrorFallback';
 import { downloadSessionMarkdown } from '@/lib/export/markdown';
 import { exportCanvasAsPng } from '@/lib/export/image';
+import { useToastStore } from '@/shared/stores/toastStore';
 import '@/styles/notebook.css';
 import styles from './CanvasPage.module.css';
 
@@ -184,6 +184,7 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
   );
 
   const lastConceptIndexRef = useRef(currentConceptIndex);
+  const orientedSessionRef = useRef<string | null>(null);
 
   const visibleData = useMemo(() => {
     if (!session) return { nodes: [], edges: [] };
@@ -327,18 +328,18 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     const currentConcept = concepts.find(c => c.data.index === currentConceptIndex);
     if (!currentConcept) return;
 
-    // Only reset revealed quizzes and refocus when the concept index actually changes
-    if (lastConceptIndexRef.current !== currentConceptIndex) {
+    const shouldStartTts = 
+      lastConceptIndexRef.current !== currentConceptIndex || 
+      (!ttsManager.isPlaying && !ttsManager.isPaused && !ttsManager.hasSegment(currentConcept.id));
+
+    if (shouldStartTts) {
       setRevealedQuizIds(new Set());
       focusOnActiveConcept(currentConcept.id, false);
       lastConceptIndexRef.current = currentConceptIndex;
-    }
 
-    const text = `${currentConcept.data.title}. ${currentConcept.data.explanation}`;
-    if (!ttsManager.hasSegment(currentConcept.id)) {
+      ttsManager.stop();
+      const text = `${currentConcept.data.title}. ${currentConcept.data.explanation}`;
       ttsManager.enqueue({ nodeId: currentConcept.id, text });
-    }
-    if (!ttsManager.isPlaying && !ttsManager.isPaused) {
       ttsManager.start();
     }
   }, [currentConceptIndex, notebookMode, session, concepts, focusOnActiveConcept]);
@@ -349,6 +350,64 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
       ttsManager.stop();
     }
   }, [notebookMode]);
+
+  // Smooth orientation moment to focus on Concept 1 when loading a session
+  useEffect(() => {
+    if (!session || orientedSessionRef.current === session.id) return;
+
+    const firstConcept = concepts.find(c => c.data.index === 0);
+    if (!firstConcept) return;
+
+    orientedSessionRef.current = session.id;
+
+    setTimeout(() => {
+      // 1. Pan camera smoothly to the first concept node
+      reactFlow.fitView({
+        nodes: [{ id: firstConcept.id }],
+        duration: 1200,
+        padding: 0.5,
+        maxZoom: 1.0,
+      });
+
+      // 2. Subtle pulse highlight animation
+      const element = document.querySelector(`[data-id="${firstConcept.id}"]`);
+      if (element) {
+        element.classList.add(styles.pulseHighlight);
+        setTimeout(() => {
+          element.classList.remove(styles.pulseHighlight);
+        }, 3000);
+      }
+
+      // 3. A toast saying "Start here → [Concept title]"
+      useToastStore.getState().add(`Start here → ${firstConcept.data.title}`);
+    }, 800);
+  }, [session, concepts, reactFlow]);
+
+  // Migration: sessionStorage summary quiz results → Session.scores (IndexedDB)
+  useEffect(() => {
+    if (!session) return;
+    if (Object.keys(session.scores).length > 0) return;
+
+    const saved = sessionStorage.getItem(`summary-quiz-${session.id}`);
+    if (!saved) return;
+
+    try {
+      const parsed = JSON.parse(saved) as boolean[];
+      const scores: Record<string, { best: number; attempts: number }> = {};
+      parsed.forEach((correct, i) => {
+        scores[String(i)] = { best: correct ? 1 : 0, attempts: 1 };
+      });
+      sessionStorage.removeItem(`summary-quiz-${session.id}`);
+      updateCurrent({ scores });
+    } catch {
+      // ignore bad data
+    }
+  }, [session, updateCurrent]);
+
+  const handleUpdateScores = useCallback((scores: Record<string, { best: number; attempts: number }>) => {
+    if (!session) return;
+    updateCurrent({ scores });
+  }, [session, updateCurrent]);
 
   if (!session || nodes.length === 0) {
     return (
@@ -378,15 +437,15 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
         fitView
         minZoom={0.3}
         maxZoom={2}
-        panOnDrag
-        selectionOnDrag
-        panOnScroll
-        nodesDraggable
+        panOnDrag={!notebookMode}
+        selectionOnDrag={!notebookMode}
+        panOnScroll={!notebookMode}
+        nodesDraggable={!notebookMode}
         nodesConnectable={false}
         onNodeClick={handleNodeClick}
         proOptions={{ hideAttribution: true }}
       >
-        {!notebookMode && <Background variant={BackgroundVariant.Dots} gap={24} size={1} />}
+        {!notebookMode && <Background variant={BackgroundVariant.Dots} gap={24} size={1.5} color="var(--border-strong)" style={{ opacity: 0.6 }} />}
         {!notebookMode && <Controls showInteractive={false} />}
         {!notebookMode && (
           <MiniMap
@@ -437,16 +496,7 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
         </button>
       </div>
 
-      {notebookMode && (
-        <button
-          className={styles.exitNotebookBtn}
-          onClick={toggleNotebookMode}
-          title="Exit notebook view"
-          type="button"
-        >
-          <X size={16} />
-        </button>
-      )}
+
 
       {notebookMode && (
         <div className="notebookControls">
@@ -482,10 +532,11 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
       {summaryQuiz && session && (
         <ErrorBoundary name="SummaryQuiz" fallback={<QuizErrorFallback onClose={handleCloseSummaryQuiz} />}>
           <SummaryQuizInteraction
-            sessionId={session.id}
-            quizData={(session.nodes.find(n => n.id === '__summary__')?.data as SummaryData)?.finalQuiz ?? []}
+            quizData={(session.nodes.find(n => n.id === SUMMARY_NODE_ID)?.data as SummaryData)?.finalQuiz ?? []}
             onClose={handleCloseSummaryQuiz}
             onRetake={handleRetakeSummary}
+            initialScores={session.scores}
+            onUpdateScores={handleUpdateScores}
           />
         </ErrorBoundary>
       )}

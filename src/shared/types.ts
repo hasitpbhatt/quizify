@@ -16,6 +16,8 @@ export type QuizState = 'untested' | 'inProgress' | 'correct' | 'partial' | 'inc
 
 export type NodeKind = 'concept' | 'quiz' | 'note' | 'summary';
 
+export const SUMMARY_NODE_ID = '__summary__';
+
 export interface Attempt {
   timestamp: number;
   given: string | string[];

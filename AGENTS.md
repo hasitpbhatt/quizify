@@ -17,12 +17,12 @@ survive reloads.
 
 - **Runtime**: Vite 5 + React 18 + TypeScript 5.6, `"type": "module"`.
 - **State**: Zustand. Two stores:
-  - `src/shared/stores/settingsStore.ts` — `apiKey` / `jinaToken` / `persona` / `theme`, mirrored to `localStorage` under `quizify:*` keys.
+  - `src/shared/stores/settingsStore.ts` — `apiKey` / `jinaToken` / `persona` / `theme` / `provider`, mirrored to `localStorage` under `quizify:*` keys.
   - `src/shared/stores/sessionStore.ts` — sessions list + `currentId`, backed by IndexedDB.
 - **Persistence**: IndexedDB via `idb`. DB name `quizify`, version 2, stores `source_cache` (keyPath `url`) and `sessions` (keyPath `id`). Entry point `src/lib/db/db.ts`.
 - **Canvas**: `@xyflow/react` (React Flow v12). Nodes in `src/features/canvas/nodes/`, edges in `src/features/canvas/edges/`. No separate layout module — positions are assigned inline in `pipeline.ts` using fixed estimated widths.
 - **LLM**: Three providers — Quizify Default (server-proxied, no key needed, experimental), Mistral, and NVIDIA. `src/lib/llm/providers.ts` defines per-provider config (base URL, models, labels, `requiresApiKey` flag). `src/lib/llm/chat.ts` is provider-agnostic: dynamic `baseUrl`/`model`, skips `Authorization` header when `requiresApiKey` is false, retry with fallback model, 3 retries on 429/5xx with exponential backoff, 60s timeout, supports `responseFormat: 'json'` and `AbortSignal`. The Welcome modal calls the key "API key" generically — it must match the selected provider (Mistral or NVIDIA); the Default provider hides the key field entirely.
-- **Tests**: Vitest + jsdom + @testing-library. `tests/setup.ts` is the setup file. Only `src/lib/truncate.test.ts` and `src/shared/useMediaQuery.test.ts` exist today — coverage is thin.
+- **Tests**: Vitest + jsdom + @testing-library. `tests/setup.ts` is the setup file. Tests live under `tests/` mirroring `src/` structure. Two co-located test files remain (`src/lib/truncate.test.ts`, `src/shared/useMediaQuery.test.ts`). 41 test files, 492 tests.
 
 ## Scripts
 
@@ -109,22 +109,22 @@ Quiz answers are graded by sending the user's answer + the quiz's `rationale`/`c
 src/
   app/                 App.tsx (orchestrator), ProgressScreen, theme, useToast
   features/
-    canvas/            CanvasPage + nodes/ + edges/ + useTypingAnimation
+    canvas/            CanvasPage + MobileFocusView + nodes/ + edges/ + useTypingAnimation
     quiz/              QuizInteraction, SummaryQuizInteraction, formats/
     toolbar/           Toolbar
     welcome/           WelcomeModal, PersonaCard, useWelcomeState
   lib/
     components/        ErrorBoundary, NodeErrorFallback, CanvasErrorFallback, QuizErrorFallback
     db/                db.ts (IDB), sessionsDb.ts, sourceCache.ts
-    llm/               chat.ts, errors.ts, *Parser.ts, providers.ts, tts.ts
+    llm/               chat.ts, errors.ts, *Parser.ts, providers.ts, tts.ts, ttsManager.ts
     prompts/           outline.ts, detail.ts, quiz.ts, summary.ts, grade.ts
     pipeline.ts        the multi-step generate pipeline
     fetchSourceContent.ts
   shared/
-    stores/            sessionStore.ts, settingsStore.ts
+    stores/            sessionStore.ts, settingsStore.ts, notebookStore.ts
     types.ts           all the shared domain types
     useMediaQuery.ts
-  styles/              global.css, reset.css, tokens.css
+  styles/              global.css, reset.css, tokens.css, notebook.css
   main.tsx             React root
 ```
 

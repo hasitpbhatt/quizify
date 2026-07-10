@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Sparkles, GraduationCap, Briefcase, Microscope, Eye, EyeOff, ArrowRight, ChevronDown, Key, Cpu, Globe, X, Clock } from 'lucide-react';
 import { PersonaCard } from './PersonaCard';
 import { useWelcomeState, EXAMPLE_CHIPS } from './useWelcomeState';
@@ -51,6 +51,29 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
   const [showSettings, setShowSettings] = useState(false);
   const [exampleUrl, setExampleUrl] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'recent' | 'name' | 'concepts'>('recent');
+
+  const filteredSessions = useMemo(() => {
+    let result = [...sessions];
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        (s.hostname && s.hostname.toLowerCase().includes(q)) ||
+        s.url.toLowerCase().includes(q)
+      );
+    }
+    if (sortBy === 'recent') {
+      result.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    } else if (sortBy === 'name') {
+      result.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === 'concepts') {
+      const getConceptCount = (s: typeof sessions[0]) => s.nodes.filter(n => n.data.kind === 'concept').length;
+      result.sort((a, b) => getConceptCount(b) - getConceptCount(a));
+    }
+    return result;
+  }, [sessions, searchQuery, sortBy]);
 
   // Focus trap for WelcomeModal and Delete Confirmation Modal
   useEffect(() => {
@@ -180,14 +203,30 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
 
         {sessions.length > 0 && (
           <section className={styles.sessionsSection}>
-            <label className={styles.label}>Recent sessions</label>
+            <div className={styles.sessionsHeader}>
+              <label className={styles.label}>Recent sessions</label>
+              <div className={styles.sessionControls}>
+                <input
+                  type="text"
+                  placeholder="Search sessions..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className={styles.searchBar}
+                />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className={styles.sortSelect}
+                >
+                  <option value="recent">Recent</option>
+                  <option value="name">Name</option>
+                  <option value="concepts">Concepts</option>
+                </select>
+              </div>
+            </div>
             <div className={styles.sessionList}>
-              {sessions
-                .slice()
-                .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-                .slice(0, 5)
-                .map((s) => {
-                  const Icon = PERSONA_ICONS[s.persona] ?? Sparkles;
+              {filteredSessions.map((s) => {
+                const Icon = PERSONA_ICONS[s.persona] ?? Sparkles;
                   return (
                     <div key={s.id} className={styles.sessionCard} onClick={() => { onSelectSession(s.id); setConfirmingDelete(null); }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectSession(s.id); } }}>
                       <Icon size={16} />

@@ -618,3 +618,55 @@
   background: #c92a2a;
 }
 
+.sessionsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.sessionControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.searchBar {
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1.5) var(--space-3);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  color: var(--text-primary);
+  width: 180px;
+  outline: none;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.searchBar:focus {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
+}
+
+.sortSelect {
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1.5) var(--space-3);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  color: var(--text-primary);
+  outline: none;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.sortSelect:focus {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
+}
+
+

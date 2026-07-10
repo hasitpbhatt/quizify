@@ -1,4 +1,3 @@
-import { useSettingsStore } from '@/shared/stores/settingsStore';
 
 export interface TtsSegment {
   nodeId: string;
@@ -30,15 +29,7 @@ class TtsManagerSingleton {
   private callbacks: TtsCallbacks = {};
   private subscriptions: TtsSubscription[] = [];
 
-  // Audio element for Mistral Voxtral
-  private audioEl: HTMLAudioElement | null = null;
-  private audioUrl: string | null = null;
-  private rafId: number | null = null;
   private charCount = 0;
-  private charsPerMs = 0;
-  private startTime = 0;
-
-  // SpeechSynthesis fallback
   private utterance: SpeechSynthesisUtterance | null = null;
 
   // ==================== Public API ====================
@@ -63,9 +54,7 @@ class TtsManagerSingleton {
 
   pause(): void {
     if (this.state !== 'playing') return;
-    if (this.audioEl && !this.audioEl.paused) {
-      this.audioEl.pause();
-    } else if (window.speechSynthesis.speaking) {
+    if (window.speechSynthesis.speaking) {
       window.speechSynthesis.pause();
     }
     this.state = 'paused';
@@ -73,9 +62,7 @@ class TtsManagerSingleton {
 
   resume(): void {
     if (this.state !== 'paused') return;
-    if (this.audioEl && this.audioEl.paused) {
-      this.audioEl.play();
-    } else if (window.speechSynthesis.paused) {
+    if (window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
     }
     this.state = 'playing';
@@ -128,11 +115,6 @@ class TtsManagerSingleton {
     this.callbacks = { ...this.callbacks, ...cb };
   }
 
-  /**
-   * Subscribe to TTS events for a specific node.
-   * Multiple nodes can subscribe independently without overwriting each other.
-   * Returns a unique subscription ID.
-   */
   subscribe(nodeId: string, cb: {
     onSegmentStart?: (nodeId: string) => void;
     onCharProgress?: (nodeId: string, charIndex: number) => void;
@@ -143,23 +125,14 @@ class TtsManagerSingleton {
     return id;
   }
 
-  /**
-   * Unsubscribe a subscription by ID.
-   */
   unsubscribe(subId: string): void {
     this.subscriptions = this.subscriptions.filter(s => s.id !== subId);
   }
 
-  /**
-   * Check if a TTS segment exists in the queue for a given node.
-   */
   hasSegment(nodeId: string): boolean {
     return this.queue.some(s => s.nodeId === nodeId);
   }
 
-  /**
-   * Manually complete a segment, useful for local fallback animations.
-   */
   finishSegment(nodeId: string): void {
     this.notifySegmentEnd(nodeId);
   }
@@ -204,106 +177,10 @@ class TtsManagerSingleton {
     const segment = this.queue[this.currentIdx];
     this.state = 'playing';
     this.charCount = 0;
-    this.charsPerMs = 0;
     this.notifySegmentStart(segment.nodeId);
 
-    // Try Mistral Voxtral first
-    const blob = await this.fetchTtsBlob(segment.text);
-    if (blob) {
-      await this.playAudioBlob(blob, segment);
-    } else {
-      this.playSpeechSynthesis(segment);
-    }
-  }
-
-  private async fetchTtsBlob(text: string): Promise<Blob | null> {
-    const { apiKey, provider } = useSettingsStore.getState();
-    if (!apiKey || provider !== 'mistral') return null;
-
-    try {
-      const res = await fetch('https://api.mistral.ai/v1/audio/speech', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'voxtral-mini-tts-2603',
-          input: text,
-        }),
-      });
-
-      if (!res.ok) {
-        console.warn('[ttsManager] Mistral TTS failed, falling back:', await res.text());
-        return null;
-      }
-
-      return await res.blob();
-    } catch (err) {
-      console.error('[ttsManager] Mistral TTS network error:', err);
-      return null;
-    }
-  }
-
-  private async playAudioBlob(blob: Blob, segment: TtsSegment): Promise<void> {
-    const url = URL.createObjectURL(blob);
-    this.audioUrl = url;
-    const audio = new Audio(url);
-    this.audioEl = audio;
-
-    // Wait for metadata to get duration
-    await new Promise<void>((resolve) => {
-      audio.addEventListener('loadedmetadata', () => resolve(), { once: true });
-      audio.addEventListener('error', () => resolve(), { once: true });
-      audio.load();
-    });
-
-    if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
-      this.charsPerMs = segment.text.length / (audio.duration * 1000);
-    }
-
-    audio.onended = () => {
-      this.notifyCharProgress(segment.nodeId, segment.text.length);
-      this.notifySegmentEnd(segment.nodeId);
-      this.cleanup();
-      this.playNext();
-    };
-
-    audio.onerror = () => {
-      console.warn('[ttsManager] Audio playback error, skipping segment');
-      this.cleanup();
-      this.notifySegmentEnd(segment.nodeId);
-      this.playNext();
-    };
-
-    this.startTime = performance.now();
-
-    try {
-      await audio.play();
-    } catch {
-      // Autoplay blocked — fallback to SpeechSynthesis
-      this.cleanupAudio();
-      this.playSpeechSynthesis(segment);
-      return;
-    }
-
-    // RAF loop for character progress
-    const tick = () => {
-      if (this.state !== 'playing') return;
-      if (audio.paused || audio.ended) return;
-
-      const elapsed = performance.now() - this.startTime;
-      const estimatedChars = Math.min(
-        Math.floor(elapsed * this.charsPerMs),
-        segment.text.length,
-      );
-      if (estimatedChars !== this.charCount) {
-        this.charCount = estimatedChars;
-        this.notifyCharProgress(segment.nodeId, estimatedChars);
-      }
-      this.rafId = requestAnimationFrame(tick);
-    };
-    this.rafId = requestAnimationFrame(tick);
+    // Rely solely on browser SpeechSynthesis for simplicity and stability
+    this.playSpeechSynthesis(segment);
   }
 
   private playSpeechSynthesis(segment: TtsSegment): void {
@@ -334,23 +211,6 @@ class TtsManagerSingleton {
     window.speechSynthesis.speak(utterance);
   }
 
-  private cleanupAudio(): void {
-    if (this.rafId) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
-    }
-    if (this.audioEl) {
-      this.audioEl.pause();
-      this.audioEl.onended = null;
-      this.audioEl.onerror = null;
-      this.audioEl = null;
-    }
-    if (this.audioUrl) {
-      URL.revokeObjectURL(this.audioUrl);
-      this.audioUrl = null;
-    }
-  }
-
   private cleanupSpeech(): void {
     if (this.utterance) {
       this.utterance.onboundary = null;
@@ -361,7 +221,6 @@ class TtsManagerSingleton {
   }
 
   private cleanup(): void {
-    this.cleanupAudio();
     this.cleanupSpeech();
     window.speechSynthesis.cancel();
   }

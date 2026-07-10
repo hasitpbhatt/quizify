@@ -1,4 +1,4 @@
-import type { CanvasNode, Session } from '@/shared/types';
+import { SUMMARY_NODE_ID, type CanvasNode, type Session } from '@/shared/types';
 
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -61,7 +61,7 @@ export function sortedNodes(session: Session): CanvasNode[] {
   if (summaryNode) {
     result.push(summaryNode);
     const summaryQuizzes = session.nodes.filter(
-      (n) => n.data.kind === 'quiz' && (n.data as import('@/shared/types').QuizData).parentConceptId === '__summary__'
+      (n) => n.data.kind === 'quiz' && (n.data as import('@/shared/types').QuizData).parentConceptId === SUMMARY_NODE_ID
     );
     result.push(...summaryQuizzes);
   }

@@ -90,25 +90,17 @@ function ConceptNodeInner(props: NodeProps) {
   return (
     <div className={`${styles.node}${isShell ? ` ${styles.loading}` : ''}${entered ? ` ${styles.entered}` : ''}`}>
       <Handle type="target" position={Position.Left} />
-      <div className={styles.title}>
-        {notebookMode ? (
-          <>
-            {titleText.slice(0, titleRevealed)}
-            {isTitleAnimating && <span className="notebookCursor" />}
-          </>
-        ) : (
-          titleText
-        )}
+      <div
+        className={styles.title}
+        data-typing={isTitleAnimating ? 'true' : undefined}
+      >
+        {notebookMode ? titleText.slice(0, titleRevealed) : titleText}
       </div>
-      <div className={styles.explanation}>
-        {notebookMode ? (
-          <>
-            {explanationText.slice(0, explanationRevealed)}
-            {isExplanationAnimating && <span className="notebookCursor" />}
-          </>
-        ) : (
-          explanationText
-        )}
+      <div
+        className={styles.explanation}
+        data-typing={isExplanationAnimating ? 'true' : undefined}
+      >
+        {notebookMode ? explanationText.slice(0, explanationRevealed) : explanationText}
       </div>
       {!notebookMode && (
         <div className={styles.footer}>

@@ -125,33 +125,20 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
       return;
     }
 
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    const tick = () => {
+    const intervalId = setInterval(() => {
       setDisplayedRevealed((prev) => {
         const target = targetRef.current;
         if (prev < target) {
           return prev + 1;
-        } else {
-          if (intervalId) {
-            clearInterval(intervalId);
-            intervalId = null;
-          }
-          return prev;
         }
+        return prev;
       });
-    };
-
-    if (displayedRevealed < revealed) {
-      intervalId = setInterval(tick, 20); // ~50 chars/sec speed
-    }
+    }, 20); // ~50 chars/sec speed
 
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
+      clearInterval(intervalId);
     };
-  }, [revealed, notebookMode, skipAnimation, fullText.length, displayedRevealed]);
+  }, [notebookMode, skipAnimation, fullText.length]);
 
   useEffect(() => {
     if (!notebookMode || skipAnimation) {
@@ -162,3 +149,4 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
 
   return { revealed: displayedRevealed, isAnimating: displayedRevealed < fullText.length };
 }
+

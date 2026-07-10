@@ -131,7 +131,8 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
             )}
           </div>
         ) : result ? (
-          <div>
+          <div style={{ position: 'relative' }}>
+            {result.grade === 'correct' && <ConfettiExplosion />}
             <div style={{
               padding: 12, borderRadius: 8, marginBottom: 12,
               background: result.grade === 'correct'
@@ -214,3 +215,59 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
     </div>
   );
 }
+
+const CONFETTI_STYLE = `
+@keyframes explode {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0); opacity: 0; }
+}
+.confetti-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 1000;
+}
+.confetti-particle {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--bg);
+  animation: explode 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+`;
+
+function ConfettiExplosion() {
+  const particles = Array.from({ length: 45 });
+  return (
+    <div className="confetti-container">
+      <style>{CONFETTI_STYLE}</style>
+      {particles.map((_, i) => {
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = 30 + Math.random() * 110;
+        const tx = Math.cos(angle) * velocity;
+        const ty = Math.sin(angle) * velocity;
+        const delay = Math.random() * 0.15;
+        const size = 5 + Math.random() * 6;
+        const color = ['#5457E8', '#2E9E5B', '#D9A441', '#D14B4B', '#9b5de5', '#f15bb5', '#00f5d4'][Math.floor(Math.random() * 7)];
+        
+        return (
+          <span
+            key={i}
+            className="confetti-particle"
+            style={{
+              '--tx': `${tx}px`,
+              '--ty': `${ty}px`,
+              '--bg': color,
+              width: `${size}px`,
+              height: `${size}px`,
+              animationDelay: `${delay}s`,
+            } as any}
+          />
+        );
+      })}
+    </div>
+  );
+}
+

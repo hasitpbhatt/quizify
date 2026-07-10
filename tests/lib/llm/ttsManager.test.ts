@@ -46,7 +46,6 @@ describe('state machine', () => {
   it('does nothing when started while already playing', () => {
     ttsManager.enqueue({ nodeId: 'n1', text: 'hello' });
     ttsManager.start();
-    const rafCount = ttsManager['rafId'];
     ttsManager.start();
     expect(ttsManager.isPlaying).toBe(true);
   });
@@ -89,7 +88,6 @@ describe('stop', () => {
 
     expect(ttsManager.isPlaying).toBe(false);
     expect(ttsManager.isIdle).toBe(false);
-    expect(ttsManager.isStopped).toBe(undefined as any);
     expect(ttsManager.queueLength).toBe(0);
     expect(ttsManager.currentQueueIndex).toBe(-1);
   });
@@ -220,95 +218,8 @@ describe('finishSegment', () => {
   });
 });
 
-describe('Mistral Voxtral path', () => {
-  let mockFetch: ReturnType<typeof vi.fn>;
-  let audioPlay: ReturnType<typeof vi.fn>;
-  let audioLoad: ReturnType<typeof vi.fn>;
-
-  beforeEach(() => {
-    mockFetch = vi.fn();
-    vi.stubGlobal('fetch', mockFetch);
-
-    audioPlay = vi.fn().mockResolvedValue(undefined);
-    audioLoad = vi.fn();
-    vi.stubGlobal('Audio', vi.fn(() => ({
-      play: audioPlay,
-      load: audioLoad,
-      addEventListener: vi.fn((event: string, cb: () => void) => {
-        if (event === 'loadedmetadata') setTimeout(cb, 0);
-      }),
-      removeEventListener: vi.fn(),
-      onended: null,
-      onerror: null,
-      duration: 10,
-      pause: vi.fn(),
-      paused: false,
-      ended: false,
-    })));
-
-    mockSettingsStore.getState.mockReturnValue({
-      apiKey: 'mistral-key',
-      provider: 'mistral',
-    });
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('fetches audio blob from Mistral and plays it', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      blob: () => Promise.resolve(new Blob(['audio data'])),
-    });
-
-    ttsManager.enqueue({ nodeId: 'n1', text: 'hello world' });
-    ttsManager.start();
-
-    await vi.waitFor(() => {
-      expect(audioPlay).toHaveBeenCalled();
-    });
-
-    expect(mockFetch).toHaveBeenCalledWith('https://api.mistral.ai/v1/audio/speech', expect.objectContaining({
-      method: 'POST',
-      headers: expect.objectContaining({ Authorization: 'Bearer mistral-key' }),
-    }));
-  });
-
-  it('falls back to SpeechSynthesis when Mistral fetch fails', async () => {
-    mockFetch.mockResolvedValue({ ok: false, status: 500, text: () => Promise.resolve('error') });
-
-    const speakSpy = vi.spyOn(window.speechSynthesis, 'speak');
-
-    ttsManager.enqueue({ nodeId: 'n1', text: 'hello' });
-    ttsManager.start();
-
-    await vi.waitFor(() => {
-      expect(speakSpy).toHaveBeenCalled();
-    });
-  });
-
-  it('falls back to SpeechSynthesis when audio.play() is rejected (autoplay blocked)', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      blob: () => Promise.resolve(new Blob(['audio data'])),
-    });
-    audioPlay.mockRejectedValue(new Error('Autoplay blocked'));
-
-    const speakSpy = vi.spyOn(window.speechSynthesis, 'speak');
-
-    ttsManager.enqueue({ nodeId: 'n1', text: 'hello' });
-    ttsManager.start();
-
-    // allow microtasks to flush (playNext → fetchTtsBlob → playAudioBlob → play rejected → fallback)
-    await vi.waitFor(() => {
-      expect(speakSpy).toHaveBeenCalled();
-    }, { timeout: 2000 });
-  });
-});
-
-describe('SpeechSynthesis fallback path', () => {
-  it('falls back when provider is not mistral', async () => {
+describe('SpeechSynthesis path', () => {
+  it('calls SpeechSynthesis when provider is not mistral', async () => {
     mockSettingsStore.getState.mockReturnValue({ apiKey: '', provider: 'nvidia' });
 
     const speakSpy = vi.spyOn(window.speechSynthesis, 'speak');
@@ -316,13 +227,12 @@ describe('SpeechSynthesis fallback path', () => {
     ttsManager.enqueue({ nodeId: 'n1', text: 'hello' });
     ttsManager.start();
 
-    // playNext() is async — fetchTtsBlob returns null, then playSpeechSynthesis runs on microtask
     await vi.waitFor(() => {
       expect(speakSpy).toHaveBeenCalled();
     }, { timeout: 2000 });
   });
 
-  it('falls back when no api key is set', async () => {
+  it('calls SpeechSynthesis when no api key is set', async () => {
     mockSettingsStore.getState.mockReturnValue({ apiKey: '', provider: 'mistral' });
 
     const speakSpy = vi.spyOn(window.speechSynthesis, 'speak');

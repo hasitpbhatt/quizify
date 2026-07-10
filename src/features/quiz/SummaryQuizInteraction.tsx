@@ -9,18 +9,30 @@ import { FillBlank } from './formats/FillBlank';
 import { Ordering } from './formats/Ordering';
 
 interface Props {
-  sessionId: string;
   quizData: QuizData[];
   onClose: () => void;
   onRetake: () => void;
+  initialScores: Record<string, { best: number; attempts: number }>;
+  onUpdateScores: (scores: Record<string, { best: number; attempts: number }>) => void;
 }
 
-export function SummaryQuizInteraction({ sessionId, quizData, onClose, onRetake }: Props) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [results, setResults] = useState<boolean[]>(() => {
-    const saved = sessionStorage.getItem(`summary-quiz-${sessionId}`);
-    return saved ? JSON.parse(saved) : [];
+function parseScores(scores: Record<string, { best: number; attempts: number }>): boolean[] {
+  return Object.entries(scores)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([, v]) => v.best === 1);
+}
+
+function toScoresRecord(results: boolean[]): Record<string, { best: number; attempts: number }> {
+  const scores: Record<string, { best: number; attempts: number }> = {};
+  results.forEach((correct, i) => {
+    scores[String(i)] = { best: correct ? 1 : 0, attempts: 1 };
   });
+  return scores;
+}
+
+export function SummaryQuizInteraction({ quizData, onClose, onRetake, initialScores, onUpdateScores }: Props) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [results, setResults] = useState<boolean[]>(() => parseScores(initialScores));
   const [showResults, setShowResults] = useState(false);
 
   const current = quizData[currentIndex];
@@ -31,10 +43,10 @@ export function SummaryQuizInteraction({ sessionId, quizData, onClose, onRetake 
     setResults(prev => {
       const next = [...prev];
       next[currentIndex] = correct;
-      sessionStorage.setItem(`summary-quiz-${sessionId}`, JSON.stringify(next));
+      onUpdateScores(toScoresRecord(next));
       return next;
     });
-  }, [currentIndex, sessionId]);
+  }, [currentIndex, onUpdateScores]);
 
   const goNext = useCallback(() => {
     if (currentIndex < total - 1) {
@@ -58,12 +70,12 @@ export function SummaryQuizInteraction({ sessionId, quizData, onClose, onRetake 
   }, [results]);
 
   const retakeAll = useCallback(() => {
-    sessionStorage.removeItem(`summary-quiz-${sessionId}`);
     setResults([]);
     setCurrentIndex(0);
     setShowResults(false);
+    onUpdateScores({});
     onRetake();
-  }, [sessionId, onRetake]);
+  }, [onRetake, onUpdateScores]);
 
   if (showResults) {
     const correct = results.filter(Boolean).length;

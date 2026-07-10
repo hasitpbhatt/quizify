@@ -1,4 +1,4 @@
-import type { LlmProvider, Persona, CanvasNode, CanvasEdge, ConceptData, QuizData, SummaryData } from '@/shared/types';
+import { SUMMARY_NODE_ID, type LlmProvider, type Persona, type CanvasNode, type CanvasEdge, type ConceptData, type QuizData, type SummaryData } from '@/shared/types';
 import { executePromptTask } from '@/lib/llm/promptTask';
 import { contentTask } from '@/lib/tasks/contentTask';
 import { summaryTask } from '@/lib/tasks/summaryTask';
@@ -265,12 +265,12 @@ export async function pushSummary(
     const summaryData: SummaryData = {
       kind: 'summary',
       recap: parsed.recap,
-      finalQuiz: parsed.finalQuiz.map(item => quizItemToQuizData(item, '__summary__')),
+      finalQuiz: parsed.finalQuiz.map(item => quizItemToQuizData(item, SUMMARY_NODE_ID)),
     };
 
     const lastX = 100 + conceptsLength * PAIR_WIDTH;
     nodes.push({
-      id: '__summary__',
+      id: SUMMARY_NODE_ID,
       type: 'summary',
       position: { x: lastX, y: START_Y },
       data: summaryData,
@@ -281,7 +281,7 @@ export async function pushSummary(
       edges.push({
         id: 'edge-summary',
         source: lastChainTail,
-        target: '__summary__',
+        target: SUMMARY_NODE_ID,
         type: 'wiggly',
       });
     }

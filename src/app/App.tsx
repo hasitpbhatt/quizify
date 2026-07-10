@@ -206,8 +206,14 @@ export function App() {
         return;
       }
       console.error('[app] generate failed:', err);
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
-      setPage('welcome');
+      const msg = err instanceof Error ? err.message : 'Something went wrong.';
+      setError(msg);
+      // Non-destructive recovery: if transitioned to canvas, stay on canvas to keep partial nodes
+      if (page === 'canvas') {
+        useToastStore.getState().add(`Generation paused: ${msg}`);
+      } else {
+        setPage('welcome');
+      }
     } finally {
       abortRef.current = null;
     }
