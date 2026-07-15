@@ -18,6 +18,14 @@ function NoteNodeInner(props: NodeProps) {
   const [draft, setDraft] = useState(data.text);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const updateCurrent = useSessionStore(s => s.updateCurrent);
+  // Stable random rotation: computed once based on node id hash so it's consistent across renders
+  const rotation = useRef<number | null>(null);
+  if (rotation.current === null) {
+    // Simple deterministic hash of node ID → float in [-2, 2]
+    let hash = 0;
+    for (let i = 0; i < props.id.length; i++) hash = (hash * 31 + props.id.charCodeAt(i)) >>> 0;
+    rotation.current = ((hash % 400) / 100) - 2; // -2 to +2 deg
+  }
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -73,7 +81,11 @@ function NoteNodeInner(props: NodeProps) {
   }, [props, updateCurrent]);
 
   return (
-    <div className={styles.node} onDoubleClick={handleDoubleClick}>
+    <div
+      className={styles.node}
+      onDoubleClick={handleDoubleClick}
+      style={{ '--note-rotate': `${rotation.current}deg` } as React.CSSProperties}
+    >
       <Handle type="target" position={Position.Top} />
       {editing ? (
         <textarea

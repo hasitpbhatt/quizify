@@ -225,8 +225,13 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
               </div>
             </div>
             <div className={styles.sessionList}>
-              {filteredSessions.map((s) => {
+            {filteredSessions.map((s) => {
                 const Icon = PERSONA_ICONS[s.persona] ?? Sparkles;
+                const conceptCount = s.nodes.filter(n => n.data.kind === 'concept').length;
+                const quizNodes = s.nodes.filter(n => n.data.kind === 'quiz');
+                const answeredQuizzes = quizNodes.filter(n => (n.data as any).state !== 'untested');
+                const masteredQuizzes = quizNodes.filter(n => (n.data as any).state === 'correct' || (n.data as any).state === 'mastered');
+                const masteryPct = quizNodes.length > 0 ? Math.round((masteredQuizzes.length / quizNodes.length) * 100) : null;
                   return (
                     <div key={s.id} className={styles.sessionCard} onClick={() => { onSelectSession(s.id); setConfirmingDelete(null); }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectSession(s.id); } }}>
                       <Icon size={16} />
@@ -236,6 +241,10 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
                           {s.hostname && <><Globe size={11} /><span>{s.hostname}</span><span className={styles.sessionDot}>·</span></>}
                           <Clock size={11} />
                           <span>{relativeTime(new Date(s.updatedAt))}</span>
+                          {conceptCount > 0 && <><span className={styles.sessionDot}>·</span><span>{conceptCount} concept{conceptCount !== 1 ? 's' : ''}</span></>}
+                          {masteryPct !== null && answeredQuizzes.length > 0 && (
+                            <><span className={styles.sessionDot}>·</span><span style={{ color: masteryPct >= 80 ? 'var(--success)' : masteryPct >= 50 ? 'var(--warning)' : 'var(--text-tertiary)' }}>{masteryPct}% mastered</span></>
+                          )}
                         </span>
                       </div>
                       <button

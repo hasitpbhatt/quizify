@@ -32,6 +32,7 @@ import { QuizErrorFallback } from '@/lib/components/QuizErrorFallback';
 import { downloadSessionMarkdown } from '@/lib/export/markdown';
 import { exportCanvasAsPng } from '@/lib/export/image';
 import { useToastStore } from '@/shared/stores/toastStore';
+import { useKeyboardShortcuts } from '@/shared/useKeyboardShortcuts';
 import '@/styles/notebook.css';
 import styles from './CanvasPage.module.css';
 
@@ -423,6 +424,23 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     updateCurrent({ scores });
   }, [session, updateCurrent]);
 
+  const handleKbEscape = useCallback(() => {
+    if (activeQuiz) setActiveQuiz(null);
+    else if (summaryQuiz) setSummaryQuiz(false);
+  }, [activeQuiz, summaryQuiz]);
+
+  const handleKbHelp = useCallback(() => {
+    useToastStore.getState().add('Shortcuts: N = Add note · ? = Show this · Esc = Close quiz');
+  }, []);
+
+  // Global keyboard shortcuts: N = add note, ? = help, Escape = close quiz
+  useKeyboardShortcuts({
+    enabled: !isMobile,
+    onAddNote: handleAddNote,
+    onEscape: handleKbEscape,
+    onShowHelp: handleKbHelp,
+  });
+
   if (!session || nodes.length === 0) {
     return (
       <div className={styles.empty}>
@@ -484,30 +502,39 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
         </div>
       )}
 
-      <div className={styles.actionsRow} style={notebookMode ? { display: 'none' } : undefined}>
-        <div className={styles.exportWrapper} ref={exportRef}>
-          <button className={styles.actionBtn} onClick={() => setShowExport(v => !v)} title="Export">
-            <Download size={14} />
-            <span>Export</span>
-            <ChevronDown size={12} />
+      <div className={styles.actionsRow}>
+        {notebookMode ? (
+          <button className={styles.actionBtn} onClick={toggleNotebookMode} title="Exit Notebook mode" aria-label="Exit Notebook mode">
+            <X size={14} />
+            <span>Exit Notebook</span>
           </button>
-          {showExport && (
-            <div className={styles.exportDropdown}>
-              <button onClick={handleExportJson}>JSON</button>
-              <button onClick={handleExportMarkdown}>Markdown</button>
-              <button onClick={handleExportPng}>PNG</button>
+        ) : (
+          <>
+            <div className={styles.exportWrapper} ref={exportRef}>
+              <button className={styles.actionBtn} onClick={() => setShowExport(v => !v)} title="Export">
+                <Download size={14} />
+                <span>Export</span>
+                <ChevronDown size={12} />
+              </button>
+              {showExport && (
+                <div className={styles.exportDropdown}>
+                  <button onClick={handleExportJson}>JSON</button>
+                  <button onClick={handleExportMarkdown}>Markdown</button>
+                  <button onClick={handleExportPng}>PNG</button>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        <button className={styles.actionBtn} onClick={handleAddNote} title="Add note">
-          <Plus size={14} />
-          <span>Add note</span>
-        </button>
+            <button className={styles.actionBtn} onClick={handleAddNote} title="Add note">
+              <Plus size={14} />
+              <span>Add note</span>
+            </button>
 
-        <button className={styles.actionBtn} onClick={toggleNotebookMode} title="Notebook view">
-          <BookOpen size={14} />
-        </button>
+            <button className={styles.actionBtn} onClick={toggleNotebookMode} title="Notebook view">
+              <BookOpen size={14} />
+            </button>
+          </>
+        )}
       </div>
 
 

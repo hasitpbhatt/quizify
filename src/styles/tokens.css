@@ -3,7 +3,7 @@
   --bg-canvas: #F5F4F0;
   --bg-elevated: #FFFFFF;
   --bg-subtle: #EEEDE8;
-  --bg-glass: rgba(255, 255, 255, 0.72);
+  --bg-glass: rgba(255, 255, 255, 0.82);
   --border: #E2DFD6;
   --border-strong: #C9C4B6;
   --border-hairline: rgba(0, 0, 0, 0.06);
@@ -12,11 +12,12 @@
   --text-secondary: #595650;
   --text-tertiary: #8E8B82;
 
-  --accent: #5457E8;
-  --accent-hover: #4548D6;
-  --accent-pressed: #383BBD;
-  --accent-subtle: rgba(84, 87, 232, 0.10);
-  --accent-glass: rgba(84, 87, 232, 0.14);
+  /* Slightly warmer/less-saturated accent for light mode — better contrast on white */
+  --accent: #4F52D4;
+  --accent-hover: #4245C2;
+  --accent-pressed: #3538AB;
+  --accent-subtle: rgba(79, 82, 212, 0.10);
+  --accent-glass: rgba(79, 82, 212, 0.14);
 
   --success: #2E9E5B;
   --warning: #D9A441;
@@ -44,13 +45,13 @@
   --radius-2xl: 28px;
   --radius-pill: 999px;
 
-  /* shadows — soft, layered, barely-there */
-  --shadow-xs: 0 0.5px 1px rgba(0, 0, 0, 0.05);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.04), 0 8px 20px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.04), 0 16px 40px rgba(0, 0, 0, 0.08);
+  /* shadows — refined for light mode depth */
+  --shadow-xs: 0 0.5px 1px rgba(0, 0, 0, 0.07);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.05), 0 8px 20px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.05), 0 16px 40px rgba(0, 0, 0, 0.10);
   --shadow-focus: 0 0 0 3px var(--accent-subtle);
-  --shadow-card: 0 0 0 1px var(--border-hairline), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 0 0 1px var(--border-hairline), 0 2px 4px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
 
   --note-bg: #FDE96A;
   --note-text: #1A1A2E;

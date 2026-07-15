@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import styles from './QuizNode.module.css';
 import type { QuizData } from '@/shared/types';
@@ -27,9 +27,29 @@ function QuizNodeInner(props: NodeProps) {
     .trim();
 
   const bc = badgeColors[data.state] ?? badgeColors.untested;
+  const nodeRef = useRef<HTMLDivElement>(null);
+  const prevStateRef = useRef(data.state);
+
+  // Replay animation when state changes to correct/mastered/incorrect
+  useEffect(() => {
+    const prev = prevStateRef.current;
+    prevStateRef.current = data.state;
+    if (prev === data.state) return;
+    const el = nodeRef.current;
+    if (!el) return;
+    if (data.state === 'correct' || data.state === 'mastered') {
+      el.classList.remove(styles.animateCorrect, styles.animateIncorrect);
+      void el.offsetWidth; // force reflow
+      el.classList.add(styles.animateCorrect);
+    } else if (data.state === 'incorrect') {
+      el.classList.remove(styles.animateCorrect, styles.animateIncorrect);
+      void el.offsetWidth;
+      el.classList.add(styles.animateIncorrect);
+    }
+  }, [data.state]);
 
   return (
-    <div className={styles.node} data-node-type="quiz">
+    <div ref={nodeRef} className={styles.node} data-node-type="quiz" data-state={data.state}>
       <Handle type="target" position={Position.Left} />
       <div className={styles.format}>{formatLabel}</div>
       <div className={styles.prompt}>{data.prompt}</div>

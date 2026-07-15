@@ -15,6 +15,7 @@ import { getProviderConfig } from '@/lib/llm/providers';
 import { runPipeline, type PipelineStep } from '@/lib/pipeline';
 import { useToastStore } from '@/shared/stores/toastStore';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
+import '@/styles/global.css';
 
 export type JourneyStage = 'fetch' | 'outline' | PipelineStep;
 export type JourneyState = 'pending' | 'active' | 'done' | 'error';
@@ -228,7 +229,7 @@ export function App() {
   }, []);
 
   const main = page === 'progress' ? (
-    <>
+    <div key="progress" className="pageEnter">
       <Toolbar onNewSession={() => setPage('welcome')} />
       <ProgressScreen
         progress={progress}
@@ -236,20 +237,22 @@ export function App() {
         onCancel={handleCancel}
         previewData={previewData}
       />
-    </>
+    </div>
   ) : page === 'canvas' ? (
-    <>
+    <div key="canvas" className="pageEnter">
       <Toolbar onNewSession={() => setPage('welcome')} />
       <ReactFlowProvider><CanvasPage progress={progress} onHome={() => setPage('welcome')} /></ReactFlowProvider>
-    </>
+    </div>
   ) : (
-    <WelcomeModal
-      onGenerate={handleGenerate}
-      error={error ?? undefined}
-      onClearError={() => setError(null)}
-      sessions={sessions}
-      onSelectSession={handleSelectSession}
-    />
+    <div key="welcome" className="pageEnter">
+      <WelcomeModal
+        onGenerate={handleGenerate}
+        error={error ?? undefined}
+        onClearError={() => setError(null)}
+        sessions={sessions}
+        onSelectSession={handleSelectSession}
+      />
+    </div>
   );
 
   return (
