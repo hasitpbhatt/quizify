@@ -227,10 +227,11 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
             <div className={styles.sessionList}>
             {filteredSessions.map((s) => {
                 const Icon = PERSONA_ICONS[s.persona] ?? Sparkles;
-                const conceptCount = s.nodes.filter(n => n.data.kind === 'concept').length;
-                const quizNodes = s.nodes.filter(n => n.data.kind === 'quiz');
-                const answeredQuizzes = quizNodes.filter(n => (n.data as any).state !== 'untested');
-                const masteredQuizzes = quizNodes.filter(n => (n.data as any).state === 'correct' || (n.data as any).state === 'mastered');
+                const nodesList = s.nodes || [];
+                const conceptCount = nodesList.filter(n => n.data?.kind === 'concept').length;
+                const quizNodes = nodesList.filter(n => n.data?.kind === 'quiz');
+                const answeredQuizzes = quizNodes.filter(n => (n.data as any)?.state !== 'untested');
+                const masteredQuizzes = quizNodes.filter(n => (n.data as any)?.state === 'correct' || (n.data as any)?.state === 'mastered');
                 const masteryPct = quizNodes.length > 0 ? Math.round((masteredQuizzes.length / quizNodes.length) * 100) : null;
                   return (
                     <div key={s.id} className={styles.sessionCard} onClick={() => { onSelectSession(s.id); setConfirmingDelete(null); }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectSession(s.id); } }}>

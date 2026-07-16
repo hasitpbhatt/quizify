@@ -1,4 +1,4 @@
-﻿import { useEffect } from 'react';
+import { useEffect } from 'react';
 
 /**
  * useKeyboardShortcuts - registers canvas-level keyboard shortcuts.
@@ -23,7 +23,9 @@ export function useKeyboardShortcuts(opts: {
 
     const handler = (e: KeyboardEvent) => {
       // Ignore when focus is inside an interactive element
-      const target = e.target as HTMLElement;
+      const target = e.target as HTMLElement | null;
+      if (!target || !target.tagName) return;
+
       if (
         target.tagName === 'INPUT' ||
         target.tagName === 'TEXTAREA' ||
