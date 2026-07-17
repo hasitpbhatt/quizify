@@ -16,16 +16,41 @@ vi.mock('@/lib/llm/ttsManager', () => ({
   },
 }));
 
-const mockUseNotebookStore = vi.hoisted(() => vi.fn());
+// Stateful notebook store mock: per-test we can toggle notebookMode and
+// pre-seed completedTypingNodeIds to exercise the "revisit" code paths.
+const mockNotebookState = vi.hoisted(() => ({
+  notebookMode: false,
+  completedTypingNodeIds: {} as Record<string, true>,
+}));
+
+const mockMarkTypingComplete = vi.hoisted(() => vi.fn());
+const mockHasTypingCompleted = vi.hoisted(() => vi.fn());
+
 vi.mock('@/shared/stores/notebookStore', () => ({
-  useNotebookStore: (selector: (s: { notebookMode: boolean }) => unknown) =>
-    selector({ notebookMode: mockUseNotebookStore() }),
+  useNotebookStore: (selector: (s: typeof mockNotebookState & {
+    markTypingComplete: typeof mockMarkTypingComplete;
+    hasTypingCompleted: typeof mockHasTypingCompleted;
+  }) => unknown) =>
+    selector({
+      ...mockNotebookState,
+      markTypingComplete: mockMarkTypingComplete,
+      hasTypingCompleted: mockHasTypingCompleted,
+    }),
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
-  mockUseNotebookStore.mockReturnValue(false);
+  mockNotebookState.notebookMode = false;
+  mockNotebookState.completedTypingNodeIds = {};
+  // Default implementations that drive state through the shared mock object
+  // so tests can assert against it.
+  mockMarkTypingComplete.mockImplementation((nodeId: string) => {
+    mockNotebookState.completedTypingNodeIds[nodeId] = true;
+  });
+  mockHasTypingCompleted.mockImplementation((nodeId: string) =>
+    Boolean(mockNotebookState.completedTypingNodeIds[nodeId]),
+  );
   mockSubscribe.mockReturnValue('sub-1');
 });
 
@@ -55,7 +80,7 @@ describe('default mode (notebookMode = false)', () => {
 
 describe('notebook mode (notebookMode = true)', () => {
   beforeEach(() => {
-    mockUseNotebookStore.mockReturnValue(true);
+    mockNotebookState.notebookMode = true;
   });
 
   it('starts with revealed = 0', () => {
@@ -94,8 +119,14 @@ describe('notebook mode (notebookMode = true)', () => {
     const { result } = renderHook(() => useTypingAnimation('n1', 'x'.repeat(100)));
 
     const sub = mockSubscribe.mock.calls[0][1] as {
+      onSegmentStart: (nodeId: string) => void;
       onCharProgress: (nodeId: string, charIndex: number) => void;
     };
+
+    // Mark TTS as started so the 2s fallback timer is cancelled — without
+    // this the fallback would race against onCharProgress and inflate
+    // `revealed` past the asserted checkpoints.
+    act(() => { sub.onSegmentStart('n1'); });
 
     act(() => { sub.onCharProgress('n1', 30); });
     act(() => { vi.advanceTimersByTime(1000); });
@@ -194,9 +225,92 @@ describe('notebook mode (notebookMode = true)', () => {
   });
 });
 
+describe('notebook mode — typing completion cache', () => {
+  beforeEach(() => {
+    mockNotebookState.notebookMode = true;
+  });
+
+  it('returns full text immediately when hasTypingCompleted(nodeId) is true at mount', () => {
+    mockNotebookState.completedTypingNodeIds.n1 = true;
+    const { result } = renderHook(() => useTypingAnimation('n1', 'hello world'));
+    expect(result.current.revealed).toBe(11);
+    expect(result.current.isAnimating).toBe(false);
+  });
+
+  it('does not subscribe to TTS when hasTypingCompleted is true', () => {
+    mockNotebookState.completedTypingNodeIds.n1 = true;
+    renderHook(() => useTypingAnimation('n1', 'hello world'));
+    expect(mockSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('marks typing complete when onSegmentEnd fires', () => {
+    const { result } = renderHook(() => useTypingAnimation('n1', 'hello'));
+    const sub = mockSubscribe.mock.calls[0][1] as {
+      onSegmentEnd: (nodeId: string) => void;
+    };
+
+    act(() => { sub.onSegmentEnd('n1'); });
+    act(() => { vi.advanceTimersByTime(50); });
+
+    expect(mockMarkTypingComplete).toHaveBeenCalledWith('n1');
+    expect(result.current.revealed).toBe(5);
+    expect(result.current.isAnimating).toBe(false);
+  });
+
+  it('marks typing complete when fallback finishes locally', () => {
+    renderHook(() => useTypingAnimation('n1', 'ab'));
+
+    act(() => { vi.advanceTimersByTime(2000); });
+    act(() => { vi.advanceTimersByTime(100); });
+
+    expect(mockMarkTypingComplete).toHaveBeenCalledWith('n1');
+  });
+
+  it('on revisit with hasTypingCompleted true returns full text and skips TTS', () => {
+    // First mount: simulate full completion via fallback so cache is set
+    const first = renderHook(() => useTypingAnimation('n1', 'hello world'));
+    act(() => { vi.advanceTimersByTime(2000); });
+    act(() => { vi.advanceTimersByTime(500); });
+    first.unmount();
+
+    expect(mockNotebookState.completedTypingNodeIds.n1).toBe(true);
+
+    // Second mount: should reveal fully without subscribing to TTS
+    mockSubscribe.mockClear();
+    const { result } = renderHook(() => useTypingAnimation('n1', 'hello world'));
+    expect(result.current.revealed).toBe(11);
+    expect(result.current.isAnimating).toBe(false);
+    expect(mockSubscribe).not.toHaveBeenCalled();
+  });
+});
+
+describe('notebook mode — out-of-order TTS progress', () => {
+  beforeEach(() => {
+    mockNotebookState.notebookMode = true;
+  });
+
+  it('does not rewind revealed when onCharProgress receives a smaller index', () => {
+    const { result } = renderHook(() => useTypingAnimation('n1', 'x'.repeat(100)));
+    const sub = mockSubscribe.mock.calls[0][1] as {
+      onSegmentStart: (nodeId: string) => void;
+      onCharProgress: (nodeId: string, charIndex: number) => void;
+    };
+
+    act(() => { sub.onSegmentStart('n1'); });
+    act(() => { sub.onCharProgress('n1', 80); });
+    act(() => { vi.advanceTimersByTime(2000); });
+    expect(result.current.revealed).toBe(80);
+
+    // Out-of-order progress: smaller index must not rewind revealed
+    act(() => { sub.onCharProgress('n1', 30); });
+    act(() => { vi.advanceTimersByTime(2000); });
+    expect(result.current.revealed).toBe(80);
+  });
+});
+
 describe('skipAnimation', () => {
   it('reveals full text immediately when skipAnimation is true', () => {
-    mockUseNotebookStore.mockReturnValue(true);
+    mockNotebookState.notebookMode = true;
     const { result } = renderHook(() => useTypingAnimation('n1', 'hello', true));
     expect(result.current.revealed).toBe(5);
     expect(result.current.isAnimating).toBe(false);

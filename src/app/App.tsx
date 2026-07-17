@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTheme } from './useTheme';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useSessionStore } from '@/shared/stores/sessionStore';
+import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { WelcomeModal } from '@/features/welcome/WelcomeModal';
 import { Toolbar } from '@/features/toolbar/Toolbar';
 import { CanvasPage } from '@/features/canvas/CanvasPage';
@@ -112,6 +113,7 @@ export function App() {
   }, []);
 
   const handleSelectSession = useCallback((id: string) => {
+    useNotebookStore.getState().setNotebookMode(true);
     select(id);
     setPage('canvas');
   }, [select]);
@@ -189,6 +191,7 @@ export function App() {
 
       // Stage 3+ — pipeline (detail, quiz, summary, build)
       const { create: createSession, select } = useSessionStore.getState();
+      useNotebookStore.getState().setNotebookMode(true);
       const session = await createSession({ url: src.url, hostname: extractHostname(src.url), persona });
       // Re-select in case a concurrent store update cleared currentId.
       await select(session.id);

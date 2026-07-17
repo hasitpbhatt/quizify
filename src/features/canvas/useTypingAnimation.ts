@@ -5,14 +5,14 @@ import { useNotebookStore } from '@/shared/stores/notebookStore';
 /**
  * useTypingAnimation
  *
- * Returns the number of characters to reveal for a given node's text.
- * In notebook mode, starts at 0 and increments as TTS progresses.
- * Falls back to a local timer if TTS doesn't start within 2 seconds.
- * In default mode, reveals the full text immediately.
- * Respects prefers-reduced-motion by skipping animation.
+ * Reveals text in sync with notebook narration.
+ * Once a node has fully revealed, it stays complete on revisits so movement
+ * around the notebook does not replay the typing effect.
  */
 export function useTypingAnimation(nodeId: string, fullText: string, skipAnimation = false) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
+  const hasTypingCompleted = useNotebookStore((s) => s.hasTypingCompleted(nodeId));
+  const markTypingComplete = useNotebookStore((s) => s.markTypingComplete);
   const [revealed, setRevealed] = useState(fullText.length);
   const [displayedRevealed, setDisplayedRevealed] = useState(fullText.length);
   const targetRef = useRef(fullText.length);
@@ -21,25 +21,22 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
   const fallbackIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const chaseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Check for reduced motion preference
   const prefersReducedMotion =
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Sync targetRef with raw revealed progress
   useEffect(() => {
     targetRef.current = revealed;
   }, [revealed]);
 
   useEffect(() => {
-    // Skip animation when reduced motion is preferred or skipAnimation is set
-    const shouldSkip = !notebookMode || fullText.length === 0 || skipAnimation || prefersReducedMotion;
+    const shouldSkip = !notebookMode || fullText.length === 0 || skipAnimation || prefersReducedMotion || hasTypingCompleted;
 
     if (shouldSkip) {
       setRevealed(fullText.length);
       setDisplayedRevealed(fullText.length);
       targetRef.current = fullText.length;
-      if (notebookMode) {
-        // Run in next tick to avoid React render phase warnings
+      if (notebookMode && fullText.length > 0) {
+        markTypingComplete(nodeId);
         setTimeout(() => {
           ttsManager.finishSegment(nodeId);
         }, 0);
@@ -52,57 +49,56 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
     targetRef.current = 0;
     hasHadTts.current = false;
 
-    // Fallback: if no TTS starts for this node within 2s, animate locally
     fallbackTimeoutRef.current = setTimeout(() => {
       if (!hasHadTts.current && fullText.length > 0) {
         const totalChars = fullText.length;
-        const CHARS_PER_TICK = 1;
-        const INTERVAL_MS = 25;
         fallbackIntervalRef.current = setInterval(() => {
           setRevealed((prev) => {
-            const next = prev + CHARS_PER_TICK;
+            const next = prev + 1;
             if (next >= totalChars) {
               if (fallbackIntervalRef.current) {
                 clearInterval(fallbackIntervalRef.current);
                 fallbackIntervalRef.current = null;
               }
-              // Notify that typing animation finished
+              setDisplayedRevealed(totalChars);
+              targetRef.current = totalChars;
+              markTypingComplete(nodeId);
               ttsManager.finishSegment(nodeId);
               return totalChars;
             }
             return next;
           });
-        }, INTERVAL_MS);
+        }, 25);
       }
     }, 2000);
 
     const onStart = (nid: string) => {
-      if (nid === nodeId) {
-        hasHadTts.current = true;
-        if (fallbackTimeoutRef.current) {
-          clearTimeout(fallbackTimeoutRef.current);
-          fallbackTimeoutRef.current = null;
-        }
-        if (fallbackIntervalRef.current) {
-          clearInterval(fallbackIntervalRef.current);
-          fallbackIntervalRef.current = null;
-        }
-        setRevealed(0);
-        setDisplayedRevealed(0);
-        targetRef.current = 0;
+      if (nid !== nodeId) return;
+      hasHadTts.current = true;
+      if (fallbackTimeoutRef.current) {
+        clearTimeout(fallbackTimeoutRef.current);
+        fallbackTimeoutRef.current = null;
       }
+      if (fallbackIntervalRef.current) {
+        clearInterval(fallbackIntervalRef.current);
+        fallbackIntervalRef.current = null;
+      }
+      setRevealed(0);
+      setDisplayedRevealed(0);
+      targetRef.current = 0;
     };
 
     const onProgress = (nid: string, charIndex: number) => {
-      if (nid === nodeId) {
-        setRevealed((prev) => Math.min(charIndex, fullText.length, prev + 50));
-      }
+      if (nid !== nodeId) return;
+      setRevealed((prev) => Math.max(prev, Math.min(charIndex, fullText.length)));
     };
 
     const onEnd = (nid: string) => {
-      if (nid === nodeId) {
-        setRevealed(fullText.length);
-      }
+      if (nid !== nodeId) return;
+      setRevealed(fullText.length);
+      setDisplayedRevealed(fullText.length);
+      targetRef.current = fullText.length;
+      markTypingComplete(nodeId);
     };
 
     const subId = ttsManager.subscribe(nodeId, {
@@ -123,13 +119,14 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
       }
       if (!hasHadTts.current) {
         setRevealed(fullText.length);
+        setDisplayedRevealed(fullText.length);
+        targetRef.current = fullText.length;
       }
     };
-  }, [nodeId, fullText, notebookMode, skipAnimation, prefersReducedMotion]);
+  }, [nodeId, fullText, notebookMode, skipAnimation, prefersReducedMotion, hasTypingCompleted, markTypingComplete]);
 
-  // Smoothly chase target character count for character-by-character feel
   useEffect(() => {
-    if (!notebookMode || skipAnimation || prefersReducedMotion) {
+    if (!notebookMode || skipAnimation || prefersReducedMotion || hasTypingCompleted) {
       setDisplayedRevealed(fullText.length);
       return;
     }
@@ -140,8 +137,6 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
         if (prev < target) {
           return prev + 1;
         }
-        // Only stop the interval when the full text is revealed,
-        // not during initial idle state (where prev === target === 0)
         if (prev >= fullText.length) {
           if (chaseIntervalRef.current) {
             clearInterval(chaseIntervalRef.current);
@@ -150,7 +145,7 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
         }
         return prev;
       });
-    }, 20); // ~50 chars/sec speed
+    }, 20);
 
     return () => {
       if (chaseIntervalRef.current) {
@@ -158,14 +153,14 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
         chaseIntervalRef.current = null;
       }
     };
-  }, [notebookMode, skipAnimation, fullText.length, prefersReducedMotion]);
+  }, [notebookMode, skipAnimation, fullText.length, prefersReducedMotion, hasTypingCompleted]);
 
   useEffect(() => {
-    if (!notebookMode || skipAnimation || prefersReducedMotion) {
+    if (!notebookMode || skipAnimation || prefersReducedMotion || hasTypingCompleted) {
       setRevealed(fullText.length);
       setDisplayedRevealed(fullText.length);
     }
-  }, [notebookMode, fullText, skipAnimation, prefersReducedMotion]);
+  }, [notebookMode, fullText, skipAnimation, prefersReducedMotion, hasTypingCompleted]);
 
   return { revealed: displayedRevealed, isAnimating: displayedRevealed < fullText.length };
 }

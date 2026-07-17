@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { CanvasPage } from '@/features/canvas/CanvasPage';
 import { useSessionStore } from '@/shared/stores/sessionStore';
+import { useNotebookStore } from '@/shared/stores/notebookStore';
 import * as sessionsDb from '@/lib/db/sessionsDb';
 import * as factories from '../../shared/factories';
 
@@ -15,11 +16,25 @@ function renderCanvas() {
 }
 
 beforeEach(() => {
+  // The graph-rendering tests below assert against rendering without any
+  // notebook-mode interaction (TTS, typewriter). Force graph mode so the
+  // existing tests don't fight the notebook-by-default behavior. Tests
+  // that explicitly exercise notebook mode reset this themselves.
+  useNotebookStore.setState({
+    notebookMode: false,
+    ttsPlaying: false,
+    ttsPaused: false,
+    currentSegmentNodeId: null,
+    segmentIndex: 0,
+    totalSegments: 0,
+    completedTypingNodeIds: {},
+  });
   useSessionStore.setState({ sessions: [], currentId: null, loaded: false });
 });
 
 afterEach(() => {
   useSessionStore.setState({ sessions: [], currentId: null, loaded: false });
+  useNotebookStore.setState({ notebookMode: false, completedTypingNodeIds: {} });
 });
 
 describe('CanvasPage', () => {

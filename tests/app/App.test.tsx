@@ -145,6 +145,13 @@ vi.mock('@/shared/stores/sessionStore', () => ({
   useSessionStore: mockSessionStore,
 }));
 
+const mockSetNotebookMode = vi.hoisted(() => vi.fn());
+vi.mock('@/shared/stores/notebookStore', () => ({
+  useNotebookStore: {
+    getState: () => ({ setNotebookMode: mockSetNotebookMode }),
+  },
+}));
+
 // sessionStorage mock
 const sessionStorageMock = (() => {
   let store: Record<string, string> = {};
@@ -170,6 +177,7 @@ beforeEach(() => {
   mockFetchSourceContent.mockReset();
   mockExecutePromptTask.mockReset();
   mockRunPipeline.mockReset();
+  mockSetNotebookMode.mockReset();
 });
 
 afterEach(() => {
@@ -369,5 +377,45 @@ describe('App', () => {
     await vi.waitFor(() => {
       expect(screen.getByTestId('canvas-page')).toBeInTheDocument();
     });
+  });
+
+  it('enables notebook mode on successful session select', async () => {
+    mockSessionStore.setState({ sessions: [{ id: 'session-1' }], currentId: null });
+
+    render(<App />);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('select-session'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('canvas-page')).toBeInTheDocument();
+    });
+    expect(mockSetNotebookMode).toHaveBeenCalledWith(true);
+  });
+
+  it('enables notebook mode before createSession during generate', async () => {
+    mockFetchSourceContent.mockResolvedValue({ url: 'https://example.com', content: 'source text' });
+    mockExecutePromptTask.mockResolvedValue({
+      title: 'Test Canvas',
+      concepts: [{ id: 'c1', title: 'C1', explanation: 'E1', quiz: { format: 'mcq', question: 'Q?', options: ['A', 'B'], answer: 'A', explanation: 'R' } }],
+    });
+    mockRunPipeline.mockResolvedValue({ nodes: [], edges: [] });
+
+    render(<App />);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('generate-btn'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('canvas-page')).toBeInTheDocument();
+    });
+    expect(mockSetNotebookMode).toHaveBeenCalledWith(true);
+    expect(mockSessionStore.create).toHaveBeenCalled();
+
+    // setNotebookMode(true) must be called before create resolves so the
+    // CanvasPage-first-visit animations and TTS gating start clean.
+    const setOrder = mockSetNotebookMode.mock.invocationCallOrder[0] ?? 0;
+    const createOrder = mockSessionStore.create.mock.invocationCallOrder[0] ?? Infinity;
+    expect(setOrder).toBeLessThan(createOrder);
   });
 });

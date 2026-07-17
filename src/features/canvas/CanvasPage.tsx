@@ -329,6 +329,10 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     const currentConcept = concepts.find(c => c.data.index === currentConceptIndex);
     if (!currentConcept) return;
 
+    const notebookStore = useNotebookStore.getState();
+    if (notebookStore.hasTypingCompleted(currentConcept.id)) return;
+    if (ttsManager.currentSegmentId === currentConcept.id || ttsManager.hasSegment(currentConcept.id)) return;
+
     const shouldStartTts = 
       lastConceptIndexRef.current !== currentConceptIndex || 
       (!ttsManager.isPlaying && !ttsManager.isPaused && !ttsManager.hasSegment(currentConcept.id));
