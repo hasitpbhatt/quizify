@@ -2,6 +2,8 @@ import { memo, useEffect, useRef } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import styles from './QuizNode.module.css';
 import type { QuizData } from '@/shared/types';
+import { useTypingAnimation } from '@/features/canvas/useTypingAnimation';
+import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
 
@@ -30,6 +32,15 @@ function QuizNodeInner(props: NodeProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
   const prevStateRef = useRef(data.state);
 
+  const notebookMode = useNotebookStore((s) => s.notebookMode);
+  const skipTyping = props.data.skipTyping === true;
+  const { revealed } = useTypingAnimation(props.id, data.prompt, skipTyping, 80);
+  const promptText = notebookMode ? data.prompt.slice(0, revealed) : data.prompt;
+  const promptParagraphs = notebookMode && promptText.length > 0
+    ? promptText.split(/\n+/)
+    : [data.prompt];
+  const isAnimating = notebookMode && !skipTyping && revealed < data.prompt.length;
+
   // Replay animation when state changes to correct/mastered/incorrect
   useEffect(() => {
     const prev = prevStateRef.current;
@@ -52,7 +63,21 @@ function QuizNodeInner(props: NodeProps) {
     <div ref={nodeRef} className={styles.node} data-node-type="quiz" data-state={data.state}>
       <Handle type="target" position={Position.Left} />
       <div className={styles.format}>{formatLabel}</div>
-      <div className={styles.prompt}>{data.prompt}</div>
+      <div className={styles.prompt}>
+        {notebookMode ? (
+          promptParagraphs.map((p, i) => (
+            <p
+              key={i}
+              className={styles.promptPara}
+              data-typing={isAnimating && i === promptParagraphs.length - 1 ? 'true' : undefined}
+            >
+              {p}
+            </p>
+          ))
+        ) : (
+          data.prompt
+        )}
+      </div>
       <div className={styles.footer}>
         <span
           className={styles.badge}

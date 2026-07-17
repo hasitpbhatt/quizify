@@ -6,6 +6,7 @@ const mockSubscribe = vi.hoisted(() => vi.fn<(...args: unknown[]) => string>(() 
 const mockUnsubscribe = vi.hoisted(() => vi.fn());
 const mockFinishSegment = vi.hoisted(() => vi.fn());
 const mockHasSegment = vi.hoisted(() => vi.fn(() => false));
+const mockEmitCharProgress = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/llm/ttsManager', () => ({
   ttsManager: {
@@ -13,6 +14,7 @@ vi.mock('@/lib/llm/ttsManager', () => ({
     unsubscribe: mockUnsubscribe,
     finishSegment: mockFinishSegment,
     hasSegment: mockHasSegment,
+    emitCharProgress: mockEmitCharProgress,
   },
 }));
 

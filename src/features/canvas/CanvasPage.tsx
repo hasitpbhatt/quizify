@@ -39,20 +39,24 @@ import styles from './CanvasPage.module.css';
 const nodeTypes = { concept: ConceptNode, quiz: QuizNode, summary: SummaryNode, note: NoteNode };
 const edgeTypes = { wiggly: WigglyEdge };
 
-function toReactFlowNodes(canvasNodes: CanvasNode[], currentConceptIndex = Infinity): Node[] {
-  return canvasNodes.map(n => ({
-    id: n.id,
-    type: n.type,
-    position: n.position,
-    data: {
-      ...n.data,
-      ...(n.data.kind === 'concept' && (n.data as ConceptData).index < currentConceptIndex
-        ? { skipTyping: true }
-        : {}),
-    },
-    draggable: n.draggable,
-    selected: n.selected,
-  })) as Node[];
+function toReactFlowNodes(canvasNodes: CanvasNode[], currentConceptIndex: number, revealedQuizIds: Set<string>): Node[] {
+  return canvasNodes.map(n => {
+    const data: Record<string, unknown> = { ...n.data };
+    if (n.data.kind === 'concept' && (n.data as ConceptData).index < currentConceptIndex) {
+      data.skipTyping = true;
+    }
+    if (n.data.kind === 'quiz' && !revealedQuizIds.has(n.id)) {
+      data.skipTyping = true;
+    }
+    return {
+      id: n.id,
+      type: n.type,
+      position: n.position,
+      data,
+      draggable: n.draggable,
+      selected: n.selected,
+    } as Node;
+  });
 }
 
 function toReactFlowEdges(canvasEdges: CanvasEdge[]): Edge[] {
@@ -138,6 +142,15 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
   const segmentIndex = useNotebookStore(s => s.segmentIndex);
   const totalSegments = useNotebookStore(s => s.totalSegments);
   const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const liveFitZoomRef = useRef<number | null>(null);
+  const liveFitBottomRef = useRef<number | null>(null);
+  const pendingFitRafRef = useRef<number | null>(null);
+  const inFlightTweenUntilRef = useRef<number>(0);
+  const liveFitEnabledRef = useRef<boolean>(true);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const prefersReducedMotion = useRef<boolean>(
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
 
   const focusOnActiveConcept = useCallback((conceptId: string, includeQuizzes = false) => {
     if (!session) return;
@@ -148,7 +161,7 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
         .map(n => n.id);
       nodesToFocus.push(...quizIds);
     }
-    
+
     // Coalesce focus requests made while the restored node tree is mounting.
     if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
     focusTimeoutRef.current = setTimeout(() => {
@@ -157,10 +170,16 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
         nodes: nodesToFocus.map(id => ({ id })),
         duration: notebookMode ? 0 : 800,
         padding: 0.25,
-        minZoom: 0.7,
+        minZoom: notebookMode ? 0.5 : 0.7,
         maxZoom: 0.95,
       });
-    }, 100); // slight delay to ensure nodes are fully layouted
+      // Lock the zoom chosen by the initial fit; live refits use translation only.
+      if (notebookMode) {
+        const vp = reactFlow.getViewport();
+        liveFitZoomRef.current = vp.zoom;
+      }
+      liveFitBottomRef.current = null;
+    }, 100);
   }, [session, reactFlow, notebookMode]);
 
   useEffect(() => () => {
@@ -203,8 +222,8 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
   }, [session, currentConceptIndex, revealedQuizIds, notebookMode]);
 
   const nodes: Node[] = useMemo(
-    () => toReactFlowNodes(visibleData.nodes, currentConceptIndex),
-    [visibleData.nodes, currentConceptIndex],
+    () => toReactFlowNodes(visibleData.nodes, currentConceptIndex, revealedQuizIds),
+    [visibleData.nodes, currentConceptIndex, revealedQuizIds],
   );
   const edges: Edge[] = useMemo(
     () => toReactFlowEdges(visibleData.edges),
@@ -218,11 +237,14 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
       const quiz = canvasNode.data as QuizData;
       const parentId = quiz.parentConceptId;
       const conceptTitle = conceptTitles.get(parentId) ?? 'Concept';
+      if (notebookMode) {
+        useNotebookStore.getState().markTypingComplete(canvasNode.id);
+      }
       setActiveQuiz({ quizId: canvasNode.id, quiz, conceptTitle });
     } else if (canvasNode.data.kind === 'summary') {
       setSummaryQuiz(true);
     }
-  }, [session, conceptTitles]);
+  }, [session, conceptTitles, notebookMode]);
 
   const handleCloseQuiz = useCallback(() => {
     setActiveQuiz(null);
@@ -301,13 +323,37 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     ttsManager.stop();
   }, []);
 
-  // In notebook mode: subscribe to TTS onSegmentEnd for the current concept
-  // to reveal its quiz nodes once the concept is done speaking
+  // In notebook mode: subscribe to TTS for the current concept — segment end
+  // reveals its quizzes; char progress drives the boundary-based viewport refit.
   useEffect(() => {
     if (!notebookMode || !session) return;
 
     const currentConcept = concepts.find(c => c.data.index === currentConceptIndex);
     if (!currentConcept) return;
+
+    const margin = 80;
+    const scheduleRefit = (targetBottom: number) => {
+      if (liveFitEnabledRef.current === false) return;
+      if (liveFitZoomRef.current == null) return;
+      if (performance.now() < inFlightTweenUntilRef.current) return;
+      const vp = reactFlow.getViewport();
+      const zoom = liveFitZoomRef.current;
+      const targetY = window.innerHeight - margin - targetBottom * zoom;
+      inFlightTweenUntilRef.current = performance.now() + 280;
+      reactFlow.setViewport({ x: vp.x, y: targetY, zoom }, { duration: 250 });
+    };
+
+    const computeCurrentBottom = (): number | null => {
+      let maxBottom = -Infinity;
+      const trackedIds = [currentConcept.id, ...Array.from(revealedQuizIds)];
+      for (const id of trackedIds) {
+        const n = reactFlow.getNode(id);
+        if (!n?.measured?.height) continue;
+        const bottom = (n.position?.y ?? 0) + n.measured.height;
+        if (bottom > maxBottom) maxBottom = bottom;
+      }
+      return maxBottom === -Infinity ? null : maxBottom;
+    };
 
     const onSegmentEnd = (nodeId: string) => {
       if (nodeId === currentConcept.id) {
@@ -325,14 +371,44 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
       }
     };
 
-    const subId = ttsManager.subscribe(currentConcept.id, { onSegmentEnd });
+    const onCharProgress = (_nodeId: string, _charIndex: number) => {
+      // Boundary-driven, translation-only refit. Skip if the active tween
+      // hasn't finished (inFlightTweenUntilRef gates new refits).
+      const bottom = computeCurrentBottom();
+      if (bottom == null) return;
+      if (liveFitBottomRef.current === bottom) return;
+      liveFitBottomRef.current = bottom;
+
+      if (pendingFitRafRef.current != null) return;
+      pendingFitRafRef.current = requestAnimationFrame(() => {
+        pendingFitRafRef.current = null;
+        if (liveFitZoomRef.current == null) return;
+        const vp = reactFlow.getViewport();
+        const viewportBottomFlow = (-vp.y + window.innerHeight) / vp.zoom;
+        if (bottom > viewportBottomFlow - margin) {
+          scheduleRefit(bottom);
+        }
+      });
+    };
+
+    const subId = ttsManager.subscribe(currentConcept.id, {
+      onSegmentEnd,
+      onCharProgress,
+    });
 
     return () => {
       ttsManager.unsubscribe(subId);
+      if (pendingFitRafRef.current != null) {
+        cancelAnimationFrame(pendingFitRafRef.current);
+        pendingFitRafRef.current = null;
+      }
+      liveFitZoomRef.current = null;
+      liveFitBottomRef.current = null;
     };
-  }, [notebookMode, currentConceptIndex, session, concepts, focusOnActiveConcept]);
+  }, [notebookMode, currentConceptIndex, session, concepts, revealedQuizIds, reactFlow, focusOnActiveConcept]);
 
-  // In notebook mode: enqueue TTS for the current concept when it becomes active
+  // In notebook mode: enqueue TTS for the current concept when it becomes active.
+  // Gated on !prefers-reduced-motion: auto-audio violates WCAG 2.2.
   useEffect(() => {
     if (!notebookMode || !session) return;
 
@@ -343,8 +419,8 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     if (notebookStore.hasTypingCompleted(currentConcept.id)) return;
     if (ttsManager.currentSegmentId === currentConcept.id || ttsManager.hasSegment(currentConcept.id)) return;
 
-    const shouldStartTts = 
-      lastConceptIndexRef.current !== currentConceptIndex || 
+    const shouldStartTts =
+      lastConceptIndexRef.current !== currentConceptIndex ||
       (!ttsManager.isPlaying && !ttsManager.isPaused && !ttsManager.hasSegment(currentConcept.id));
 
     if (shouldStartTts) {
@@ -353,9 +429,11 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
       lastConceptIndexRef.current = currentConceptIndex;
 
       ttsManager.stop();
-      const text = `${currentConcept.data.title}. ${currentConcept.data.explanation}`;
-      ttsManager.enqueue({ nodeId: currentConcept.id, text });
-      ttsManager.start();
+      if (!prefersReducedMotion.current) {
+        const text = `${currentConcept.data.title}. ${currentConcept.data.explanation}`;
+        ttsManager.enqueue({ nodeId: currentConcept.id, text });
+        ttsManager.start();
+      }
     }
   }, [currentConceptIndex, notebookMode, session, concepts, focusOnActiveConcept]);
 
@@ -373,6 +451,99 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     });
     return unsub;
   }, []);
+
+  // Kill switch for the live char-progress viewport refit.
+  // Disable via either:
+  //   URL:   append ?nbFit=0 to the page URL
+  //   Store: localStorage.setItem('nbFit', '0') from devtools
+  // The 500ms poll catches same-tab localStorage writes (the storage event
+  // only fires in other tabs).
+  useEffect(() => {
+    const readFlag = () => {
+      const url = new URLSearchParams(window.location.search);
+      const fromUrl = url.get('nbFit');
+      const fromLs = localStorage.getItem('nbFit');
+      liveFitEnabledRef.current = !(fromUrl === '0' || fromLs === '0');
+    };
+    readFlag();
+    window.addEventListener('storage', readFlag);
+    const poll = window.setInterval(readFlag, 500);
+    return () => {
+      window.removeEventListener('storage', readFlag);
+      window.clearInterval(poll);
+    };
+  }, []);
+
+  // On TTS stop transition (playing|paused -> idle|stopped), drop the
+  // locked zoom so a final fit can re-zoom to include any newly-revealed
+  // quizzes. Without this, stale zoom leaves a half-fit viewport.
+  useEffect(() => {
+    let prev: string | null = null;
+    const unsub = ttsManager.subscribeState((state) => {
+      const fireFinalFit = prev === 'playing' && (state === 'idle' || state === 'stopped');
+      prev = state;
+      if (!fireFinalFit || !notebookMode || !session) return;
+      const active = concepts.find(c => c.data.index === currentConceptIndex);
+      if (!active) return;
+      liveFitZoomRef.current = null;
+      liveFitEnabledRef.current = useNotebookStore.getState().notebookMode
+        ? !(new URLSearchParams(window.location.search).get('nbFit') === '0' ||
+           localStorage.getItem('nbFit') === '0')
+        : true;
+      focusOnActiveConcept(active.id, true);
+    });
+    return unsub;
+  }, [notebookMode, session, concepts, currentConceptIndex, focusOnActiveConcept]);
+
+  // Window resize invalidates the locked zoom and last-known bottom so the
+  // next char-progress event recomputes translation for the new viewport.
+  useEffect(() => {
+    if (!notebookMode) return;
+    const onResize = () => {
+      liveFitZoomRef.current = null;
+      liveFitBottomRef.current = null;
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [notebookMode]);
+
+  // Keyboard navigation in notebook mode: arrows + PageUp/PageDown + Space
+  // translate the viewport by fixed steps. Gated on no modal open.
+  useEffect(() => {
+    if (!notebookMode) return;
+    const handler = (e: KeyboardEvent) => {
+      if (activeQuiz || summaryQuiz) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      const vp = reactFlow.getViewport();
+      const STEP = 60;
+      let dx = 0;
+      let dy = 0;
+      switch (e.key) {
+        case 'ArrowUp':    dy =  STEP; break;
+        case 'ArrowDown':  dy = -STEP; break;
+        case 'ArrowLeft':  dx =  STEP; break;
+        case 'ArrowRight': dx = -STEP; break;
+        case 'PageDown':   dy = -window.innerHeight * 0.5; break;
+        case 'PageUp':     dy =  window.innerHeight * 0.5; break;
+        case ' ':
+          if (e.shiftKey) dy = window.innerHeight * 0.5;
+          else dy = -window.innerHeight * 0.5;
+          break;
+        default: return;
+      }
+      e.preventDefault();
+      reactFlow.setViewport(
+        { x: vp.x + dx, y: vp.y + dy, zoom: vp.zoom },
+        { duration: 150 },
+      );
+    };
+    const container = containerRef.current;
+    container?.addEventListener('keydown', handler);
+    return () => container?.removeEventListener('keydown', handler);
+  }, [notebookMode, activeQuiz, summaryQuiz, reactFlow]);
 
   // Focus the first concept once when restoring a session. The narration effect
   // may request the same focus, so both paths intentionally use the same fit.
@@ -448,7 +619,7 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
         <CanvasErrorFallback error={error} onReset={reset} onHome={onHome ?? (() => {})} />
       )}
     >
-    <div className={styles.container} data-notebook={notebookMode ? 'true' : undefined}>
+    <div ref={containerRef} className={styles.container} data-notebook={notebookMode ? 'true' : undefined} tabIndex={notebookMode ? 0 : undefined}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -459,9 +630,9 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
         maxZoom={2}
         panOnDrag={!notebookMode}
         selectionOnDrag={!notebookMode}
-        panOnScroll={!notebookMode}
-        nodesDraggable={!notebookMode}
+        panOnScroll={true}
         nodesConnectable={false}
+        nodesDraggable={!notebookMode}
         onNodeClick={handleNodeClick}
         proOptions={{ hideAttribution: true }}
       >

@@ -164,6 +164,16 @@ class TtsManagerSingleton {
     this.notifySegmentEnd(nodeId);
   }
 
+  /**
+   * Public hook for non-audio typing paths (e.g. the fallback interval in
+   * useTypingAnimation when SpeechSynthesis isn't emitting boundary events)
+   * to broadcast character progress to subscribers. CanvasPage's boundary-driven
+   * viewport refit listens to this via subscribe(nodeId, { onCharProgress }).
+   */
+  emitCharProgress(nodeId: string, charIndex: number): void {
+    this.notifyCharProgress(nodeId, charIndex);
+  }
+
   // ==================== Internal ====================
 
   private notifySegmentStart(nodeId: string): void {

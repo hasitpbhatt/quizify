@@ -69,6 +69,13 @@
   margin-bottom: var(--space-4);
 }
 
+.explanationPara {
+  margin: 0;
+}
+.explanationPara + .explanationPara {
+  margin-top: var(--space-3);
+}
+
 .footer {
   display: flex;
   align-items: center;

@@ -26,6 +26,7 @@ const ttsMock = vi.hoisted(() => ({
   start: vi.fn(() => { ttsMockRef.isPlaying = true; }),
   stop: vi.fn(() => { ttsMockRef.isPlaying = false; ttsMockRef.isPaused = false; }),
   finishSegment: vi.fn(),
+  emitCharProgress: vi.fn(),
 }));
 
 // Make the mock's `isPlaying`/`isPaused` read through the ref so toggling

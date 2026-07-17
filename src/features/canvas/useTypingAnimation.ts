@@ -9,7 +9,7 @@ import { useNotebookStore } from '@/shared/stores/notebookStore';
  * Once a node has fully revealed, it stays complete on revisits so movement
  * around the notebook does not replay the typing effect.
  */
-export function useTypingAnimation(nodeId: string, fullText: string, skipAnimation = false) {
+export function useTypingAnimation(nodeId: string, fullText: string, skipAnimation = false, tickMs = 35) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const hasTypingCompleted = useNotebookStore((s) => Boolean(s.completedTypingNodeIds[nodeId]));
   const markTypingComplete = useNotebookStore((s) => s.markTypingComplete);
@@ -43,6 +43,7 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
 
       fallbackIntervalRef.current = setInterval(() => {
         targetRef.current = Math.min(fullText.length, targetRef.current + 1);
+        ttsManager.emitCharProgress(nodeId, targetRef.current);
         if (targetRef.current >= fullText.length) {
           if (fallbackIntervalRef.current) {
             clearInterval(fallbackIntervalRef.current);
@@ -51,7 +52,7 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
           markTypingComplete(nodeId);
           ttsManager.finishSegment(nodeId);
         }
-      }, 35);
+      }, tickMs);
     };
 
     fallbackTimeoutRef.current = setTimeout(startFallback, 1000);
@@ -117,7 +118,7 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
         fallbackIntervalRef.current = null;
       }
     };
-  }, [nodeId, fullText, shouldAnimate, markTypingComplete]);
+  }, [nodeId, fullText, shouldAnimate, markTypingComplete, tickMs]);
 
   return { revealed, isAnimating: shouldAnimate && revealed < fullText.length };
 }

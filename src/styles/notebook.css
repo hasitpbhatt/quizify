@@ -203,6 +203,26 @@
   margin-bottom: var(--space-1);
 }
 
+/* --- Paragraph-aware rendering for typing-revealed prose --- */
+[data-notebook="true"] [class*="explanationPara"],
+[data-notebook="true"] [class*="promptPara"] {
+  margin: 0;
+  font-family: var(--font-canvas), 'Caveat', cursive !important;
+  color: var(--ink-color) !important;
+  line-height: 1.6 !important;
+}
+[data-notebook="true"] [class*="explanationPara"] + [class*="explanationPara"],
+[data-notebook="true"] [class*="promptPara"] + [class*="promptPara"] {
+  margin-top: var(--space-3);
+}
+
+/* --- Focus ring on the canvas container for keyboard navigation --- */
+[data-notebook="true"] .react-flow:focus-visible,
+[data-notebook="true"] [tabindex]:focus-visible {
+  outline: 2px solid var(--accent-subtle) !important;
+  outline-offset: -2px;
+}
+
 /* --- Quiz prompt looks like inline text in notebook mode --- */
 [data-notebook="true"] [class*="quizPrompt"],
 [data-notebook="true"] [class*="prompt"] {

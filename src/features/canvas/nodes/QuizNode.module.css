@@ -71,6 +71,13 @@
   line-height: var(--lh-normal);
 }
 
+.promptPara {
+  margin: 0;
+}
+.promptPara + .promptPara {
+  margin-top: var(--space-3);
+}
+
 .footer {
   display: flex;
   align-items: center;
