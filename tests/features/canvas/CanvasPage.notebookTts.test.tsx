@@ -18,10 +18,10 @@ const ttsMock = vi.hoisted(() => ({
   currentSegmentId: null as string | null,
   isPlaying: false,
   isPaused: false,
-  hasSegment: vi.fn(() => false),
-  subscribe: vi.fn(() => 'sub'),
+  hasSegment: vi.fn((_id: string) => false),
+  subscribe: vi.fn((_nodeId: string, _cbs?: unknown) => 'sub'),
   unsubscribe: vi.fn(),
-  subscribeState: vi.fn(() => () => undefined),
+  subscribeState: vi.fn((_cb: unknown) => () => undefined),
   enqueue: vi.fn(),
   start: vi.fn(() => { ttsMockRef.isPlaying = true; }),
   stop: vi.fn(() => { ttsMockRef.isPlaying = false; ttsMockRef.isPaused = false; }),
@@ -101,7 +101,7 @@ describe('CanvasPage — notebook-mode TTS gating', () => {
 
   it('does not enqueue TTS when ttsManager already has the segment enqueued', async () => {
     const { concept } = await seedSessionWithOneConcept();
-    ttsMock.hasSegment.mockImplementation(((id: string) => id === concept.id) as () => boolean);
+    ttsMock.hasSegment.mockImplementation(id => id === concept.id);
     ttsMock.currentSegmentId = null;
 
     renderCanvas();

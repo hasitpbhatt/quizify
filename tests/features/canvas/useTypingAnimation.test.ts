@@ -160,7 +160,7 @@ describe('notebook mode (notebookMode = true)', () => {
   });
 
   it('cancels fallback timer when TTS starts', () => {
-    renderHook(() => useTypingAnimation('n1', 'hello'));
+    const { result } = renderHook(() => useTypingAnimation('n1', 'hello'));
 
     const sub = mockSubscribe.mock.calls[0][1] as { onSegmentStart?: (nodeId: string) => void; onCharProgress?: (nodeId: string, charIndex: number) => void; onSegmentEnd?: (nodeId: string) => void; };
 
@@ -168,9 +168,16 @@ describe('notebook mode (notebookMode = true)', () => {
       sub.onSegmentStart!('n1');
     });
 
-    // After TTS starts, the fallback timeout should be cleared
-    // and revealed should stay at 0 (TTS will drive it via onCharProgress)
+    // After TTS starts, the fallback timeout must be cleared: advance past
+    // the 2s threshold and assert revealed stays at 0 (TTS, not fallback,
+    // is the only driver now). If the fallback were still active it would
+    // have incremented revealed on its own.
+    act(() => {
+      vi.advanceTimersByTime(2500);
+    });
+
     expect(mockSubscribe).toHaveBeenCalled();
+    expect(result.current.revealed).toBe(0);
   });
 
   it('unsubscribes on unmount', () => {
