@@ -162,17 +162,3 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
-
-.pulseHighlight {
-  animation: pulseGlow 1s ease-in-out infinite;
-}
-
-@keyframes pulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 0 0px var(--accent);
-  }
-  50% {
-    box-shadow: 0 0 0 12px var(--accent-glass);
-  }
-}
-

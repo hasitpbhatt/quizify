@@ -137,6 +137,7 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
   const ttsPaused = useNotebookStore(s => s.ttsPaused);
   const segmentIndex = useNotebookStore(s => s.segmentIndex);
   const totalSegments = useNotebookStore(s => s.totalSegments);
+  const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const focusOnActiveConcept = useCallback((conceptId: string, includeQuizzes = false) => {
     if (!session) return;
@@ -148,17 +149,26 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
       nodesToFocus.push(...quizIds);
     }
     
-    // Smoothly pan and zoom to fit these nodes
-    setTimeout(() => {
+    // Coalesce focus requests made while the restored node tree is mounting.
+    if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
+    focusTimeoutRef.current = setTimeout(() => {
+      focusTimeoutRef.current = null;
       reactFlow.fitView({
         nodes: nodesToFocus.map(id => ({ id })),
-        duration: 800,
+        duration: notebookMode ? 0 : 800,
         padding: 0.25,
         minZoom: 0.7,
         maxZoom: 0.95,
       });
     }, 100); // slight delay to ensure nodes are fully layouted
-  }, [session, reactFlow]);
+  }, [session, reactFlow, notebookMode]);
+
+  useEffect(() => () => {
+    if (focusTimeoutRef.current) {
+      clearTimeout(focusTimeoutRef.current);
+      focusTimeoutRef.current = null;
+    }
+  }, []);
 
   const conceptTitles = useMemo(() => {
     const map = new Map<string, string>();
@@ -364,43 +374,17 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     return unsub;
   }, []);
 
-  // Smooth orientation moment to focus on Concept 1 when loading a session
+  // Focus the first concept once when restoring a session. The narration effect
+  // may request the same focus, so both paths intentionally use the same fit.
   useEffect(() => {
-    if (!session || orientedSessionRef.current === session.id) return;
+    if (!notebookMode || !session || orientedSessionRef.current === session.id) return;
 
     const firstConcept = concepts.find(c => c.data.index === 0);
     if (!firstConcept) return;
 
     orientedSessionRef.current = session.id;
-
-    let pulseId: ReturnType<typeof setTimeout> | undefined;
-    const fitId = setTimeout(() => {
-      // 1. Pan camera smoothly to the first concept node
-      reactFlow.fitView({
-        nodes: [{ id: firstConcept.id }],
-        duration: 1200,
-        padding: 0.5,
-        maxZoom: 1.0,
-      });
-
-      // 2. Subtle pulse highlight animation
-      const element = document.querySelector(`[data-id="${firstConcept.id}"]`);
-      if (element) {
-        element.classList.add(styles.pulseHighlight);
-        pulseId = setTimeout(() => {
-          element.classList.remove(styles.pulseHighlight);
-        }, 3000);
-      }
-
-      // 3. A toast saying "Start here → [Concept title]"
-      useToastStore.getState().add(`Start here → ${firstConcept.data.title}`);
-    }, 800);
-
-    return () => {
-      clearTimeout(fitId);
-      if (pulseId !== undefined) clearTimeout(pulseId);
-    };
-  }, [session, concepts, reactFlow]);
+    focusOnActiveConcept(firstConcept.id);
+  }, [notebookMode, session, concepts, focusOnActiveConcept]);
 
   // Migration: sessionStorage summary quiz results → Session.scores (IndexedDB)
   useEffect(() => {
@@ -470,7 +454,7 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        fitView
+        fitView={!notebookMode}
         minZoom={0.3}
         maxZoom={2}
         panOnDrag={!notebookMode}

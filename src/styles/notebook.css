@@ -5,6 +5,7 @@
 
 [data-notebook="true"] {
   --ink-color: #1a365d; /* deep navy blue ink for light theme */
+  animation: none !important;
 }
 
 [data-theme='dark'][data-notebook="true"],
@@ -44,19 +45,23 @@
 
 /* --- Adjust widths of the outer node wrappers so React Flow layouts correctly --- */
 [data-notebook="true"] .react-flow__node-concept {
-  width: 390px !important;
+  width: 420px !important;
 }
 [data-notebook="true"] .react-flow__node-quiz {
-  width: 360px !important;
+  width: 380px !important;
   z-index: 10 !important;
   pointer-events: all !important;
 }
 [data-notebook="true"] .react-flow__node-summary {
-  width: 450px !important;
+  width: 480px !important;
+}
+[data-notebook="true"] .react-flow__node-note {
+  width: 380px !important;
 }
 
 /* --- Strip card styling but maintain layout width --- */
-[data-notebook="true"] [class*="node"] {
+[data-notebook="true"] .react-flow__node-concept > div,
+[data-notebook="true"] .react-flow__node-summary > div {
   background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -65,50 +70,67 @@
   border-radius: 0 !important;
   padding: 4px 0 !important;
   width: 100% !important;
+  box-sizing: border-box !important;
   color: var(--ink-color) !important;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  transition: none !important;
   /* subtle slant to feel organic and hand-written */
   transform: rotate(-0.2deg);
 }
 
-[data-notebook="true"] [class*="node"]:hover {
+[data-notebook="true"] .react-flow__node-concept > div:hover,
+[data-notebook="true"] .react-flow__node-summary > div:hover {
   transform: rotate(-0.2deg) !important;
   box-shadow: none !important;
   border-color: transparent !important;
 }
 
 /* --- Style quiz nodes differently so they feel like distinct interactive cards --- */
-[data-notebook="true"] .react-flow__node-quiz [class*="node"] {
+[data-notebook="true"] .react-flow__node-quiz > div {
   background: var(--bg-glass) !important;
   backdrop-filter: saturate(140%) blur(12px) !important;
   -webkit-backdrop-filter: saturate(140%) blur(12px) !important;
   border: 2px dashed rgba(84, 87, 232, 0.4) !important;
   border-radius: var(--radius-sm) !important;
   padding: var(--space-4) !important;
+  box-sizing: border-box !important;
   box-shadow: var(--shadow-sm) !important;
   transform: rotate(0.5deg);
-  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+  overflow-wrap: anywhere;
+  min-width: 0;
+  transition: none !important;
 }
 
-[data-notebook="true"] .react-flow__node-quiz [class*="node"]:hover {
-  transform: translateY(-2px) rotate(-0.5deg) !important;
+[data-notebook="true"] .react-flow__node-quiz > div:hover {
+  transform: rotate(0.5deg) !important;
   box-shadow: var(--shadow-md) !important;
   border-color: var(--accent) !important;
 }
 
 /* --- Restore NoteNode sticky note container styling --- */
-[data-notebook="true"] .react-flow__node-note [class*="node"] {
+[data-notebook="true"] .react-flow__node-note > div {
   background: var(--note-bg) !important;
   border: none !important;
   border-radius: var(--radius-sm) !important;
   box-shadow: var(--note-shadow) !important;
   padding: var(--space-4) var(--space-5) !important;
-  width: 360px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
   transform: rotate(-1.5deg) !important;
   color: var(--note-text) !important; /* keep original note text color */
+  overflow-wrap: anywhere;
+  min-width: 0;
+  transition: none !important;
 }
 
-[data-notebook="true"] .react-flow__node-note [class*="node"]:hover {
-  transform: rotate(-2deg) scale(1.02) !important;
+[data-notebook="true"] .react-flow__node-note > div:hover {
+  transform: rotate(-1.5deg) !important;
+}
+
+/* Notebook text should never animate its position when the pointer crosses it. */
+[data-notebook="true"] .pulseHighlight {
+  animation: none !important;
 }
 
 [data-notebook="true"] .react-flow__node-note [class*="text"],
