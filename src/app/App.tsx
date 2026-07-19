@@ -15,6 +15,9 @@ import { outlineTask } from '@/lib/tasks/outlineTask';
 import { getProviderConfig } from '@/lib/llm/providers';
 import { runPipeline, type PipelineStep } from '@/lib/pipeline';
 import { useToastStore } from '@/shared/stores/toastStore';
+import { isDebugMode } from '@/lib/debug';
+import { useLatencyStore } from '@/shared/stores/latencyStore';
+import { LatencyPanel } from './LatencyPanel';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import '@/styles/global.css';
 
@@ -128,10 +131,16 @@ export function App() {
     setError(null);
     setPage('progress');
 
+    const latency = useLatencyStore.getState();
+    latency.reset();
+    latency.setVisible(isDebugMode());
+
     try {
       // Stage 1 — fetch the source
+      latency.startStage('fetch', 'Reading the source\u2026');
       setProgress({ stage: 'fetch', label: 'Reading the source\u2026' });
       const src = await fetchSourceContent(url, { apiKey, persona, provider, signal: abortController.signal });
+      latency.endStage('fetch');
 
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
 
@@ -180,12 +189,14 @@ export function App() {
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
 
       // Stage 2 — outline
-      setProgress({ stage: 'outline', label: 'Sketching an outline…' });
+      latency.startStage('outline', 'Sketching an outline\u2026');
+      setProgress({ stage: 'outline', label: 'Sketching an outline\u2026' });
       const outline = await executePromptTask(outlineTask, {
         apiKey, provider, persona, signal: abortController.signal,
         context: { url },
-        onRetry: (info) => useToastStore.getState().add(`API busy, retrying… (${info.attempt + 1}/${info.maxRetries + 1})`),
+        onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
       }, src.content);
+      latency.endStage('outline');
 
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
 
@@ -193,12 +204,12 @@ export function App() {
       const { create: createSession, select } = useSessionStore.getState();
       useNotebookStore.getState().setNotebookMode(true);
       const session = await createSession({ url: src.url, hostname: extractHostname(src.url), persona });
-      // Re-select in case a concurrent store update cleared currentId.
       await select(session.id);
-      
+
       // Navigate to canvas early so we can stream nodes in real-time
       setPage('canvas');
 
+      let pipelineStage = '';
       await runPipeline(
         outline.title,
         outline.concepts.map(c => ({ id: c.id, title: c.title, explanation: c.explanation })),
@@ -206,9 +217,20 @@ export function App() {
         apiKey,
         provider,
         src.url,
-        (p) => { setProgress({ stage: p.step, label: p.label }); },
+        (p) => {
+          setProgress({ stage: p.step, label: p.label });
+          if (p.step !== pipelineStage) {
+            if (pipelineStage) latency.endStage(pipelineStage);
+            pipelineStage = p.step;
+          }
+          latency.startStage(p.step, p.label);
+        },
         abortController.signal,
       );
+
+      if (pipelineStage) latency.endStage(pipelineStage);
+      latency.startStage('done', 'Canvas ready!');
+      latency.endStage('done');
 
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
       await select(session.id);
@@ -283,6 +305,7 @@ export function App() {
       )}
     >
       {main}
+      <LatencyPanel />
       <Toaster />
     </ErrorBoundary>
   );
