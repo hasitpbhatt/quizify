@@ -1,7 +1,9 @@
 import { AuthError, RateLimitError, NetworkError } from './errors';
 import { getProviderConfig, getApiBase } from './providers';
+import { acquireToken } from './rateLimiter';
 import { sleep } from './sleep';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
+import { countCall } from '@/lib/perf';
 import type { ChatMessage, LlmProvider } from '@/shared/types';
 
 export interface RetryInfo {
@@ -20,7 +22,9 @@ export interface ChatOptions {
   responseFormat?: 'json';
   signal?: AbortSignal;
   maxTokens?: number;
+  maxRetries?: number;
   onRetry?: (info: RetryInfo) => void;
+  onToken?: (delta: string) => void;
 }
 
 export interface ChatResponse {
@@ -43,9 +47,10 @@ interface EndpointEntry {
   extraHeaders?: Record<string, string>;
 }
 
-const MAX_RETRIES = 3;
-const BASE_DELAY = 5000;
+const DEFAULT_MAX_RETRIES = 3;
+const BASE_DELAY = 1500;
 const TIMEOUT_MS = 60_000;
+const MAX_CALL_DEADLINE_MS = 90_000;
 
 async function tryEndpoint(
   messages: ChatMessage[],
@@ -57,9 +62,13 @@ async function tryEndpoint(
     maxTokens: number;
     temperature: number;
     onRetry?: (info: RetryInfo) => void;
+    onToken?: (delta: string) => void;
+    maxRetries: number;
+    startTime: number;
+    provider: LlmProvider;
   },
 ): Promise<ChatResponse | null> {
-  const { apiKey, userSignal, responseFormat, maxTokens, onRetry } = opts;
+  const { apiKey, userSignal, responseFormat, maxTokens, onRetry, onToken, maxRetries, startTime, provider } = opts;
 
   for (const model of entry.models) {
     const body: Record<string, unknown> = {
@@ -75,10 +84,17 @@ async function tryEndpoint(
     }
 
     let attempt = 0;
-    while (attempt <= MAX_RETRIES) {
+    while (attempt <= maxRetries) {
+      const elapsed = Date.now() - startTime;
+      const remaining = MAX_CALL_DEADLINE_MS - elapsed;
+      if (remaining <= 0) throw new NetworkError(`Total deadline exceeded for ${entry.label}`);
+
       try {
+        await acquireToken(provider);
+
+        const deadline = Math.min(TIMEOUT_MS, remaining);
         const ac = new AbortController();
-        const signal = anySignal(userSignal, AbortSignal.timeout(TIMEOUT_MS), ac.signal);
+        const signal = anySignal(userSignal, AbortSignal.timeout(deadline), ac.signal);
         const bearer = entry.bearerToken ?? apiKey;
 
         const headers: Record<string, string> = {
@@ -88,6 +104,12 @@ async function tryEndpoint(
         if (bearer) {
           headers.Authorization = `Bearer ${bearer}`;
         }
+
+        if (onToken) {
+          body.stream = true;
+        }
+
+        countCall();
 
         const res = await fetch(entry.apiBase, {
           method: 'POST',
@@ -99,14 +121,23 @@ async function tryEndpoint(
         if (res.status === 401 || res.status === 403) throw new AuthError();
 
         if (res.status === 429 || res.status >= 500) {
-          if (attempt >= MAX_RETRIES) {
+          if (attempt >= maxRetries) {
             if (model === entry.models[entry.models.length - 1]) {
               throw res.status === 429 ? new RateLimitError() : new NetworkError(`${entry.label} returned ${res.status}`);
             }
             break;
           }
-          const delay = BASE_DELAY * Math.pow(2, attempt);
-          onRetry?.({ attempt, maxRetries: MAX_RETRIES, delayMs: delay, status: res.status, model });
+
+          let delay = BASE_DELAY * Math.pow(2, attempt);
+          const retryAfter = res.headers.get('retry-after');
+          if (retryAfter) {
+            const parsed = parseInt(retryAfter, 10);
+            if (!isNaN(parsed)) delay = parsed * 1000;
+          }
+          const jitter = 0.5 + Math.random() * 0.5;
+          delay = Math.round(delay * jitter);
+
+          onRetry?.({ attempt, maxRetries, delayMs: delay, status: res.status, model });
           await sleep(delay);
           attempt++;
           continue;
@@ -115,6 +146,11 @@ async function tryEndpoint(
         if (!res.ok) {
           if (model === entry.models[entry.models.length - 1]) throw new NetworkError(`${entry.label} returned ${res.status}`);
           break;
+        }
+
+        if (onToken) {
+          const content = await readStream(res, onToken);
+          return { content, model, usage: undefined };
         }
 
         const json = await res.json() as {
@@ -140,15 +176,18 @@ async function tryEndpoint(
         if (err instanceof RateLimitError) throw err;
         if (err instanceof DOMException && err.name === 'AbortError') throw err;
 
-        if (attempt >= MAX_RETRIES) {
+        if (attempt >= maxRetries) {
           if (model === entry.models[entry.models.length - 1]) {
             return null;
           }
           break;
         }
 
-        const delay = BASE_DELAY * Math.pow(2, attempt);
-        onRetry?.({ attempt, maxRetries: MAX_RETRIES, delayMs: delay, model });
+        let delay = BASE_DELAY * Math.pow(2, attempt);
+        const jitter = 0.5 + Math.random() * 0.5;
+        delay = Math.round(delay * jitter);
+
+        onRetry?.({ attempt, maxRetries, delayMs: delay, model });
         await sleep(delay);
         attempt++;
       }
@@ -158,6 +197,48 @@ async function tryEndpoint(
   return null;
 }
 
+async function readStream(res: Response, onToken: (delta: string) => void): Promise<string> {
+  const reader = res.body?.getReader();
+  if (!reader) {
+    const text = await res.text();
+    onToken(text);
+    return text;
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let full = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith('data:')) continue;
+      const payload = trimmed.slice(5).trim();
+      if (payload === '[DONE]') return full;
+
+      try {
+        const chunk = JSON.parse(payload);
+        const delta = chunk.choices?.[0]?.delta?.content;
+        if (delta) {
+          full += delta;
+          onToken(delta);
+        }
+      } catch {
+        // ignore malformed SSE lines
+      }
+    }
+  }
+
+  return full;
+}
+
 export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<ChatResponse> {
   const { apiKey, signal: userSignal, responseFormat, maxTokens = 4096 } = opts;
   const provider = opts.provider ?? useSettingsStore.getState().provider ?? 'mistral';
@@ -165,16 +246,20 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<
   const model = opts.model ?? cfg.defaultModel;
   const temperature = opts.temperature ?? 0.3;
   const apiBase = getApiBase(provider);
+  const maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
+  const startTime = Date.now();
 
-  const shared = { apiKey, userSignal, responseFormat, maxTokens, temperature, onRetry: opts.onRetry };
+  const shared = { apiKey, userSignal, responseFormat, maxTokens, temperature, onRetry: opts.onRetry, onToken: opts.onToken, maxRetries, startTime, provider };
 
-  const modelsToTry = model === cfg.defaultModel ? [cfg.defaultModel, cfg.fallbackModel] : [model];
+  const modelsToTry = model === cfg.defaultModel
+    ? [cfg.defaultModel, cfg.fallbackModel].filter((m, i, arr) => m && arr.indexOf(m) === i)
+    : [model];
 
   const entries: EndpointEntry[] = [
     {
       apiBase,
       label: cfg.label,
-      models: modelsToTry.filter(Boolean) as string[],
+      models: modelsToTry,
       bearerToken: cfg.defaultBearerToken,
       extraHeaders: cfg.defaultBearerToken ? OPENCODE_HEADERS : undefined,
     },

@@ -119,7 +119,7 @@ export function App() {
   }, [select]);
 
   const handleGenerate = useCallback(async (url: string) => {
-    const { apiKey, jinaToken, persona, provider } = useSettingsStore.getState();
+    const { apiKey, persona, provider } = useSettingsStore.getState();
     const cfg = getProviderConfig(provider);
     if ((cfg.requiresApiKey && !apiKey) || !persona) return;
 
@@ -130,8 +130,8 @@ export function App() {
 
     try {
       // Stage 1 — fetch the source
-      setProgress({ stage: 'fetch', label: 'Reading the source…' });
-      const src = await fetchSourceContent(url, { apiKey, jinaToken, persona, provider });
+      setProgress({ stage: 'fetch', label: 'Reading the source\u2026' });
+      const src = await fetchSourceContent(url, { apiKey, persona, provider, signal: abortController.signal });
 
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
 

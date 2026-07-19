@@ -7,7 +7,6 @@ describe('settingsStore', () => {
     // Reset store to defaults
     useSettingsStore.setState({
       apiKey: '',
-      jinaToken: '',
       persona: null,
       theme: 'auto',
       provider: 'default',
@@ -37,14 +36,6 @@ describe('settingsStore', () => {
       useSettingsStore.getState().setApiKey('new-key');
       expect(useSettingsStore.getState().apiKey).toBe('new-key');
       expect(localStorage.getItem('quizify:apiKey')).toBe('new-key');
-    });
-  });
-
-  describe('setJinaToken', () => {
-    it('updates jinaToken in store and localStorage', () => {
-      useSettingsStore.getState().setJinaToken('jina-token');
-      expect(useSettingsStore.getState().jinaToken).toBe('jina-token');
-      expect(localStorage.getItem('quizify:jinaToken')).toBe('jina-token');
     });
   });
 

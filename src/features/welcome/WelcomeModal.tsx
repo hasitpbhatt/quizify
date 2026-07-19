@@ -44,10 +44,9 @@ const PERSONAS: { value: Persona; label: string; sublabel: string; description: 
 
 export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSelectSession }: WelcomeModalProps) {
   const { url, persona, provider, setUrl, setApiKey, setPersona, setProvider, submitEnabled, submitDisabledReason } = useWelcomeState();
-  const { jinaToken, apiKey, setJinaToken } = useSettingsStore();
+  const { apiKey } = useSettingsStore();
   const { remove: removeSession } = useSessionStore();
   const [showKey, setShowKey] = useState(false);
-  const [showJina, setShowJina] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [exampleUrl, setExampleUrl] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
@@ -337,34 +336,6 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
               ) : (
                 <p className={styles.fieldHint}>{PROVIDERS[provider].apiKeyHint}</p>
               )}
-
-              <div className={styles.field}>
-                <label className={styles.fieldLabel} htmlFor="jina-token">
-                  Jina Reader key{' '}
-                  <span className={styles.optional}>(optional)</span>
-                </label>
-                <div className={styles.inputWrapper}>
-                  <input
-                    id="jina-token"
-                    className={styles.monoInput}
-                    type={showJina ? 'text' : 'password'}
-                    placeholder="Lifts rate limits"
-                    value={jinaToken}
-                    onChange={(e) => setJinaToken(e.target.value)}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                  <button
-                    className={styles.toggleBtn}
-                    onClick={() => setShowJina((v) => !v)}
-                    aria-label={showJina ? 'Hide token' : 'Show token'}
-                    type="button"
-                  >
-                    {showJina ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                <p className={styles.fieldHint}>Get a free one at jina.ai/apikey.</p>
-              </div>
             </div>
           )}
         </section>

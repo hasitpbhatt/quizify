@@ -169,7 +169,6 @@ beforeEach(() => {
   sessionStorageMock.clear();
   useSettingsStore.setState({
     apiKey: '',
-    jinaToken: '',
     persona: 'student',
     provider: 'default',
   });

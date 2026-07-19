@@ -5,7 +5,7 @@ import type { LlmProvider, Persona } from '@/shared/types';
 
 export interface SourceResult {
   content: string;
-  source: 'cache' | 'jina' | 'allorigins' | 'corsproxy' | 'corseu' | 'codetabs' | 'corslol' | 'corsfix' | 'cfproxy' | 'llm';
+  source: 'cache' | 'allorigins' | 'corsproxy' | 'corseu' | 'codetabs' | 'corslol' | 'corsfix' | 'cfproxy' | 'llm';
   url: string;
 }
 
@@ -27,8 +27,7 @@ export function isLikelyUrl(input: string): boolean {
   }
 }
 
-const JINA_BASE = 'https://r.jina.ai';
-const FETCH_TIMEOUT_MS = 15_000;
+const FETCH_TIMEOUT_MS = 8_000;
 
 async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
   const ac = new AbortController();
@@ -55,16 +54,6 @@ function anySignal(...signals: (AbortSignal | undefined)[]): AbortSignal {
   return controller.signal;
 }
 
-async function fetchViaJina(url: string, jinaToken?: string): Promise<Response> {
-  const headers: Record<string, string> = {
-    Accept: 'text/markdown',
-  };
-  if (jinaToken) {
-    headers.Authorization = `Bearer ${jinaToken}`;
-  }
-  return fetchWithTimeout(`${JINA_BASE}/${url}`, { headers });
-}
-
 async function fetchViaProxy(url: string, proxy: string): Promise<Response> {
   const proxyUrl = proxy.endsWith('/') ? `${proxy}${url}` : `${proxy}/${url}`;
   return fetchWithTimeout(proxyUrl);
@@ -80,24 +69,34 @@ async function fetchViaCfProxy(url: string): Promise<Response> {
   return fetchWithTimeout(`/api/fetch?url=${encodeURIComponent(url)}`);
 }
 
-async function fetchViaFallbacks(url: string): Promise<{ content: string; source: SourceResult['source'] } | null> {
+async function raceProxies(url: string): Promise<{ content: string; source: SourceResult['source'] } | null> {
   const absolute = url.startsWith('http') ? url : `https://${url}`;
 
+  const candidates: { runner: () => Promise<{ content: string; source: SourceResult['source'] } | null>; label: string }[] = [];
+
   if (import.meta.env.DEV) {
-    try {
-      const res = await fetchViaViteProxy(absolute);
-      if (res.ok) {
+    candidates.push({
+      label: 'viteproxy',
+      runner: async () => {
+        const res = await fetchViaViteProxy(absolute);
+        if (!res.ok) return null;
         const text = await res.text();
-        if (text.length > 200) {
-          return { content: text, source: 'jina' };
-        }
-      }
-    } catch {
-      // fall through
-    }
+        return text.length > 200 ? { content: text, source: 'allorigins' } : null;
+      },
+    });
   }
 
-  const proxies: { prefix: string; label: SourceResult['source'] }[] = [
+  candidates.push({
+    label: 'cfproxy',
+    runner: async () => {
+      const res = await fetchViaCfProxy(absolute);
+      if (!res.ok) return null;
+      const text = await res.text();
+      return text.length > 200 ? { content: text, source: 'cfproxy' } : null;
+    },
+  });
+
+  const proxyList: { prefix: string; label: SourceResult['source'] }[] = [
     { prefix: 'https://api.allorigins.win/raw?url=', label: 'allorigins' },
     { prefix: 'https://corsproxy.io/?', label: 'corsproxy' },
     { prefix: 'https://cors.eu.org/', label: 'corseu' },
@@ -106,35 +105,44 @@ async function fetchViaFallbacks(url: string): Promise<{ content: string; source
     { prefix: 'https://api.corsfix.com/proxy?url=', label: 'corsfix' },
   ];
 
-  const results = await Promise.allSettled(
-    proxies.map(async (proxy) => {
-      const res = await fetchViaProxy(absolute, proxy.prefix);
-      if (!res.ok) throw new Error(`${proxy.label} returned ${res.status}`);
-      const text = await res.text();
-      if (text.length <= 200) throw new Error(`${proxy.label} returned too little content`);
-      return { content: text, source: proxy.label };
-    })
-  );
-
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      return result.value;
-    }
+  for (const proxy of proxyList) {
+    candidates.push({
+      label: proxy.label,
+      runner: async () => {
+        const res = await fetchViaProxy(absolute, proxy.prefix);
+        if (!res.ok) return null;
+        const text = await res.text();
+        return text.length > 200 ? { content: text, source: proxy.label } : null;
+      },
+    });
   }
 
-  try {
-    const res = await fetchViaCfProxy(absolute);
-    if (res.ok) {
-      const text = await res.text();
-      if (text.length > 200) {
-        return { content: text, source: 'cfproxy' };
-      }
-    }
-  } catch {
-    // fall through
+  // Race first 3
+  const firstBatch = candidates.slice(0, 3).map(c => c.runner());
+  const firstResult = await raceAll(firstBatch);
+  if (firstResult) return firstResult;
+
+  if (candidates.length > 3) {
+    const restBatch = candidates.slice(3).map(c => c.runner());
+    const restResult = await raceAll(restBatch);
+    if (restResult) return restResult;
   }
 
   return null;
+}
+
+async function raceAll( runners: Promise<{ content: string; source: SourceResult['source'] } | null>[]): Promise<{ content: string; source: SourceResult['source'] } | null> {
+  const results = await Promise.allSettled(runners);
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value !== null) {
+      return result.value;
+    }
+  }
+  return null;
+}
+
+async function fetchViaFallbacks(url: string): Promise<{ content: string; source: SourceResult['source'] } | null> {
+  return raceProxies(url);
 }
 
 async function callLlm(prompt: string, apiKey: string, provider?: LlmProvider): Promise<string> {
@@ -156,7 +164,7 @@ async function fetchSubjectFromLlm(subject: string, apiKey: string, provider?: L
 
 export async function fetchSourceContent(
   input: string,
-  opts: { apiKey: string; jinaToken?: string; persona: Persona; provider?: LlmProvider }
+  opts: { apiKey: string; persona: Persona; provider?: LlmProvider; signal?: AbortSignal }
 ): Promise<SourceResult> {
   const cached = await getCachedSource(input);
   if (cached) {
@@ -167,26 +175,14 @@ export async function fetchSourceContent(
   let source: SourceResult['source'] | null = null;
 
   if (isLikelyUrl(input)) {
-    // URL path: cache → Jina → proxies → LLM
-    try {
-      const res = await fetchViaJina(input, opts.jinaToken);
-      if (res.ok) {
-        content = await res.text();
-        source = 'jina';
-      }
-    } catch {
-      // fall through
+    const fallback = await fetchViaFallbacks(input);
+    if (fallback) {
+      content = fallback.content;
+      source = fallback.source;
     }
 
     if (!content) {
-      const fallback = await fetchViaFallbacks(input);
-      if (fallback) {
-        content = fallback.content;
-        source = fallback.source;
-      }
-    }
-
-    if (!content) {
+      if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
       try {
         content = await callLlm(
           `Summarize the content found at ${input.startsWith('http') ? input : `https://${input}`}. ` +

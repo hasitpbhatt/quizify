@@ -16,4 +16,6 @@ export const gradeTask: PromptTask<GradeResult> = {
     return buildGradeUserMessage(prompt, given, correctAnswer);
   },
   parse: parseGradeResponse,
+  maxTokens: 256,
+  temperature: 0.0,
 };

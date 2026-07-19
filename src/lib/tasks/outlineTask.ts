@@ -9,4 +9,6 @@ export const outlineTask: PromptTask<OutlineData> = {
   buildUser: (input) => buildOutlineUserMessage(input as string),
   parse: parseOutline,
   responseFormat: 'json',
+  maxTokens: 1200,
+  temperature: 0.2,
 };

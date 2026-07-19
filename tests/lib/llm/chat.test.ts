@@ -1,4 +1,5 @@
 import { chat } from '@/lib/llm/chat';
+import { resetRateLimiter } from '@/lib/llm/rateLimiter';
 import { AuthError, RateLimitError, NetworkError } from '@/lib/llm/errors';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 
@@ -11,6 +12,7 @@ vi.stubGlobal('fetch', mockFetch);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetRateLimiter();
   useSettingsStore.setState({ provider: 'default' });
 });
 

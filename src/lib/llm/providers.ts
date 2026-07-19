@@ -20,6 +20,14 @@ export interface ProviderConfig {
   fallbackApiBase?: string;
   fallbackDefaultModel?: string;
   fallbackFallbackModel?: string;
+  rpm: number;
+  allowStreamingSplit: boolean;
+}
+
+export function isLowRpmProvider(provider?: LlmProvider): boolean {
+  const p = provider ?? useSettingsStore.getState().provider ?? 'mistral';
+  const cfg = PROVIDERS[p];
+  return cfg.rpm <= 10;
 }
 
 export const PROVIDERS: Record<LlmProvider, ProviderConfig> = {
@@ -39,6 +47,8 @@ export const PROVIDERS: Record<LlmProvider, ProviderConfig> = {
     fallbackApiBase: '/api/chat',
     fallbackDefaultModel: 'mistral-large-latest',
     fallbackFallbackModel: 'mistral-medium-latest',
+    rpm: 30,
+    allowStreamingSplit: true,
   },
   mistral: {
     name: 'mistral',
@@ -52,6 +62,8 @@ export const PROVIDERS: Record<LlmProvider, ProviderConfig> = {
     apiKeyHint: 'Get a free key from console.mistral.ai',
     apiKeyPlaceholder: 'sk-…',
     signupUrl: 'https://console.mistral.ai',
+    rpm: 5,
+    allowStreamingSplit: false,
   },
   nvidia: {
     name: 'nvidia',
@@ -65,6 +77,8 @@ export const PROVIDERS: Record<LlmProvider, ProviderConfig> = {
     apiKeyHint: 'Get a free key from build.nvidia.com',
     apiKeyPlaceholder: 'nvapi-…',
     signupUrl: 'https://build.nvidia.com',
+    rpm: 30,
+    allowStreamingSplit: true,
   },
 };
 

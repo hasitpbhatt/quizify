@@ -8,4 +8,6 @@ export const contentTask: PromptTask<ContentResponse> = {
   buildUser: (input) => buildContentUserMessage(input as { id: string; title: string; explanation: string }),
   parse: parseContentResponse,
   responseFormat: 'json',
+  maxTokens: 1600,
+  temperature: 0.4,
 };

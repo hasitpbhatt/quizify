@@ -2,6 +2,7 @@ import { SUMMARY_NODE_ID, type LlmProvider, type Persona, type CanvasNode, type 
 import { executePromptTask } from '@/lib/llm/promptTask';
 import { contentTask } from '@/lib/tasks/contentTask';
 import { summaryTask } from '@/lib/tasks/summaryTask';
+import { isLowRpmProvider } from '@/lib/llm/providers';
 import type { QuizItem } from '@/lib/llm/contentParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useToastStore } from '@/shared/stores/toastStore';
@@ -337,12 +338,14 @@ export async function runPipeline(
   pushChainEdges(edges, concepts, conceptLastNodeIds);
   await persist();
 
-  // --- Phase 3: Summary ---
-  await pushSummary(
-    nodes, edges, generatedConcepts, conceptLastNodeIds,
-    concepts.length, topic, apiKey, provider, persona,
-    signal, persist, notify,
-  );
+  // --- Phase 3: Summary (skipped for low-RPM providers to save a call) ---
+  if (!isLowRpmProvider(provider)) {
+    await pushSummary(
+      nodes, edges, generatedConcepts, conceptLastNodeIds,
+      concepts.length, topic, apiKey, provider, persona,
+      signal, persist, notify,
+    );
+  }
 
   notify('done', 'Canvas ready!');
   return { nodes, edges };

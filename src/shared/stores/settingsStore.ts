@@ -5,14 +5,12 @@ import { getPreferredTheme, setThemeOnDocument } from '@/app/theme';
 interface SettingsState {
   /* persisted */
   apiKey: string;
-  jinaToken: string;
   persona: Persona | null;
   theme: Theme;
   provider: LlmProvider;
 
   /* actions */
   setApiKey: (key: string) => void;
-  setJinaToken: (token: string) => void;
   setPersona: (p: Persona) => void;
   setTheme: (t: Theme) => void;
   setProvider: (p: LlmProvider) => void;
@@ -31,13 +29,11 @@ function saveString(key: string, value: string) {
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   apiKey: loadString('quizify:apiKey'),
-  jinaToken: loadString('quizify:jinaToken'),
   persona: (loadString('quizify:persona') as Persona | '') || null,
   theme: getPreferredTheme(),
   provider: (loadString('quizify:provider') as LlmProvider) || 'default',
 
   setApiKey: (apiKey) => { saveString('quizify:apiKey', apiKey); set({ apiKey }); },
-  setJinaToken: (jinaToken) => { saveString('quizify:jinaToken', jinaToken); set({ jinaToken }); },
   setPersona: (persona) => { saveString('quizify:persona', persona); set({ persona }); },
   setTheme: (theme) => { saveString('quizify:theme', theme); setThemeOnDocument(theme); set({ theme }); },
   setProvider: (provider) => { saveString('quizify:provider', provider); set({ provider }); },

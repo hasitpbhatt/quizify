@@ -8,4 +8,6 @@ export const summaryTask: PromptTask<SummaryResponse> = {
   buildUser: (input) => buildSummaryUserMessage(input as Array<{ id: string; title: string; explanation: string; example: string }>),
   parse: parseSummaryResponse,
   responseFormat: 'json',
+  maxTokens: 900,
+  temperature: 0.4,
 };

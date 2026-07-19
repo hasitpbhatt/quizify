@@ -38,7 +38,7 @@ function mockWith(patternMap: Record<string, () => Promise<unknown>>) {
   mockFetch.mockImplementation((info: RequestInfo | URL) => {
     const u = urlOf(info);
     for (const [prefix, fn] of Object.entries(patternMap)) {
-      if (u.startsWith(prefix) || (prefix && u.includes(prefix) && !u.startsWith('https://r.jina.ai'))) {
+      if (u.startsWith(prefix) || (prefix && u.includes(prefix))) {
         return fn();
       }
     }
@@ -80,27 +80,9 @@ describe('fetchSourceContent', () => {
     });
   });
 
-  describe('URL subject — Jina path', () => {
-    it('fetches via Jina when it succeeds', async () => {
-      mockWith({ 'https://r.jina.ai': () => Promise.resolve(ok(LONG)) });
-      const result = await fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' });
-      expect(result.source).toBe('jina');
-      expect(result.content).toBe(LONG);
-    });
-
-    it('sends Jina token in Authorization header', async () => {
-      mockWith({ 'https://r.jina.ai': () => Promise.resolve(ok(LONG)) });
-      await fetchSourceContent('https://example.com', { apiKey: '', jinaToken: 'jkey', persona: 'student' });
-      const call = mockFetch.mock.calls.find(([u]) => urlOf(u as RequestInfo).startsWith('https://r.jina.ai'));
-      const opts = call![1] as Record<string, unknown>;
-      expect((opts.headers as Record<string, string>).Authorization).toBe('Bearer jkey');
-    });
-  });
-
   describe('URL subject — proxy fallback', () => {
-    it('falls through to proxies when Jina returns empty', async () => {
+    it('uses the first successful proxy', async () => {
       mockWith({
-        'https://r.jina.ai': () => Promise.resolve(ok('')),
         'allorigins': () => Promise.resolve(ok(LONG)),
       });
       const result = await fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' });
@@ -108,18 +90,8 @@ describe('fetchSourceContent', () => {
       expect(result.source).not.toBe('llm');
     });
 
-    it('falls through to proxies when Jina throws', async () => {
-      mockWith({
-        'https://r.jina.ai': () => Promise.reject(new Error('Jina died')),
-        'allorigins': () => Promise.resolve(ok(LONG)),
-      });
-      const result = await fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' });
-      expect(result.content).toBe(LONG);
-    });
-
     it('tries cfproxy when all public proxies fail', async () => {
       mockWith({
-        'https://r.jina.ai': () => Promise.resolve(ok('')),
         '/api/fetch': () => Promise.resolve(ok(LONG)),
       });
       const result = await fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' });
@@ -129,7 +101,7 @@ describe('fetchSourceContent', () => {
   });
 
   describe('URL subject — LLM fallback', () => {
-    it('calls LLM when Jina, proxies, and cfproxy all fail', async () => {
+    it('calls LLM when proxies and cfproxy all fail', async () => {
       mockWith({
         'https://opencode.ai': () => Promise.resolve(llmResp(LONG)),
       });
@@ -193,7 +165,7 @@ describe('fetchSourceContent', () => {
 
   describe('content validation', () => {
     it('throws when fetched content is too short', async () => {
-      mockWith({ 'https://r.jina.ai': () => Promise.resolve(ok(SHORT)) });
+      mockWith({ 'allorigins': () => Promise.resolve(ok(SHORT)) });
       await expect(
         fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' })
       ).rejects.toThrow(/Failed to fetch content/);
@@ -202,7 +174,7 @@ describe('fetchSourceContent', () => {
 
   describe('caching', () => {
     it('caches content after successful fetch', async () => {
-      mockWith({ 'https://r.jina.ai': () => Promise.resolve(ok(LONG)) });
+      mockWith({ 'allorigins': () => Promise.resolve(ok(LONG)) });
       await fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' });
       const cached = await getCachedSource('https://example.com');
       expect(cached).toBe(LONG);

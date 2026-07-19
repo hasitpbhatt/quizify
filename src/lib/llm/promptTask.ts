@@ -8,6 +8,8 @@ export interface PromptTask<T> {
   buildUser(input: unknown): string;
   parse(raw: string): T;
   responseFormat?: 'json';
+  maxTokens?: number;
+  temperature?: number;
 }
 
 export interface TaskOptions {
@@ -37,6 +39,8 @@ export async function executePromptTask<T>(
     responseFormat: task.responseFormat,
     signal: opts.signal,
     onRetry: opts.onRetry,
+    maxTokens: task.maxTokens,
+    temperature: task.temperature,
   };
   if (opts.model) chatOpts.model = opts.model;
 
