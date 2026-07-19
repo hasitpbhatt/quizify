@@ -1,6 +1,7 @@
 import { truncateByParagraphs } from '@/lib/truncate';
 import { getCachedSource, setCachedSource } from '@/lib/db/sourceCache';
 import { chat } from '@/lib/llm/chat';
+import { debugLog } from '@/lib/debug';
 import type { LlmProvider, Persona } from '@/shared/types';
 
 export interface SourceResult {
@@ -71,6 +72,8 @@ async function fetchViaCfProxy(url: string): Promise<Response> {
 
 async function raceProxies(url: string): Promise<{ content: string; source: SourceResult['source'] } | null> {
   const absolute = url.startsWith('http') ? url : `https://${url}`;
+
+  debugLog('log', 'fetch', 'proxy race start url=%s', absolute);
 
   const candidates: { runner: () => Promise<{ content: string; source: SourceResult['source'] } | null>; label: string }[] = [];
 
@@ -168,6 +171,7 @@ export async function fetchSourceContent(
 ): Promise<SourceResult> {
   const cached = await getCachedSource(input);
   if (cached) {
+    debugLog('log', 'fetch', 'cache HIT url=%s len=%d', input, cached.length);
     return { content: cached, source: 'cache', url: input };
   }
 
@@ -179,10 +183,14 @@ export async function fetchSourceContent(
     if (fallback) {
       content = fallback.content;
       source = fallback.source;
+      debugLog('log', 'fetch', 'proxy OK source=%s len=%d', source, content.length);
+    } else {
+      debugLog('warn', 'fetch', 'proxy race FAILED');
     }
 
     if (!content) {
       if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      debugLog('warn', 'fetch', 'LLM URL_fallback url=%s', input.slice(0, 100));
       try {
         content = await callLlm(
           `Summarize the content found at ${input.startsWith('http') ? input : `https://${input}`}. ` +
@@ -199,6 +207,7 @@ export async function fetchSourceContent(
 
   // Fallback: if URL fetching failed (or input was not a URL), treat as subject
   if (!content) {
+    debugLog('warn', 'fetch', 'LLM subject_fallback input=%s', input.slice(0, 100));
     try {
       content = await fetchSubjectFromLlm(input, opts.apiKey, opts.provider);
       source = 'llm';

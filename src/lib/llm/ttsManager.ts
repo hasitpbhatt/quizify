@@ -1,3 +1,5 @@
+import { debugLog } from '@/lib/debug';
+
 export interface TtsSegment {
   nodeId: string;
   text: string;
@@ -48,10 +50,12 @@ class TtsManagerSingleton {
 
   enqueue(segment: TtsSegment): void {
     this.queue.push(segment);
+    debugLog('log', 'tts', 'enqueue 1 segment queue=%d node=%s', this.queue.length, segment.nodeId);
   }
 
   enqueueMultiple(segments: TtsSegment[]): void {
     this.queue.push(...segments);
+    debugLog('log', 'tts', 'enqueue %d segments queue=%d', segments.length, this.queue.length);
   }
 
   clearQueue(): void {
@@ -62,11 +66,13 @@ class TtsManagerSingleton {
   start(): void {
     if (this.queue.length === 0 || this.state === 'playing') return;
     this.currentIdx = -1;
+    debugLog('log', 'tts', 'start queue=%d', this.queue.length);
     this.playNext();
   }
 
   pause(): void {
     if (this.state !== 'playing') return;
+    debugLog('log', 'tts', 'state playing → paused');
     if (this.speechSynthesisAvailable && window.speechSynthesis.speaking) {
       window.speechSynthesis.pause();
     }
@@ -76,6 +82,7 @@ class TtsManagerSingleton {
 
   resume(): void {
     if (this.state !== 'paused') return;
+    debugLog('log', 'tts', 'state paused → playing');
     if (this.speechSynthesisAvailable && window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
     }
@@ -84,6 +91,7 @@ class TtsManagerSingleton {
   }
 
   stop(): void {
+    debugLog('log', 'tts', 'state %s → stopped', this.state);
     this.cleanup();
     this.state = 'stopped';
     this.notifyStateListeners();
@@ -95,6 +103,7 @@ class TtsManagerSingleton {
 
   skip(): void {
     const current = this.queue[this.currentIdx];
+    debugLog('log', 'tts', 'skip idx=%d', this.currentIdx);
     this.cleanup();
     if (current) {
       this.notifySegmentEnd(current.nodeId);
@@ -221,6 +230,7 @@ class TtsManagerSingleton {
     this.state = 'playing';
     this.notifyStateListeners();
     this.charCount = 0;
+    debugLog('log', 'tts', 'segment start node=%s idx=%d/%d text_len=%d', segment.nodeId, this.currentIdx, this.queue.length, segment.text.length);
     this.notifySegmentStart(segment.nodeId);
 
     if (!this.speechSynthesisAvailable) {
@@ -255,7 +265,7 @@ class TtsManagerSingleton {
     };
 
     utterance.onerror = (event) => {
-      console.warn('[ttsManager] SpeechSynthesis error:', event.error);
+      debugLog('error', 'tts', 'SpeechSynthesis error event=%s', event.error);
       this.cleanupSpeech();
       this.notifySegmentEnd(segment.nodeId);
       this.playNext();

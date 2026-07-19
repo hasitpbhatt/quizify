@@ -60,6 +60,7 @@ describe('fetchTtsBlob', () => {
 
   it('returns null and warns on non-ok response', async () => {
     useSettingsStore.setState({ apiKey: 'sk-test', provider: 'mistral' });
+    localStorage.setItem('quizify:debug', '1');
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockFetch.mockResolvedValue({ ok: false, status: 400, text: () => Promise.resolve('Bad Request') });
 
@@ -67,6 +68,7 @@ describe('fetchTtsBlob', () => {
     expect(result).toBeNull();
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
+    localStorage.removeItem('quizify:debug');
   });
 
   it('returns null and logs error on network failure', async () => {

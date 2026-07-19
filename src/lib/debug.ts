@@ -9,6 +9,18 @@ export function isDebugMode(): boolean {
   }
 }
 
+export function debugLog(
+  level: 'log' | 'warn' | 'error',
+  tag: string,
+  message: string,
+  ...args: unknown[]
+): void {
+  if (!isDebugMode()) return;
+  const fn = console[level] ?? console.log;
+  if (args.length) fn(`[debug][${tag}] ${message}`, ...args);
+  else fn(`[debug][${tag}] ${message}`);
+}
+
 export function setDebugMode(on: boolean): void {
   try {
     if (on) {

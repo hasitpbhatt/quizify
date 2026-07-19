@@ -5,6 +5,7 @@ import { getGradingModel } from '@/lib/llm/providers';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useToastStore } from '@/shared/stores/toastStore';
+import { debugLog } from '@/lib/debug';
 import * as sessionsDb from '@/lib/db/sessionsDb';
 import type { QuizData, Attempt, QuizState } from '@/shared/types';
 
@@ -81,6 +82,7 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
       let result: SubmitResult;
 
       if (quiz.format === 'shortAnswer' || quiz.format === 'freeText') {
+        debugLog('log', 'grade', 'LLM grade start format=%s model=%s quiz_id=%s', quiz.format, getGradingModel(provider), quizId);
         try {
           result = await executePromptTask(gradeTask, {
             apiKey, provider, persona: 'curious', signal: undefined,
@@ -95,8 +97,10 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
             given: typeof given === 'string' ? given : JSON.stringify(given),
             correctAnswer: quiz.correctAnswer,
           });
+          debugLog('log', 'grade', 'LLM grade result grade=%s quiz_id=%s', result.grade, quizId);
         } catch {
           setRetryInfo(null);
+          debugLog('warn', 'grade', 'LLM grade FAIL fallback_to_fuzzy quiz_id=%s', quizId);
           const givenStr = typeof given === 'string' ? given.trim().toLowerCase() : given.join(' ').toLowerCase();
           const ideal = quiz.correctAnswer.trim().toLowerCase();
           const fuzzyCorrect = givenStr === ideal || ideal.includes(givenStr) || givenStr.includes(ideal);
@@ -108,6 +112,7 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
         }
       } else {
         result = localGrade(quiz, given);
+        debugLog('log', 'grade', 'local grade format=%s grade=%s', quiz.format, result.grade);
       }
 
       const attempt: Attempt = {
@@ -133,6 +138,7 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
               data: { ...updatedNodes[quizIndex].data, attempts: updatedAttempts, state: newState } as QuizData,
             };
             await updateCurrent({ nodes: updatedNodes });
+            debugLog('log', 'grade', 'grade persist session=%s node=%s state=%s attempts=%d', currentId, quizId, newState, updatedAttempts.length);
           }
         }
       }

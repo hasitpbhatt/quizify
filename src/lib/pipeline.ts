@@ -3,6 +3,7 @@ import { executePromptTask } from '@/lib/llm/promptTask';
 import { contentTask } from '@/lib/tasks/contentTask';
 import { summaryTask } from '@/lib/tasks/summaryTask';
 import { isLowRpmProvider } from '@/lib/llm/providers';
+import { debugLog } from '@/lib/debug';
 import type { QuizItem } from '@/lib/llm/contentParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useToastStore } from '@/shared/stores/toastStore';
@@ -98,6 +99,9 @@ export async function processOneConcept(
 
   const cursorX = 100 + index * PAIR_WIDTH;
 
+  const conceptStart = performance.now();
+  debugLog('log', 'pipeline', 'concept start id=%s title=%s', concept.id, concept.title);
+
   try {
     const content = await executePromptTask(contentTask, {
       apiKey, provider, persona, signal,
@@ -154,10 +158,12 @@ export async function processOneConcept(
     });
 
     await persist();
+    const conceptElapsed = Math.round(performance.now() - conceptStart);
+    debugLog('log', 'pipeline', 'concept done id=%s quizzes=%d elapsed=%dms', concept.id, content.quizzes.length, conceptElapsed);
     return currentTailId;
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err;
-    console.error(`[pipeline] failed on concept ${concept.id}:`, err);
+    debugLog('error', 'pipeline', 'concept FAIL id=%s title=%s err=%s', concept.id, concept.title, err instanceof Error ? err.message : String(err));
     onNotify('error', `Failed to load ${concept.title}`, err instanceof Error ? err.message : 'Unknown error');
     return null;
   }
@@ -289,7 +295,7 @@ export async function pushSummary(
 
     await persist();
   } catch (err) {
-    console.error('[pipeline] summary generation failed:', err);
+    debugLog('warn', 'pipeline', 'summary FAIL (non-fatal) err=%s', err instanceof Error ? err.message : String(err));
     onNotify('error', 'Failed to create summary', err instanceof Error ? err.message : 'Unknown error');
   }
 }
@@ -326,8 +332,10 @@ export async function runPipeline(
   // --- Phase 0: Concept shells ---
   pushConceptShells(nodes, concepts, sourceUrl);
   await persist();
+  debugLog('log', 'pipeline', 'phase 0: %d concept shells pushed', concepts.length);
 
   // --- Phase 1: Content generation ---
+  debugLog('log', 'pipeline', 'phase 1: generating %d concepts (concurrency=%s)', concepts.length, CONCURRENCY === Infinity ? 'Infinity' : String(CONCURRENCY));
   await runContentPhase(
     nodes, edges, generatedConcepts, conceptLastNodeIds,
     concepts, topic, apiKey, provider, persona,
@@ -337,9 +345,11 @@ export async function runPipeline(
   // --- Phase 2: Inter-concept chain edges ---
   pushChainEdges(edges, concepts, conceptLastNodeIds);
   await persist();
+  debugLog('log', 'pipeline', 'phase 2: %d chain edges', concepts.length - 1);
 
   // --- Phase 3: Summary (skipped for low-RPM providers to save a call) ---
   if (!isLowRpmProvider(provider)) {
+    debugLog('log', 'pipeline', 'phase 3: summary start');
     await pushSummary(
       nodes, edges, generatedConcepts, conceptLastNodeIds,
       concepts.length, topic, apiKey, provider, persona,

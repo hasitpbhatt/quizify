@@ -1,5 +1,6 @@
 import { chat, type ChatOptions, type RetryInfo } from './chat';
 import { ParseError } from './errors';
+import { debugLog } from '@/lib/debug';
 import type { Persona, LlmProvider, ChatMessage } from '@/shared/types';
 
 export interface PromptTask<T> {
@@ -47,10 +48,12 @@ export async function executePromptTask<T>(
   if (opts.model) chatOpts.model = opts.model;
 
   for (let attempt = 0; attempt < 2; attempt++) {
+    debugLog('log', 'task', 'task %s attempt %d/2 msgs=%d', task.id, attempt + 1, messages.length);
     const res = await chat(messages, chatOpts);
     try {
       return task.parse(res.content);
     } catch (err) {
+      debugLog('warn', 'task', 'task %s parse fail attempt %d raw_len=%d snippet=%.200s', task.id, attempt + 1, res.content.length, res.content);
       opts.onParseRetry?.(res.content, err);
       if (attempt === 0) {
         messages.push({
@@ -66,5 +69,6 @@ export async function executePromptTask<T>(
     }
   }
 
+  debugLog('error', 'task', 'task %s FAILED after retry', task.id);
   throw new ParseError(`Failed to parse ${task.id} response after retry`);
 }
