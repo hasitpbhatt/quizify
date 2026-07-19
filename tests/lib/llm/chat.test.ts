@@ -22,7 +22,7 @@ function okResponse(overrides: Partial<{ content: string; model: string; usage: 
     status: 200,
     json: () => Promise.resolve({
       choices: [{ message: { content: overrides.content ?? 'Hello!' } }],
-      model: overrides.model ?? 'deepseek-v4-flash-free',
+      model: overrides.model ?? 'mistral-large-latest',
       ...(overrides.usage ? { usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 } } : {}),
     }),
   };
@@ -104,7 +104,7 @@ describe('chat', () => {
       const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
       const body = JSON.parse(opts.body as string);
       expect(body.messages).toEqual(messages);
-      expect(body.model).toBe('deepseek-v4-flash-free');
+      expect(body.model).toBe('mistral-large-latest');
       expect(body.stream).toBe(false);
     });
 
@@ -134,44 +134,29 @@ describe('chat', () => {
   });
 
   describe('auth headers', () => {
-    it('sends Bearer token from defaultBearerToken when available', async () => {
+    it('does not send Authorization header for default provider (server proxies via /api/chat)', async () => {
       mockFetch.mockResolvedValue(okResponse());
       await chat(messages, { apiKey: '', provider: 'default' });
       const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
-      expect((opts.headers as Record<string, string>).Authorization).toBe('Bearer public');
+      const headers = opts.headers as Record<string, string>;
+      expect(headers.Authorization).toBeUndefined();
+      expect(headers['x-opencode-client']).toBeUndefined();
     });
 
-    it('sends Bearer token from apiKey when no defaultBearerToken', async () => {
+    it('sends Bearer token from apiKey for mistral provider', async () => {
       mockFetch.mockResolvedValue(okResponse());
       await chat(messages, { apiKey: 'sk-test', provider: 'mistral' });
       const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
       expect((opts.headers as Record<string, string>).Authorization).toBe('Bearer sk-test');
     });
 
-    it('sends OpenCode-specific headers when defaultBearerToken is set', async () => {
-      mockFetch.mockResolvedValue(okResponse());
-      await chat(messages, { apiKey: '', provider: 'default' });
-      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
-      const headers = opts.headers as Record<string, string>;
-      expect(headers['User-Agent']).toContain('opencode/');
-      expect(headers['x-opencode-client']).toBe('cli');
-      expect(headers['x-opencode-project']).toBe('global');
-    });
-
-    it('does not send OpenCode headers for non-default providers', async () => {
+    it('does not send OpenCode-specific headers for any provider', async () => {
       mockFetch.mockResolvedValue(okResponse());
       await chat(messages, { apiKey: 'sk-test', provider: 'mistral' });
       const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
       const headers = opts.headers as Record<string, string>;
       expect(headers['x-opencode-client']).toBeUndefined();
-    });
-
-    it('includes Authorization Bearer public even when apiKey is empty for default provider', async () => {
-      mockFetch.mockResolvedValue(okResponse());
-      await chat(messages, { apiKey: '', provider: 'default' });
-      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
-      const headers = opts.headers as Record<string, string>;
-      expect(headers.Authorization).toBe('Bearer public');
+      expect(headers['User-Agent']).toBeUndefined();
     });
   });
 
@@ -219,14 +204,15 @@ describe('chat', () => {
   });
 
   describe('fallback endpoint', () => {
-    it('tries primary endpoint then fallback for default provider', async () => {
-      mockFetch
-        .mockResolvedValue(statusResponse(429))
-        .mockResolvedValue(statusResponse(429))
-        .mockResolvedValue(statusResponse(429))
-        .mockResolvedValue(okResponse({ content: 'Fallback response' }));
-      const result = await chat(messages, { apiKey: '', provider: 'default' });
-      expect(result.content).toBe('Fallback response');
+    it('does not fall back to a second endpoint for default provider (single-endpoint)', async () => {
+      mockFetch.mockResolvedValue(statusResponse(429));
+      await expect(chat(messages, { apiKey: '', provider: 'default' })).rejects.toThrow(RateLimitError);
+      // For default we have 2 models (primary + fallback) × (maxRetries+1) attempts each = up to 8 calls.
+      // The point: no second *endpoint* (URL) beyond the first — we still retry across models within the same endpoint.
+      expect(mockFetch.mock.calls.length).toBeLessThanOrEqual(8);
+      // Single endpoint ⇒ all calls hit the same apiBase.
+      const urls = new Set(mockFetch.mock.calls.map(([u]) => u as string));
+      expect(urls.size).toBe(1);
     });
 
     it('does not include fallback endpoint for mistral', async () => {

@@ -23,6 +23,7 @@ export interface ChatOptions {
   signal?: AbortSignal;
   maxTokens?: number;
   maxRetries?: number;
+  timeoutMs?: number;
   onRetry?: (info: RetryInfo) => void;
   onToken?: (delta: string) => void;
 }
@@ -33,18 +34,10 @@ export interface ChatResponse {
   usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
 }
 
-const OPENCODE_HEADERS: Record<string, string> = {
-  'User-Agent': 'opencode/1.17.13 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14',
-  'x-opencode-client': 'cli',
-  'x-opencode-project': 'global',
-};
-
 interface EndpointEntry {
   apiBase: string;
   label: string;
   models: string[];
-  bearerToken?: string;
-  extraHeaders?: Record<string, string>;
 }
 
 const DEFAULT_MAX_RETRIES = 3;
@@ -66,9 +59,10 @@ async function tryEndpoint(
     maxRetries: number;
     startTime: number;
     provider: LlmProvider;
+    timeoutMs: number;
   },
 ): Promise<ChatResponse | null> {
-  const { apiKey, userSignal, responseFormat, maxTokens, onRetry, onToken, maxRetries, startTime, provider } = opts;
+  const { apiKey, userSignal, responseFormat, maxTokens, onRetry, onToken, maxRetries, startTime, provider, timeoutMs } = opts;
 
   for (const model of entry.models) {
     const body: Record<string, unknown> = {
@@ -92,17 +86,15 @@ async function tryEndpoint(
       try {
         await acquireToken(provider);
 
-        const deadline = Math.min(TIMEOUT_MS, remaining);
+        const perAttemptMs = Math.min(timeoutMs, remaining);
         const ac = new AbortController();
-        const signal = anySignal(userSignal, AbortSignal.timeout(deadline), ac.signal);
-        const bearer = entry.bearerToken ?? apiKey;
+        const signal = anySignal(userSignal, AbortSignal.timeout(perAttemptMs), ac.signal);
 
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
-          ...entry.extraHeaders,
         };
-        if (bearer) {
-          headers.Authorization = `Bearer ${bearer}`;
+        if (apiKey) {
+          headers.Authorization = `Bearer ${apiKey}`;
         }
 
         if (onToken) {
@@ -240,7 +232,7 @@ async function readStream(res: Response, onToken: (delta: string) => void): Prom
 }
 
 export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<ChatResponse> {
-  const { apiKey, signal: userSignal, responseFormat, maxTokens = 4096 } = opts;
+  const { apiKey, signal: userSignal, responseFormat, maxTokens = 4096, timeoutMs = TIMEOUT_MS } = opts;
   const provider = opts.provider ?? useSettingsStore.getState().provider ?? 'mistral';
   const cfg = getProviderConfig(provider);
   const model = opts.model ?? cfg.defaultModel;
@@ -249,7 +241,7 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<
   const maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
   const startTime = Date.now();
 
-  const shared = { apiKey, userSignal, responseFormat, maxTokens, temperature, onRetry: opts.onRetry, onToken: opts.onToken, maxRetries, startTime, provider };
+  const shared = { apiKey, userSignal, responseFormat, maxTokens, temperature, onRetry: opts.onRetry, onToken: opts.onToken, maxRetries, startTime, provider, timeoutMs };
 
   const modelsToTry = model === cfg.defaultModel
     ? [cfg.defaultModel, cfg.fallbackModel].filter((m, i, arr) => m && arr.indexOf(m) === i)
@@ -260,23 +252,8 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<
       apiBase,
       label: cfg.label,
       models: modelsToTry,
-      bearerToken: cfg.defaultBearerToken,
-      extraHeaders: cfg.defaultBearerToken ? OPENCODE_HEADERS : undefined,
     },
   ];
-
-  if (cfg.fallbackApiBase) {
-    const fallbackModels = model === cfg.defaultModel
-      ? [cfg.fallbackDefaultModel, cfg.fallbackFallbackModel].filter(Boolean) as string[]
-      : [model];
-    if (fallbackModels.length > 0) {
-      entries.push({
-        apiBase: cfg.fallbackApiBase,
-        label: `${cfg.label} (fallback)`,
-        models: fallbackModels,
-      });
-    }
-  }
 
   for (const entry of entries) {
     const result = await tryEndpoint(messages, entry, shared);

@@ -4,40 +4,6 @@ import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-const OPENCODE_BASE = 'https://opencode.ai/zen/v1/chat/completions';
-const OPENCODE_MODEL = 'deepseek-v4-flash-free';
-const OPENCODE_TOKEN = 'public';
-const OPENCODE_HEADERS: Record<string, string> = {
-  'User-Agent': 'opencode/1.17.13 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14',
-  'x-opencode-client': 'cli',
-  'x-opencode-project': 'global',
-};
-
-async function opencodeFallback(res: ServerResponse, body: string) {
-  try {
-    const parsed = JSON.parse(body);
-    parsed.model = OPENCODE_MODEL;
-    const opencodeResponse = await fetch(OPENCODE_BASE, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${OPENCODE_TOKEN}`,
-        ...OPENCODE_HEADERS,
-      },
-      body: JSON.stringify(parsed),
-    });
-    const text = await opencodeResponse.text();
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.statusCode = opencodeResponse.ok ? opencodeResponse.status : 502;
-    res.end(text);
-  } catch {
-    res.statusCode = 502;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: 'Both Mistral and OpenCode failed' }));
-  }
-}
-
 const BROWSER_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -75,34 +41,34 @@ function devProxyPlugin(): import('vite').Plugin {
           body += chunk;
         }
 
-        // Phase 1: Try Mistral
         const mistralApiKey = process.env.MISTRAL_API_KEY;
-        if (mistralApiKey) {
-          try {
-            const mistralResponse = await fetch('https://api.mistral.ai/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${mistralApiKey}`,
-              },
-              body,
-            });
-
-            if (mistralResponse.ok) {
-              const text = await mistralResponse.text();
-              res.setHeader('Content-Type', 'application/json');
-              res.setHeader('Access-Control-Allow-Origin', '*');
-              res.statusCode = mistralResponse.status;
-              res.end(text);
-              return;
-            }
-          } catch {
-            // fall through to OpenCode
-          }
+        if (!mistralApiKey) {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Default provider unavailable — set MISTRAL_API_KEY in your .env to use the Default provider in dev.' }));
+          return;
         }
 
-        // Phase 2: Fallback to OpenCode
-        await opencodeFallback(res, body);
+        try {
+          const mistralResponse = await fetch('https://api.mistral.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${mistralApiKey}`,
+            },
+            body,
+          });
+
+          const text = await mistralResponse.text();
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.statusCode = mistralResponse.status;
+          res.end(text);
+        } catch {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Upstream Mistral request failed.' }));
+        }
       });
 
       server.middlewares.use('/api/fetch', async (req: IncomingMessage, res: ServerResponse) => {
@@ -182,3 +148,4 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
   },
 });
+

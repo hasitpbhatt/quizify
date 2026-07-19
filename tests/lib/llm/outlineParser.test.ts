@@ -44,6 +44,23 @@ describe('parseOutline', () => {
       const result = parseOutline(input);
       expect(result.title).toBe('Test Canvas');
     });
+
+    it('unwraps wrapper object {"outline": {...}} via balanced extraction scoring', () => {
+      const wrapped = { outline: validOutline };
+      const input = 'Preamble\n' + JSON.stringify(wrapped) + '\nTrailer';
+      const result = parseOutline(input);
+      expect(result.title).toBe('Test Canvas');
+      expect(result.concepts).toHaveLength(2);
+    });
+
+    it('prefers the candidate with title+concepts over an unrelated first object', () => {
+      // An unrelated wrapper object appears first in the text; the parser
+      // should score candidates and pick the one containing title + concepts.
+      const decoy = { meta: { version: 1, count: 2 } };
+      const input = JSON.stringify(decoy) + '\n' + JSON.stringify(validOutline);
+      const result = parseOutline(input);
+      expect(result.title).toBe('Test Canvas');
+    });
   });
 
   describe('validation', () => {
@@ -62,9 +79,22 @@ describe('parseOutline', () => {
         .toThrow('Missing or invalid "title"');
     });
 
-    it('throws on missing summary', () => {
+    it('falls back to title when summary is missing (non-fatal)', () => {
       const { summary: _summary, ...rest } = validOutline;
-      expect(() => parseOutline(JSON.stringify(rest))).toThrow('Missing or invalid "summary"');
+      const result = parseOutline(JSON.stringify(rest));
+      expect(result.summary).toBe(rest.title);
+      expect(result.title).toBe(rest.title);
+      expect(result.concepts).toHaveLength(2);
+    });
+
+    it('falls back to title when summary is non-string (e.g. null)', () => {
+      const result = parseOutline(JSON.stringify({ ...validOutline, summary: null }));
+      expect(result.summary).toBe(validOutline.title);
+    });
+
+    it('uses provided string summary when present', () => {
+      const result = parseOutline(JSON.stringify(validOutline));
+      expect(result.summary).toBe(validOutline.summary);
     });
 
     it('throws on missing concepts array', () => {

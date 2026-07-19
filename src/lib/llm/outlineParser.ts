@@ -20,6 +20,23 @@ export interface OutlineData {
   }[];
 }
 
+interface Candidate {
+  obj: Record<string, unknown>;
+  score: number;
+}
+
+function isObjectLike(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+function scoreCandidate(obj: Record<string, unknown>): number {
+  let score = 0;
+  if (typeof obj.title === 'string' && obj.title) score += 2;
+  if (Array.isArray(obj.concepts) && obj.concepts.length > 0) score += 2;
+  if (typeof obj.summary === 'string') score += 1;
+  return score;
+}
+
 export function parseOutline(raw: string): OutlineData {
   let parsed: unknown;
 
@@ -33,19 +50,23 @@ export function parseOutline(raw: string): OutlineData {
   }
 
   if (!parsed) {
+    const candidates: Candidate[] = [];
     let startIdx = 0;
     while ((startIdx = raw.indexOf('{', startIdx)) !== -1) {
       const extracted = extractBalanced(raw.slice(startIdx), '{', '}');
       if (extracted) {
         try {
           const p = JSON.parse(extracted);
-          if (p && typeof p === 'object' && !Array.isArray(p)) {
-            parsed = p;
-            break;
+          if (isObjectLike(p)) {
+            candidates.push({ obj: p, score: scoreCandidate(p) });
           }
         } catch {}
       }
       startIdx++;
+    }
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => b.score - a.score);
+      parsed = candidates[0].obj;
     }
   }
 
@@ -53,28 +74,28 @@ export function parseOutline(raw: string): OutlineData {
     throw new ParseError('Could not extract valid JSON from LLM response');
   }
 
-  // Validate shape
-  if (!parsed || typeof parsed !== 'object') {
+  if (!isObjectLike(parsed)) {
     throw new ParseError('Parsed result is not an object');
   }
 
-  const obj = parsed as Record<string, unknown>;
+  const obj = parsed;
 
   if (typeof obj.title !== 'string' || !obj.title) {
     throw new ParseError('Missing or invalid "title"');
-  }
-  if (typeof obj.summary !== 'string') {
-    throw new ParseError('Missing or invalid "summary"');
   }
   if (!Array.isArray(obj.concepts) || obj.concepts.length === 0) {
     throw new ParseError('Missing or empty "concepts" array');
   }
 
+  // `summary` is optional downstream — never block the journey on it.
+  // Fall back to the title when missing/non-string so consumers always get a usable string.
+  const summary = typeof obj.summary === 'string' ? obj.summary : obj.title;
+
   const concepts = obj.concepts.map((c: unknown, i: number) => {
-    if (!c || typeof c !== 'object') {
+    if (!isObjectLike(c)) {
       throw new ParseError(`Concept at index ${i} is not an object`);
     }
-    const concept = c as Record<string, unknown>;
+    const concept = c;
     if (typeof concept.id !== 'string' || !concept.id) {
       throw new ParseError(`Concept ${i}: missing or invalid "id"`);
     }
@@ -100,5 +121,5 @@ export function parseOutline(raw: string): OutlineData {
     };
   });
 
-  return { title: obj.title as string, summary: obj.summary as string, concepts };
+  return { title: obj.title as string, summary, concepts };
 }

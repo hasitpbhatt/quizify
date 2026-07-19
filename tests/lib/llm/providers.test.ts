@@ -21,21 +21,17 @@ describe('PROVIDERS config', () => {
     it('has requiresApiKey: false', () => {
       expect(cfg.requiresApiKey).toBe(false);
     });
-    it('has defaultBearerToken', () => {
-      expect(cfg.defaultBearerToken).toBe('public');
+    it('uses /api/chat as the API base (Quizify-managed Mistral proxy)', () => {
+      expect(cfg.apiBase).toBe('/api/chat');
     });
-    it('has OpenCode AI base URL', () => {
-      expect(cfg.apiBase).toBe('https://opencode.ai/zen/v1/chat/completions');
+    it('uses mistral-large-latest as the default model', () => {
+      expect(cfg.defaultModel).toBe('mistral-large-latest');
     });
-    it('has fallbackApiBase pointing to proxy', () => {
-      expect(cfg.fallbackApiBase).toBe('/api/chat');
+    it('uses mistral-medium-latest as the fallback model', () => {
+      expect(cfg.fallbackModel).toBe('mistral-medium-latest');
     });
-    it('uses deepseek-v4-flash-free as model', () => {
-      expect(cfg.defaultModel).toBe('deepseek-v4-flash-free');
-    });
-    it('has fallback mistral models', () => {
-      expect(cfg.fallbackDefaultModel).toBe('mistral-large-latest');
-      expect(cfg.fallbackFallbackModel).toBe('mistral-medium-latest');
+    it('uses mistral-small-latest as the grading model', () => {
+      expect(cfg.gradingModel).toBe('mistral-small-latest');
     });
   });
 
@@ -47,10 +43,6 @@ describe('PROVIDERS config', () => {
     it('uses Mistral API base', () => {
       expect(cfg.apiBase).toBe('https://api.mistral.ai/v1/chat/completions');
     });
-    it('has no fallback fields', () => {
-      expect(cfg.fallbackApiBase).toBeUndefined();
-      expect(cfg.defaultBearerToken).toBeUndefined();
-    });
   });
 
   describe('nvidia provider', () => {
@@ -60,10 +52,6 @@ describe('PROVIDERS config', () => {
     });
     it('uses NVIDIA API base', () => {
       expect(cfg.apiBase).toBe('https://integrate.api.nvidia.com/v1/chat/completions');
-    });
-    it('has no fallback fields', () => {
-      expect(cfg.fallbackApiBase).toBeUndefined();
-      expect(cfg.defaultBearerToken).toBeUndefined();
     });
   });
 });
@@ -88,7 +76,7 @@ describe('getProviderConfig', () => {
 
 describe('getGradingModel', () => {
   it('returns grading model for default provider', () => {
-    expect(getGradingModel('default')).toBe('deepseek-v4-flash-free');
+    expect(getGradingModel('default')).toBe('mistral-small-latest');
   });
 
   it('returns grading model for mistral provider', () => {
@@ -102,7 +90,7 @@ describe('getGradingModel', () => {
 
 describe('getApiBase', () => {
   it('returns API base for default provider', () => {
-    expect(getApiBase('default')).toBe('https://opencode.ai/zen/v1/chat/completions');
+    expect(getApiBase('default')).toBe('/api/chat');
   });
 
   it('returns API base for mistral provider', () => {

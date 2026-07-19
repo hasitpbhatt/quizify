@@ -10,6 +10,7 @@ export interface PromptTask<T> {
   responseFormat?: 'json';
   maxTokens?: number;
   temperature?: number;
+  timeoutMs?: number;
 }
 
 export interface TaskOptions {
@@ -41,6 +42,7 @@ export async function executePromptTask<T>(
     onRetry: opts.onRetry,
     maxTokens: task.maxTokens,
     temperature: task.temperature,
+    timeoutMs: task.timeoutMs,
   };
   if (opts.model) chatOpts.model = opts.model;
 

@@ -103,33 +103,11 @@ describe('fetchSourceContent', () => {
   describe('URL subject — LLM fallback', () => {
     it('calls LLM when proxies and cfproxy all fail', async () => {
       mockWith({
-        'https://opencode.ai': () => Promise.resolve(llmResp(LONG)),
+        '/api/chat': () => Promise.resolve(llmResp(LONG)),
       });
       const result = await fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' });
       expect(result.source).toBe('llm');
       expect(result.content).toBe(LONG);
-    });
-
-    it('LLM call includes OpenCode headers', async () => {
-      mockWith({
-        'https://opencode.ai': () => Promise.resolve(llmResp(LONG)),
-      });
-      await fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' });
-      const llmCalls = mockFetch.mock.calls.filter(([u]) => urlOf(u as RequestInfo).includes('opencode.ai'));
-      expect(llmCalls.length).toBeGreaterThan(0);
-      const headers = (llmCalls[0][1] as Record<string, unknown>).headers as Record<string, string>;
-      expect(headers['x-opencode-client']).toBe('cli');
-      expect(headers['User-Agent']).toContain('opencode');
-    });
-
-    it('includes Authorization: Bearer public for default provider', async () => {
-      mockWith({
-        'https://opencode.ai': () => Promise.resolve(llmResp(LONG)),
-      });
-      await fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' });
-      const llmCalls = mockFetch.mock.calls.filter(([u]) => urlOf(u as RequestInfo).includes('opencode.ai'));
-      const headers = (llmCalls[0][1] as Record<string, unknown>).headers as Record<string, string>;
-      expect(headers.Authorization).toBe('Bearer public');
     });
 
     it('uses selected provider for the LLM call', async () => {
@@ -146,7 +124,7 @@ describe('fetchSourceContent', () => {
   describe('text subject (non-URL)', () => {
     it('calls LLM directly with educational prompt', async () => {
       mockWith({
-        'https://opencode.ai': () => Promise.resolve(llmResp(LONG)),
+        '/api/chat': () => Promise.resolve(llmResp(LONG)),
       });
       const result = await fetchSourceContent('gravity', { apiKey: '', persona: 'student' });
       expect(result.source).toBe('llm');
@@ -155,7 +133,7 @@ describe('fetchSourceContent', () => {
 
     it('throws descriptive error when LLM fails', async () => {
       mockWith({
-        'https://opencode.ai': () => Promise.resolve(errStatus(400)),
+        '/api/chat': () => Promise.resolve(errStatus(400)),
       });
       await expect(
         fetchSourceContent('gravity', { apiKey: '', persona: 'student' })

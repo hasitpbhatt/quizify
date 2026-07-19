@@ -1,9 +1,6 @@
 import type { LlmProvider } from '@/shared/types';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 
-const OPENCODE_BASE = 'https://opencode.ai/zen/v1/chat/completions';
-const OPENCODE_MODEL = 'deepseek-v4-flash-free';
-
 export interface ProviderConfig {
   name: LlmProvider;
   label: string;
@@ -16,10 +13,6 @@ export interface ProviderConfig {
   apiKeyHint: string;
   apiKeyPlaceholder: string;
   signupUrl: string;
-  defaultBearerToken?: string;
-  fallbackApiBase?: string;
-  fallbackDefaultModel?: string;
-  fallbackFallbackModel?: string;
   rpm: number;
   allowStreamingSplit: boolean;
 }
@@ -34,19 +27,15 @@ export const PROVIDERS: Record<LlmProvider, ProviderConfig> = {
   default: {
     name: 'default',
     label: 'Quizify (Default)',
-    apiBase: OPENCODE_BASE,
-    defaultModel: OPENCODE_MODEL,
-    fallbackModel: OPENCODE_MODEL,
-    gradingModel: OPENCODE_MODEL,
+    apiBase: '/api/chat',
+    defaultModel: 'mistral-large-latest',
+    fallbackModel: 'mistral-medium-latest',
+    gradingModel: 'mistral-small-latest',
     requiresApiKey: false,
-    defaultBearerToken: 'public',
     apiKeyLabel: 'Quizify-managed',
-    apiKeyHint: 'No key needed — multi-layered fallback (OpenCode → Mistral).',
+    apiKeyHint: 'No key needed — routed through the Quizify-managed Mistral proxy. May be unavailable if the server key is not configured.',
     apiKeyPlaceholder: '',
     signupUrl: '',
-    fallbackApiBase: '/api/chat',
-    fallbackDefaultModel: 'mistral-large-latest',
-    fallbackFallbackModel: 'mistral-medium-latest',
     rpm: 30,
     allowStreamingSplit: true,
   },

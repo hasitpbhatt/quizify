@@ -11,4 +11,5 @@ export const outlineTask: PromptTask<OutlineData> = {
   responseFormat: 'json',
   maxTokens: 1200,
   temperature: 0.2,
+  timeoutMs: 45_000,
 };
