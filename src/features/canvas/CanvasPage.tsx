@@ -666,17 +666,67 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     return () => container?.removeEventListener('keydown', handler);
   }, [immersiveNotebook, activeQuiz, summaryQuiz, reactFlow]);
 
-  // Focus the first concept once when restoring a session. The narration effect
-  // may request the same focus, so both paths intentionally use the same fit.
+  // Persist + restore notebook reading position per session so a mid-notebook
+  // reload resumes at the same concept, viewport, and revealed quizzes instead
+  // of dropping the user back to concept 0.
+  const nbPosKey = currentId ? `quizify:nbpos:${currentId}` : null;
+
+  // Focus the first concept once when restoring a session. If a saved reading
+  // position exists, restore it (viewport + revealed quizzes) instead of
+  // snapping to concept 0. The narration effect may request the same focus, so
+  // both paths intentionally use the same fit.
   useEffect(() => {
     if (!immersiveNotebook || !session || orientedSessionRef.current === session.id) return;
 
-    const firstConcept = concepts.find(c => c.data.index === 0);
-    if (!firstConcept) return;
-
     orientedSessionRef.current = session.id;
-    focusOnActiveConcept(firstConcept.id);
-  }, [immersiveNotebook, session, concepts, focusOnActiveConcept]);
+
+    let restored = false;
+    if (nbPosKey) {
+      try {
+        const raw = localStorage.getItem(nbPosKey);
+        if (raw) {
+          const pos = JSON.parse(raw) as { conceptIndex?: number; viewport?: { x: number; y: number; zoom: number }; revealedQuizIds?: string[] };
+          if (pos.revealedQuizIds && Array.isArray(pos.revealedQuizIds) && pos.revealedQuizIds.length > 0) {
+            setRevealedQuizIds(new Set(pos.revealedQuizIds));
+          }
+          const target = concepts.find(c => c.data.index === (pos.conceptIndex ?? 0));
+          if (target) {
+            // Defer viewport apply until after the initial mount/fit settles.
+            if (pos.viewport) {
+              requestAnimationFrame(() => reactFlow.setViewport(pos.viewport!, { duration: 0 }));
+            }
+            focusOnActiveConcept(target.id, pos.revealedQuizIds?.length ? true : false);
+            restored = true;
+          }
+        }
+      } catch {
+        /* corrupt payload — fall through to default orientation */
+      }
+    }
+
+    if (!restored) {
+      const firstConcept = concepts.find(c => c.data.index === 0);
+      if (firstConcept) focusOnActiveConcept(firstConcept.id);
+    }
+  }, [immersiveNotebook, session, concepts, focusOnActiveConcept, nbPosKey, reactFlow]);
+
+  // Debounced save of the reading position whenever it changes.
+  useEffect(() => {
+    if (!immersiveNotebook || !nbPosKey) return;
+    const handle = setTimeout(() => {
+      try {
+        const payload = {
+          conceptIndex: currentConceptIndex,
+          viewport: reactFlow.getViewport(),
+          revealedQuizIds: Array.from(revealedQuizIds),
+        };
+        localStorage.setItem(nbPosKey, JSON.stringify(payload));
+      } catch {
+        /* storage unavailable — non-fatal */
+      }
+    }, 600);
+    return () => clearTimeout(handle);
+  }, [immersiveNotebook, nbPosKey, currentConceptIndex, revealedQuizIds, reactFlow]);
 
   // Migration: sessionStorage summary quiz results → Session.scores (IndexedDB)
   const scoreMigratedRef = useRef(false);

@@ -253,3 +253,26 @@ describe('CanvasPage — notebook-mode outline/TOC (NB-5)', () => {
     expect(screen.getByText('Quantum Computing')).toBeInTheDocument();
   });
 });
+
+describe('CanvasPage — notebook reading-position persistence (NB-6)', () => {
+  it('restores revealed quizzes from a saved position on mount', async () => {
+    const concept = factories.mockConceptNode();
+    const quiz = factories.mockQuizNode(concept.id);
+    const session = factories.mockSession([concept, quiz], [factories.mockEdge(concept.id, quiz.id)]);
+    await sessionsDb.putSession(session);
+    useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
+    useNotebookStore.setState({ notebookMode: true, completedTypingNodeIds: {} });
+
+    // Pretend the user had progressed past the concept and revealed its quiz.
+    localStorage.setItem(
+      `quizify:nbpos:${session.id}`,
+      JSON.stringify({ conceptIndex: 0, viewport: { x: 0, y: 0, zoom: 1 }, revealedQuizIds: [quiz.id] }),
+    );
+
+    const { container } = renderCanvas();
+
+    await waitFor(() => {
+      expect(container.querySelector(`.react-flow__node[data-id="${quiz.id}"]`)).not.toBeNull();
+    });
+  });
+});
