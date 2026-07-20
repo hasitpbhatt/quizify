@@ -21,6 +21,7 @@ const ttsMock = vi.hoisted(() => ({
   currentSegmentId: null as string | null,
   isPlaying: false,
   isPaused: false,
+  speechSynthesisAvailable: true,
   hasSegment: vi.fn((_id: string) => false),
   subscribe: vi.fn((nodeId: string, cbs?: Record<string, (...args: any[]) => void>) => {
     ttsSubs.set(nodeId, cbs ?? {});
@@ -251,6 +252,27 @@ describe('CanvasPage — notebook-mode outline/TOC (NB-5)', () => {
     // The visible concept title should appear in the TOC (quizzes are hidden
     // until revealed in notebook mode, so they aren't listed yet).
     expect(screen.getByText('Quantum Computing')).toBeInTheDocument();
+  });
+});
+
+describe('CanvasPage — narration counter when voice unavailable (NB-7)', () => {
+  it('labels the counter "Reading" instead of implying live audio', async () => {
+    // Force the manager to report no speech synthesis so the counter should
+    // read "Reading", not a "n / N" narration progress.
+    (ttsMock as unknown as { speechSynthesisAvailable: boolean }).speechSynthesisAvailable = false;
+
+    const concept = factories.mockConceptNode();
+    const session = factories.mockSession([concept], []);
+    await sessionsDb.putSession(session);
+    useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
+    useNotebookStore.setState({ notebookMode: true, completedTypingNodeIds: {} });
+
+    renderCanvas();
+
+    await waitFor(() => {
+      expect(screen.getByText('Reading')).toBeInTheDocument();
+    });
+    (ttsMock as unknown as { speechSynthesisAvailable: boolean }).speechSynthesisAvailable = true;
   });
 });
 

@@ -931,10 +931,10 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
             <option value={1.5}>1.5×</option>
             <option value={2}>2×</option>
           </select>
-          <span className="progressLabel">
-            {totalSegments > 0
-              ? `${segmentIndex + 1} / ${totalSegments}`
-              : 'Queued'}
+          <span className="progressLabel" title={ttsManager.speechSynthesisAvailable ? undefined : 'Voice narration unavailable in this browser — showing text'}>
+            {ttsManager.speechSynthesisAvailable
+              ? (totalSegments > 0 ? `${segmentIndex + 1} / ${totalSegments}` : 'Queued')
+              : (totalSegments > 0 ? `Reading ${segmentIndex + 1} / ${totalSegments}` : 'Reading')}
           </span>
         </div>
       )}
