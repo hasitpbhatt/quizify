@@ -128,7 +128,7 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
           </div>
           <h1 id="welcome-heading" className={styles.heading}>Turn any topic into a canvas you actually remember.</h1>
           <p className={styles.subheading}>
-            Paste a URL or type a topic and Quizify breaks it into concepts, quizzes, and a final recap — laid out on an infinite canvas.
+            Paste a URL or type a topic and Quizify breaks it into concepts, quizzes, and a final recap — laid out on an infinite canvas. It then reads them to you in a calm Notebook view (press Esc anytime to switch to the canvas graph).
           </p>
         </header>
 

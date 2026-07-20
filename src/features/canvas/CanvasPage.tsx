@@ -766,10 +766,11 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const handleKbEscape = useCallback(() => {
     if (activeQuiz) setActiveQuiz(null);
     else if (summaryQuiz) setSummaryQuiz(false);
-  }, [activeQuiz, summaryQuiz]);
+    else if (notebookMode) toggleNotebookMode();
+  }, [activeQuiz, summaryQuiz, notebookMode, toggleNotebookMode]);
 
   const handleKbHelp = useCallback(() => {
-    useToastStore.getState().add('Shortcuts: N = Add note · ? = Show this · Esc = Close quiz');
+    useToastStore.getState().add('Shortcuts: N = Add note · ? = Show this · Esc = Close quiz / exit Notebook');
   }, []);
 
   // Global keyboard shortcuts: N = add note, ? = help, Escape = close quiz
@@ -893,12 +894,17 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       )}
 
       {notebookMode && (
-        <div className="notebookControls">
-          <button onClick={toggleNotebookMode} title="Exit Notebook">
-            <X size={14} />
-          </button>
-          <div className="notebookDivider" />
-          <button onClick={() => setShowOutline(v => !v)} title="Table of contents">
+        <>
+          <div className="notebookModePill" title="You're in Notebook view. Press Esc or the X to switch to the canvas graph.">
+            <BookOpen size={12} />
+            <span>Notebook</span>
+          </div>
+          <div className="notebookControls">
+            <button onClick={toggleNotebookMode} title="Exit Notebook">
+              <X size={14} />
+            </button>
+            <div className="notebookDivider" />
+            <button onClick={() => setShowOutline(v => !v)} title="Table of contents">
             <List size={14} />
           </button>
           <button
@@ -937,6 +943,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
               : (totalSegments > 0 ? `Reading ${segmentIndex + 1} / ${totalSegments}` : 'Reading')}
           </span>
         </div>
+        </>
       )}
 
       {notebookMode && showOutline && session && (

@@ -276,6 +276,22 @@ describe('CanvasPage — narration counter when voice unavailable (NB-7)', () =>
   });
 });
 
+describe('CanvasPage — notebook mode indicator (NB-8)', () => {
+  it('shows a Notebook mode pill so the active surface is discoverable', async () => {
+    const concept = factories.mockConceptNode();
+    const session = factories.mockSession([concept], []);
+    await sessionsDb.putSession(session);
+    useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
+    useNotebookStore.setState({ notebookMode: true, completedTypingNodeIds: {} });
+
+    renderCanvas();
+
+    const pill = await screen.findByTitle(/You're in Notebook view/);
+    expect(pill).toBeInTheDocument();
+    expect(pill.textContent).toContain('Notebook');
+  });
+});
+
 describe('CanvasPage — notebook reading-position persistence (NB-6)', () => {
   it('restores revealed quizzes from a saved position on mount', async () => {
     const concept = factories.mockConceptNode();
