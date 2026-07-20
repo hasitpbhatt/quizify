@@ -25,6 +25,7 @@ import { MobileFocusView } from './MobileFocusView';
 import { useIsMobile } from '@/shared/useMediaQuery';
 import { Plus, BookOpen, Play, Pause, Square, Download, ChevronDown, X, Volume2, VolumeX, List, SkipForward } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
+import { writeNotebookModePreference } from '@/shared/notebookModePreference';
 import { ttsManager } from '@/lib/llm/ttsManager';
 import { exportSessionJson } from '@/lib/export/json';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
@@ -155,6 +156,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const [activeQuiz, setActiveQuiz] = useState<{ quizId: string; quiz: QuizData; conceptTitle: string } | null>(null);
   const [summaryQuiz, setSummaryQuiz] = useState<boolean>(false);
   const [revealedQuizIds, setRevealedQuizIds] = useState<Set<string>>(new Set());
+  const [showOrientationCue, setShowOrientationCue] = useState(false);
   const updateCurrent = useSessionStore(s => s.updateCurrent);
   const reactFlow = useReactFlow();
   const isMobile = useIsMobile();
@@ -180,6 +182,43 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const prefersReducedMotion = useRef<boolean>(
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   );
+
+  // Remember the user's chosen view for each session so graph mode only comes
+  // back when they explicitly selected it.
+  useEffect(() => {
+    if (!currentId) return;
+    writeNotebookModePreference(currentId, notebookMode);
+  }, [currentId, notebookMode]);
+
+  const dismissOrientationCue = useCallback(() => {
+    setShowOrientationCue(false);
+    if (!currentId) return;
+    try {
+      sessionStorage.setItem(`quizify:nbintro:${currentId}`, 'seen');
+    } catch {
+      // Non-fatal if session storage is unavailable.
+    }
+  }, [currentId]);
+
+  useEffect(() => {
+    const idx = getUnlockedConceptIndex(session?.nodes ?? []);
+    if (!notebookMode || !session || !currentId || isGenerating || idx !== 0) {
+      setShowOrientationCue(false);
+      return;
+    }
+
+    try {
+      if (sessionStorage.getItem(`quizify:nbintro:${currentId}`) === 'seen') {
+        setShowOrientationCue(false);
+        return;
+      }
+    } catch {
+      // If storage is unavailable, we still show the cue for this visit.
+    }
+
+    const timer = setTimeout(() => setShowOrientationCue(true), 450);
+    return () => clearTimeout(timer);
+  }, [notebookMode, session, currentId, isGenerating]);
 
   const focusOnActiveConcept = useCallback((conceptId: string, includeQuizzes = false) => {
     if (!session) return;
@@ -902,6 +941,20 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       {notebookMode && captionVisible && caption && (
         <div className="notebookCaption" role="status" aria-live="polite">
           {caption}
+        </div>
+      )}
+
+      {notebookMode && showOrientationCue && (
+        <div className="notebookOrientation" role="status" aria-live="polite">
+          <div className="notebookOrientationCopy">
+            <span className="notebookOrientationLabel">Start here</span>
+            <span className="notebookOrientationText">
+              This lesson is centered on the current concept. Let the narration guide you, then open the quiz when you’re ready.
+            </span>
+          </div>
+          <button className="notebookOrientationClose" onClick={dismissOrientationCue} type="button">
+            Got it
+          </button>
         </div>
       )}
 

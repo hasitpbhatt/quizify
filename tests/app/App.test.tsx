@@ -373,6 +373,35 @@ describe('App', () => {
     expect(mockSetNotebookMode).toHaveBeenCalledWith(true);
   });
 
+  it('restores graph view when saved notebook preference is "graph"', async () => {
+    sessionStorageMock.setItem('quizify:page', 'canvas');
+    sessionStorageMock.setItem('quizify:currentId', 'existing-session');
+    sessionStorageMock.setItem('quizify:notebookMode:existing-session', 'graph');
+    mockSessionStore.setState({ currentId: 'existing-session', sessions: [{ id: 'existing-session' }] });
+
+    render(<App />);
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('canvas-page')).toBeInTheDocument();
+    });
+    expect(mockSetNotebookMode).toHaveBeenCalledWith(false);
+  });
+
+  it('selects session honoring saved graph preference', async () => {
+    sessionStorageMock.setItem('quizify:notebookMode:session-1', 'graph');
+    mockSessionStore.setState({ sessions: [{ id: 'session-1' }], currentId: null });
+
+    render(<App />);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('select-session'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('canvas-page')).toBeInTheDocument();
+    });
+    expect(mockSetNotebookMode).toHaveBeenCalledWith(false);
+  });
+
   it('enables notebook mode before createSession during generate', async () => {
     mockFetchSourceContent.mockResolvedValue({ url: 'https://example.com', content: 'source text' });
     mockExecutePromptTask.mockResolvedValue({

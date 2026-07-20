@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
+import { useNotebookStore } from '@/shared/stores/notebookStore';
+import { readNotebookModePreference } from '@/shared/notebookModePreference';
 import { ChevronDown, X, Sun, Moon, Monitor, Plus } from 'lucide-react';
 import styles from './Toolbar.module.css';
 
@@ -155,7 +157,12 @@ export function Toolbar({ onNewSession }: ToolbarProps) {
                 className={dropdownItemClass(s.id, i)}
                 role="option"
                 aria-selected={s.id === currentId}
-                onClick={() => { select(s.id); setOpen(false); setConfirmingDelete(null); }}
+                onClick={() => {
+                  useNotebookStore.getState().setNotebookMode(readNotebookModePreference(s.id));
+                  select(s.id);
+                  setOpen(false);
+                  setConfirmingDelete(null);
+                }}
                 onMouseEnter={() => setFocusIndex(i)}
               >
                 <span>{s.name}</span>

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { CanvasPage } from '@/features/canvas/CanvasPage';
 import { useSessionStore } from '@/shared/stores/sessionStore';
@@ -148,6 +148,75 @@ describe('CanvasPage', () => {
 
     await waitFor(() => {
       expect(document.querySelectorAll('.react-flow__node-note')).toHaveLength(1);
+    });
+  });
+
+  describe('orientation cue', () => {
+    function setNotebookMode() {
+      useNotebookStore.setState({
+        notebookMode: true,
+        ttsPlaying: false,
+        ttsPaused: false,
+        currentSegmentNodeId: null,
+        segmentIndex: 0,
+        totalSegments: 0,
+        completedTypingNodeIds: {},
+      });
+    }
+
+    function buildSession() {
+      const session = factories.mockSession([factories.mockConceptNode()], []);
+      return session;
+    }
+
+    async function setupSession(session: ReturnType<typeof buildSession>) {
+      await sessionsDb.putSession(session);
+      useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
+    }
+
+    beforeEach(() => {
+      window.sessionStorage.clear();
+    });
+
+    it('shows the first-open orientation cue in notebook mode after 450ms and dismisses it', async () => {
+      setNotebookMode();
+      const session = buildSession();
+      await setupSession(session);
+
+      renderCanvas();
+
+      await waitFor(() => {
+        expect(screen.getByText('Start here')).toBeInTheDocument();
+      }, { timeout: 2000 });
+
+      await act(async () => { screen.getByText('Got it').click(); });
+
+      expect(screen.queryByText('Start here')).not.toBeInTheDocument();
+      expect(window.sessionStorage.getItem(`quizify:nbintro:${session.id}`)).toBe('seen');
+    });
+
+    it('does not show the cue when already seen', async () => {
+      setNotebookMode();
+      const session = buildSession();
+      window.sessionStorage.setItem(`quizify:nbintro:${session.id}`, 'seen');
+      await setupSession(session);
+
+      renderCanvas();
+
+      await waitFor(() => {
+        expect(screen.queryByText('Start here')).not.toBeInTheDocument();
+      });
+    });
+
+    it('does not show the cue in graph mode', async () => {
+      const session = buildSession();
+      await setupSession(session);
+
+      renderCanvas();
+
+      await waitFor(() => {
+        expect(screen.queryByText('Start here')).not.toBeInTheDocument();
+      });
     });
   });
 
