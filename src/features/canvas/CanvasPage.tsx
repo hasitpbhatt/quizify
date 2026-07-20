@@ -294,6 +294,9 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     updateCurrent({ nodes: updatedNodes });
   }, [session, reactFlow, updateCurrent]);
 
+  const [caption, setCaption] = useState<string>('');
+  const [captionVisible, setCaptionVisible] = useState<boolean>(false);
+
   const [showExport, setShowExport] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
 
@@ -496,6 +499,46 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     });
     return unsub;
   }, []);
+
+  // Caption bar: surface the currently-narrated text as an always-visible
+  // caption so deaf / hard-of-hearing users (and anyone who scrolled the node
+  // out of view) get a text alternative to the default audio narration.
+  // Driven by ttsManager segment callbacks; cleared when narration stops.
+  useEffect(() => {
+    if (!notebookMode) {
+      setCaptionVisible(false);
+      setCaption('');
+      return;
+    }
+
+    const subId = ttsManager.subscribe('__caption__', {
+      onSegmentStart: () => {
+        // text arrives via onCharProgress; show the bar immediately.
+        setCaptionVisible(true);
+      },
+      onCharProgress: (_nodeId, _charIndex, text?: string) => {
+        if (text != null) {
+          setCaption(text);
+          setCaptionVisible(true);
+        }
+      },
+      onSegmentEnd: (_nodeId) => {
+        setCaptionVisible(false);
+      },
+    });
+
+    return () => {
+      ttsManager.unsubscribe(subId);
+      setCaptionVisible(false);
+    };
+  }, [notebookMode]);
+
+  // Hide the caption when narration is fully stopped/idle (no active segment).
+  useEffect(() => {
+    if (!ttsPlaying && !ttsPaused) {
+      setCaptionVisible(false);
+    }
+  }, [ttsPlaying, ttsPaused]);
 
   // Kill switch for the live char-progress viewport refit.
   // Disable via either:
@@ -755,6 +798,12 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       )}
 
 
+
+      {notebookMode && captionVisible && caption && (
+        <div className="notebookCaption" role="status" aria-live="polite">
+          {caption}
+        </div>
+      )}
 
       {notebookMode && (
         <div className="notebookControls">

@@ -12,6 +12,9 @@ import * as factories from '../../shared/factories';
 // gating effect's `ttsManager.isPlaying`/`isPaused` checks stay truthful.
 const ttsMockRef = vi.hoisted(() => ({ isPlaying: false, isPaused: false }));
 
+// Captured subscriptions, keyed by nodeId, so tests can fire callbacks.
+const ttsSubs = vi.hoisted(() => new Map<string, Record<string, (...args: any[]) => void>>());
+
 // Stable, inspectable ttsManager surface so each test can drive the
 // gating effect in CanvasPage.tsx without exercising real TTS.
 const ttsMock = vi.hoisted(() => ({
@@ -19,7 +22,10 @@ const ttsMock = vi.hoisted(() => ({
   isPlaying: false,
   isPaused: false,
   hasSegment: vi.fn((_id: string) => false),
-  subscribe: vi.fn((_nodeId: string, _cbs?: unknown) => 'sub'),
+  subscribe: vi.fn((nodeId: string, cbs?: Record<string, (...args: any[]) => void>) => {
+    ttsSubs.set(nodeId, cbs ?? {});
+    return 'sub-' + nodeId;
+  }),
   unsubscribe: vi.fn(),
   subscribeState: vi.fn((_cb: unknown) => () => undefined),
   enqueue: vi.fn(),
@@ -195,5 +201,31 @@ describe('CanvasPage — notebook-mode reduced-motion quiz reveal (NB-1)', () =>
     // No audio should have been enqueued or started under reduced-motion.
     expect(ttsMock.enqueue).not.toHaveBeenCalled();
     expect(ttsMock.start).not.toHaveBeenCalled();
+  });
+});
+
+describe('CanvasPage — notebook-mode captions (NB-3)', () => {
+  it('shows a caption reflecting the narrated text while TTS progresses', async () => {
+    const { concept } = await seedSessionWithOneConcept();
+
+    renderCanvas();
+
+    // Fire the caption subscription's segment-start + char-progress callbacks.
+    const captionSub = ttsSubs.get('__caption__');
+    expect(captionSub).toBeDefined();
+    captionSub!.onSegmentStart?.(concept.id);
+    captionSub!.onCharProgress?.(concept.id, 5, 'Quantum Computing. Uses qubits');
+
+    await waitFor(() => {
+      const caption = document.querySelector('.notebookCaption');
+      expect(caption).not.toBeNull();
+      expect(caption?.textContent).toBe('Quantum Computing. Uses qubits');
+    });
+
+    // Ending the segment hides the caption.
+    captionSub!.onSegmentEnd?.(concept.id);
+    await waitFor(() => {
+      expect(document.querySelector('.notebookCaption')).toBeNull();
+    });
   });
 });

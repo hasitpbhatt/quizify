@@ -336,6 +336,27 @@
   text-align: center;
 }
 
+/* --- Captions: text alternative for default audio narration --- */
+.notebookCaption {
+  position: fixed;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(720px, 90vw);
+  z-index: 100;
+  padding: var(--space-3) var(--space-5);
+  background: rgba(0, 0, 0, 0.82);
+  color: #fff;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-ui), system-ui, sans-serif;
+  font-size: var(--fs-small);
+  line-height: 1.5;
+  text-align: center;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* --- Exclude functional UI elements from handwritten cursive style --- */
 [data-notebook="true"] button,
 [data-notebook="true"] [class*="Btn"],

@@ -7,7 +7,7 @@ export interface TtsSegment {
 
 export interface TtsCallbacks {
   onSegmentStart?: (nodeId: string) => void;
-  onCharProgress?: (nodeId: string, charIndex: number) => void;
+  onCharProgress?: (nodeId: string, charIndex: number, text?: string) => void;
   onSegmentEnd?: (nodeId: string) => void;
   onQueueEnd?: () => void;
 }
@@ -18,7 +18,7 @@ interface TtsSubscription {
   id: string;
   nodeId: string;
   onSegmentStart?: (nodeId: string) => void;
-  onCharProgress?: (nodeId: string, charIndex: number) => void;
+  onCharProgress?: (nodeId: string, charIndex: number, text?: string) => void;
   onSegmentEnd?: (nodeId: string) => void;
 }
 
@@ -32,6 +32,7 @@ class TtsManagerSingleton {
 
   private charCount = 0;
   private utterance: SpeechSynthesisUtterance | null = null;
+  private currentText: string = '';
 
   /** Feature-detect speechSynthesis at construction time */
   readonly speechSynthesisAvailable: boolean;
@@ -61,6 +62,7 @@ class TtsManagerSingleton {
   clearQueue(): void {
     this.queue = [];
     this.endedSegments.clear();
+    this.currentText = '';
   }
 
   start(): void {
@@ -197,10 +199,10 @@ class TtsManagerSingleton {
   private notifyCharProgress(nodeId: string, charIndex: number): void {
     this.subscriptions.forEach(s => {
       if (s.nodeId === nodeId) {
-        s.onCharProgress?.(nodeId, charIndex);
+        s.onCharProgress?.(nodeId, charIndex, this.currentText);
       }
     });
-    this.callbacks.onCharProgress?.(nodeId, charIndex);
+    this.callbacks.onCharProgress?.(nodeId, charIndex, this.currentText);
   }
 
   private notifyStateListeners(): void {
@@ -230,6 +232,7 @@ class TtsManagerSingleton {
     this.state = 'playing';
     this.notifyStateListeners();
     this.charCount = 0;
+    this.currentText = segment.text;
     debugLog('log', 'tts', 'segment start node=%s idx=%d/%d text_len=%d', segment.nodeId, this.currentIdx, this.queue.length, segment.text.length);
     this.notifySegmentStart(segment.nodeId);
 

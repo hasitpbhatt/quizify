@@ -156,11 +156,12 @@ describe('subscribe / unsubscribe', () => {
     expect(onStart).not.toHaveBeenCalled();
   });
 
-  it('calls onCharProgress with nodeId and charIndex', () => {
+  it('calls onCharProgress with nodeId, charIndex and current text', () => {
     const onProgress = vi.fn();
+    (ttsManager as any).currentText = 'hello world';
     ttsManager.subscribe('n1', { onCharProgress: onProgress });
     ttsManager['notifyCharProgress']('n1', 5);
-    expect(onProgress).toHaveBeenCalledWith('n1', 5);
+    expect(onProgress).toHaveBeenCalledWith('n1', 5, 'hello world');
   });
 
   it('calls onSegmentEnd when segment ends', () => {
