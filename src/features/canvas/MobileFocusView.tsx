@@ -4,6 +4,7 @@ import '@xyflow/react/dist/style.css';
 import type { CanvasNode, QuizData, ConceptData } from '@/shared/types';
 import { QuizInteraction } from '@/features/quiz/QuizInteraction';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
+import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
 import { useTypingAnimation } from './useTypingAnimation';
 import { Play, Pause, Square, List } from 'lucide-react';
@@ -81,11 +82,15 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
   const segmentIndex = useNotebookStore(s => s.segmentIndex);
   const totalSegments = useNotebookStore(s => s.totalSegments);
 
+  const ttsEnabled = useSettingsStore(s => s.ttsEnabled);
+  const ttsRate = useSettingsStore(s => s.ttsRate);
+
   const handlePlayPause = useCallback(() => {
     if (ttsPaused) {
       ttsManager.resume();
     } else if (!ttsPlaying) {
-      if (node) {
+      if (node && ttsEnabled) {
+        ttsManager.setRate(ttsRate);
         if (node.data.kind === 'concept') {
           const text = node.data.title + '. ' + node.data.explanation;
           ttsManager.enqueue({ nodeId: node.id, text });
@@ -98,17 +103,17 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
     } else {
       ttsManager.pause();
     }
-  }, [ttsPlaying, ttsPaused, node]);
+  }, [ttsPlaying, ttsPaused, node, ttsEnabled, ttsRate]);
 
   const handleStopTts = useCallback(() => {
     ttsManager.stop();
   }, []);
 
   // Auto-TTS on card change in notebook mode, with dedup check.
-  // Gated on !prefers-reduced-motion to match the desktop notebook behavior
-  // (auto-audio violates WCAG 2.2; desktop skips narration under reduced motion).
+  // Gated on !prefers-reduced-motion AND the user's TTS-enabled setting to
+  // match the desktop notebook behavior.
   useEffect(() => {
-    if (!notebookMode || !node || prefersReducedMotion.current) return;
+    if (!notebookMode || !node || prefersReducedMotion.current || !ttsEnabled) return;
     if (node.data.kind === 'concept') {
       if (ttsManager.hasSegment(node.id)) return;
       const text = node.data.title + '. ' + node.data.explanation;

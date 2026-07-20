@@ -33,6 +33,8 @@ class TtsManagerSingleton {
   private charCount = 0;
   private utterance: SpeechSynthesisUtterance | null = null;
   private currentText: string = '';
+  /** Speech rate (0.5–2) applied to each utterance. */
+  private rate = 1;
 
   /** Feature-detect speechSynthesis at construction time */
   readonly speechSynthesisAvailable: boolean;
@@ -143,6 +145,11 @@ class TtsManagerSingleton {
     this.callbacks = { ...this.callbacks, ...cb };
   }
 
+  /** Set the narration speech rate (clamped to a sane 0.5–2 range). */
+  setRate(rate: number): void {
+    this.rate = Math.min(2, Math.max(0.5, rate));
+  }
+
   subscribe(nodeId: string, cb: {
     onSegmentStart?: (nodeId: string) => void;
     onCharProgress?: (nodeId: string, charIndex: number) => void;
@@ -251,6 +258,7 @@ class TtsManagerSingleton {
 
   private playSpeechSynthesis(segment: TtsSegment): void {
     const utterance = new SpeechSynthesisUtterance(segment.text);
+    utterance.rate = this.rate;
     this.utterance = utterance;
 
     utterance.onboundary = (event) => {

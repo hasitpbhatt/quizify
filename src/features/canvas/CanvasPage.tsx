@@ -11,6 +11,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useSessionStore } from '@/shared/stores/sessionStore';
+import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { getUnlockedConceptIndex, getConceptIndex } from '@/lib/progression';
 import { SUMMARY_NODE_ID, type CanvasNode, type CanvasEdge, type QuizData, type NoteData, type ConceptData, type SummaryData } from '@/shared/types';
 import { ConceptNode } from './nodes/ConceptNode';
@@ -22,7 +23,7 @@ import { SummaryQuizInteraction } from '@/features/quiz/SummaryQuizInteraction';
 import { NoteNode } from './nodes/NoteNode';
 import { MobileFocusView } from './MobileFocusView';
 import { useIsMobile } from '@/shared/useMediaQuery';
-import { Plus, BookOpen, Play, Pause, Square, Download, ChevronDown, X } from 'lucide-react';
+import { Plus, BookOpen, Play, Pause, Square, Download, ChevronDown, X, Volume2, VolumeX } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
 import { exportSessionJson } from '@/lib/export/json';
@@ -149,6 +150,10 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const toggleNotebookMode = useNotebookStore(s => s.toggleNotebookMode);
   // During generation, stream content without notebook TTS gating or typewriter delays.
   const immersiveNotebook = notebookMode && !isGenerating;
+  const ttsEnabled = useSettingsStore(s => s.ttsEnabled);
+  const ttsRate = useSettingsStore(s => s.ttsRate);
+  const setTtsEnabled = useSettingsStore(s => s.setTtsEnabled);
+  const setTtsRate = useSettingsStore(s => s.setTtsRate);
   const ttsPlaying = useNotebookStore(s => s.ttsPlaying);
   const ttsPaused = useNotebookStore(s => s.ttsPaused);
   const segmentIndex = useNotebookStore(s => s.segmentIndex);
@@ -428,7 +433,8 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   }, [immersiveNotebook, currentConceptIndex, session, concepts, revealedQuizIds, reactFlow, focusOnActiveConcept]);
 
   // In notebook mode: enqueue TTS for the current concept when it becomes active.
-  // Gated on !prefers-reduced-motion: auto-audio violates WCAG 2.2.
+  // Gated on !prefers-reduced-motion AND the user's TTS-enabled setting:
+  // auto-audio violates WCAG 2.2 and should be opt-out-able in-app.
   useEffect(() => {
     if (!immersiveNotebook || !session) return;
 
@@ -451,13 +457,14 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       lastConceptIndexRef.current = currentConceptIndex;
 
       ttsManager.stop();
-      if (!prefersReducedMotion.current) {
+      if (ttsEnabled && !prefersReducedMotion.current) {
+        ttsManager.setRate(ttsRate);
         const text = `${currentConcept.data.title}. ${currentConcept.data.explanation}`;
         ttsManager.enqueue({ nodeId: currentConcept.id, text });
         ttsManager.start();
       }
     }
-  }, [currentConceptIndex, immersiveNotebook, session, concepts, focusOnActiveConcept]);
+  }, [currentConceptIndex, immersiveNotebook, session, concepts, focusOnActiveConcept, ttsEnabled, ttsRate]);
 
   // Reduced-motion unlock: TTS narration is skipped under prefers-reduced-motion
   // (see effect above), and the only other code path that reveals a concept's
@@ -811,12 +818,33 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
             <X size={14} />
           </button>
           <div className="notebookDivider" />
+          <button
+            onClick={() => setTtsEnabled(!ttsEnabled)}
+            title={ttsEnabled ? 'Mute narration' : 'Unmute narration'}
+            aria-pressed={!ttsEnabled}
+          >
+            {ttsEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+          </button>
           <button onClick={handlePlayPause} title={ttsPaused ? 'Resume' : 'Play/Pause'}>
             {ttsPaused ? <Play size={14} /> : ttsPlaying ? <Pause size={14} /> : <Play size={14} />}
           </button>
           <button onClick={handleStopTts} title="Stop" disabled={!ttsPlaying && !ttsPaused}>
             <Square size={14} />
           </button>
+          <span className="notebookDivider" />
+          <select
+            className="notebookRate"
+            value={ttsRate}
+            onChange={(e) => setTtsRate(Number(e.target.value))}
+            title="Narration speed"
+            aria-label="Narration speed"
+          >
+            <option value={0.75}>0.75×</option>
+            <option value={1}>1×</option>
+            <option value={1.25}>1.25×</option>
+            <option value={1.5}>1.5×</option>
+            <option value={2}>2×</option>
+          </select>
           <span className="progressLabel">
             {totalSegments > 0
               ? `${segmentIndex + 1} / ${totalSegments}`
