@@ -5,6 +5,7 @@ import type { CanvasNode, QuizData, ConceptData } from '@/shared/types';
 import { QuizInteraction } from '@/features/quiz/QuizInteraction';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
+import { useTypingAnimation } from './useTypingAnimation';
 import { Play, Pause, Square, List } from 'lucide-react';
 import styles from './MobileFocusView.module.css';
 
@@ -51,6 +52,9 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
   const [showOutline, setShowOutline] = useState(false);
   const [activeQuiz, setActiveQuiz] = useState<{ quizId: string; quiz: QuizData; conceptTitle: string } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const prefersReducedMotion = useRef<boolean>(
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
 
   // Clamp index when nodes shrink
   useEffect(() => {
@@ -100,9 +104,11 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
     ttsManager.stop();
   }, []);
 
-  // Auto-TTS on card change in notebook mode, with dedup check
+  // Auto-TTS on card change in notebook mode, with dedup check.
+  // Gated on !prefers-reduced-motion to match the desktop notebook behavior
+  // (auto-audio violates WCAG 2.2; desktop skips narration under reduced motion).
   useEffect(() => {
-    if (!notebookMode || !node) return;
+    if (!notebookMode || !node || prefersReducedMotion.current) return;
     if (node.data.kind === 'concept') {
       if (ttsManager.hasSegment(node.id)) return;
       const text = node.data.title + '. ' + node.data.explanation;
@@ -134,6 +140,13 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
     () => (node ? renderContent(node) : { body: '' }),
     [node],
   );
+
+  // Typewriter reveal for concept/summary prose, mirroring the desktop notebook.
+  const typing = useTypingAnimation(node?.id ?? '', body, false);
+  const revealedBody =
+    notebookMode && node && (node.data.kind === 'concept' || node.data.kind === 'summary')
+      ? body.slice(0, typing.revealed)
+      : body;
 
   const goPrev = useCallback(() => setIndex(i => Math.max(0, i - 1)), []);
   const goNext = useCallback(() => setIndex(i => Math.min(nodes.length - 1, i + 1)), [nodes.length]);
@@ -178,7 +191,7 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
           <div className={styles.nodeContent}>
             <div className={styles.kindTag}>{kindLabel}</div>
             {title && <div className={styles.title}>{title}</div>}
-            {body && <div className={styles.body}>{body}</div>}
+            {revealedBody && <div className={styles.body}>{revealedBody}</div>}
             {node.data.kind === 'quiz' && (
               <button className={styles.answerBtn} onClick={openQuiz}>
                 {(node.data as QuizData).attempts.length > 0 ? 'Answer again' : 'Answer quiz'}

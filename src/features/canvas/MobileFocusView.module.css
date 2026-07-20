@@ -375,11 +375,31 @@
 
 .wrapper[data-notebook="true"] .card {
   background-color: transparent !important;
+  /* Ruled-line notebook paper: red margin line + horizontal rules */
+  background-image:
+    linear-gradient(90deg, transparent 27px, rgba(239, 68, 68, 0.2) 27px, rgba(239, 68, 68, 0.2) 28px, transparent 28px),
+    repeating-linear-gradient(
+      transparent,
+      transparent 27px,
+      rgba(84, 87, 232, 0.08) 27px,
+      rgba(84, 87, 232, 0.08) 28px
+    ) !important;
+  background-size: 100% 100%, 100% 28px;
+}
+
+[data-theme='dark'] .wrapper[data-notebook="true"] .card {
+  background-image:
+    linear-gradient(90deg, transparent 27px, rgba(239, 68, 68, 0.15) 27px, rgba(239, 68, 68, 0.15) 29px, transparent 29px),
+    repeating-linear-gradient(
+      transparent,
+      transparent 27px,
+      rgba(163, 196, 243, 0.06) 27px,
+      rgba(163, 196, 243, 0.06) 28px
+    ) !important;
 }
 
 .wrapper[data-notebook="true"] .nodeContent {
-  padding-left: 24px;
-  border-left: 2px solid rgba(220, 38, 38, 0.25);
+  padding-left: 40px;
   margin-left: 8px;
 }
 
