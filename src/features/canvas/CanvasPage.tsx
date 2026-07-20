@@ -456,6 +456,32 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     }
   }, [currentConceptIndex, immersiveNotebook, session, concepts, focusOnActiveConcept]);
 
+  // Reduced-motion unlock: TTS narration is skipped under prefers-reduced-motion
+  // (see effect above), and the only other code path that reveals a concept's
+  // quizzes in notebook mode is the TTS onSegmentEnd callback below — which
+  // never fires for reduced-motion users. That creates a deadlock: quizzes are
+  // invisible -> getUnlockedConceptIndex never advances -> user is stuck.
+  // This effect reveals the active concept's quizzes immediately, independent
+  // of TTS, so reduced-motion users can see and answer quizzes. For non-reduced
+  // -motion users this is a no-op (quizzes stay hidden until TTS narration ends,
+  // preserving the intended "reveal after narration" pacing).
+  useEffect(() => {
+    if (!immersiveNotebook || !session || !prefersReducedMotion.current) return;
+    const currentConcept = concepts.find(c => c.data.index === currentConceptIndex);
+    if (!currentConcept) return;
+    const quizIds = session.nodes
+      .filter(n => n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === currentConcept.id)
+      .map(n => n.id);
+    if (quizIds.length === 0) return;
+    setRevealedQuizIds(prev => {
+      if (quizIds.every(id => prev.has(id))) return prev;
+      const next = new Set(prev);
+      quizIds.forEach(id => next.add(id));
+      return next;
+    });
+    focusOnActiveConcept(currentConcept.id, true);
+  }, [immersiveNotebook, session, concepts, currentConceptIndex, focusOnActiveConcept]);
+
   // Stop TTS narration when exiting notebook mode or while content is still generating
   useEffect(() => {
     if (!notebookMode || isGenerating) {

@@ -142,3 +142,58 @@ describe('CanvasPage — notebook-mode TTS gating', () => {
     expect(ttsMock.stop).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('CanvasPage — notebook-mode reduced-motion quiz reveal (NB-1)', () => {
+  async function seedSessionWithConceptAndQuiz() {
+    const concept = factories.mockConceptNode();
+    const quiz = factories.mockQuizNode(concept.id);
+    const edge = factories.mockEdge(concept.id, quiz.id);
+    const session = factories.mockSession([concept, quiz], [edge]);
+    await sessionsDb.putSession(session);
+    useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
+    return { session, concept, quiz };
+  }
+
+  let originalMatchMedia: typeof window.matchMedia;
+  beforeEach(() => {
+    originalMatchMedia = window.matchMedia;
+    // Pretend the user prefers reduced motion so CanvasPage's
+    // prefersReducedMotion ref captures `true` on first render.
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: query === '(prefers-reduced-motion: reduce)',
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+  });
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: originalMatchMedia,
+    });
+  });
+
+  it('reveals the active concept\'s quizzes without TTS narration under reduced-motion', async () => {
+    const { quiz } = await seedSessionWithConceptAndQuiz();
+
+    const { container } = renderCanvas();
+
+    // Quiz node should be rendered (visible) even though TTS never started.
+    await waitFor(() => {
+      expect(container.querySelector(`.react-flow__node[data-id="${quiz.id}"]`)).not.toBeNull();
+    });
+
+    // No audio should have been enqueued or started under reduced-motion.
+    expect(ttsMock.enqueue).not.toHaveBeenCalled();
+    expect(ttsMock.start).not.toHaveBeenCalled();
+  });
+});
