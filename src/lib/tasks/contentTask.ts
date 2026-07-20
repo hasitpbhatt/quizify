@@ -10,4 +10,5 @@ export const contentTask: PromptTask<ContentResponse> = {
   responseFormat: 'json',
   maxTokens: 1600,
   temperature: 0.4,
+  timeoutMs: 30_000,
 };

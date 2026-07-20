@@ -8,6 +8,7 @@ export interface ProviderConfig {
   defaultModel: string;
   fallbackModel: string;
   gradingModel: string;
+  contentModel: string;
   requiresApiKey: boolean;
   apiKeyLabel: string;
   apiKeyHint: string;
@@ -31,6 +32,7 @@ export const PROVIDERS: Record<LlmProvider, ProviderConfig> = {
     defaultModel: 'mistral-large-latest',
     fallbackModel: 'mistral-medium-latest',
     gradingModel: 'mistral-small-latest',
+    contentModel: 'mistral-medium-2508',
     requiresApiKey: false,
     apiKeyLabel: 'Quizify-managed',
     apiKeyHint: 'No key needed — routed through the Quizify-managed Mistral proxy. May be unavailable if the server key is not configured.',
@@ -46,6 +48,7 @@ export const PROVIDERS: Record<LlmProvider, ProviderConfig> = {
     defaultModel: 'mistral-large-latest',
     fallbackModel: 'mistral-medium-latest',
     gradingModel: 'mistral-small-latest',
+    contentModel: 'mistral-medium-2508',
     requiresApiKey: true,
     apiKeyLabel: 'Mistral API key',
     apiKeyHint: 'Get a free key from console.mistral.ai',
@@ -61,6 +64,7 @@ export const PROVIDERS: Record<LlmProvider, ProviderConfig> = {
     defaultModel: 'nvidia/nemotron-3-super-120b-a12b',
     fallbackModel: 'meta/llama-3.3-70b-instruct',
     gradingModel: 'meta/llama-3.3-70b-instruct',
+    contentModel: 'meta/llama-3.3-70b-instruct',
     requiresApiKey: true,
     apiKeyLabel: 'NVIDIA API key',
     apiKeyHint: 'Get a free key from build.nvidia.com',
@@ -78,6 +82,10 @@ export function getProviderConfig(provider?: LlmProvider): ProviderConfig {
 
 export function getGradingModel(provider?: LlmProvider): string {
   return getProviderConfig(provider).gradingModel;
+}
+
+export function getContentModel(provider?: LlmProvider): string {
+  return getProviderConfig(provider).contentModel;
 }
 
 export function getApiBase(provider?: LlmProvider): string {

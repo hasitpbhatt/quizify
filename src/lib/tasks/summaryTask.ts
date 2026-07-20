@@ -10,4 +10,5 @@ export const summaryTask: PromptTask<SummaryResponse> = {
   responseFormat: 'json',
   maxTokens: 900,
   temperature: 0.4,
+  timeoutMs: 30_000,
 };

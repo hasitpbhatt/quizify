@@ -40,7 +40,7 @@ Return a JSON object with this exact shape:
 }
 
 Rules:
-- Generate 4-6 concepts per canvas.
+- Generate 3-4 concepts per canvas.
 - Vary quiz formats across concepts — don't use the same format twice in a row.
 - For "mcq", provide exactly 4 options; "true-false" exactly 2; "ordering" provide the correct order as the answer array; "free-text" leave answer as a description of what to look for.
 - Quiz question text must be self-contained (no need to reference the concept explanation).

@@ -16,7 +16,7 @@ ${personaInstructions[persona]}
 You will receive ONE concept with an ID, title, and a brief explanation.
 You must:
 1. Expand the explanation to 2-3 paragraphs and provide a concrete, memorable example.
-2. Generate 3-5 quiz questions that test understanding of this concept.
+2. Generate 2-3 quiz questions that test understanding of this concept.
 
 Quiz formats available:
 - "multipleChoice": 4 options, one correct

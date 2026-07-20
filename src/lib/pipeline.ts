@@ -2,7 +2,7 @@ import { SUMMARY_NODE_ID, type LlmProvider, type Persona, type CanvasNode, type 
 import { executePromptTask } from '@/lib/llm/promptTask';
 import { contentTask } from '@/lib/tasks/contentTask';
 import { summaryTask } from '@/lib/tasks/summaryTask';
-import { isLowRpmProvider } from '@/lib/llm/providers';
+import { isLowRpmProvider, getContentModel } from '@/lib/llm/providers';
 import { debugLog } from '@/lib/debug';
 import type { QuizItem } from '@/lib/llm/contentParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
@@ -106,6 +106,7 @@ export async function processOneConcept(
     const content = await executePromptTask(contentTask, {
       apiKey, provider, persona, signal,
       context: { topic },
+      model: getContentModel(provider),
       onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
       onParseRetry: (raw) => console.warn(`[pipeline] ParseError for concept ${concept.id}, retrying. Raw:\n${raw.slice(0, 500)}`),
     }, concept);
@@ -157,7 +158,7 @@ export async function processOneConcept(
       quizY += quizHeights[qi] + GAP_ROW;
     });
 
-    await persist();
+    persist();
     const conceptElapsed = Math.round(performance.now() - conceptStart);
     debugLog('log', 'pipeline', 'concept done id=%s quizzes=%d elapsed=%dms', concept.id, content.quizzes.length, conceptElapsed);
     return currentTailId;
