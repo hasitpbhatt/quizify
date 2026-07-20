@@ -3,6 +3,7 @@ import { useTheme } from './useTheme';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
+import { readNotebookModePreference } from '@/shared/notebookModePreference';
 import { WelcomeModal } from '@/features/welcome/WelcomeModal';
 import { Toolbar } from '@/features/toolbar/Toolbar';
 import { CanvasPage } from '@/features/canvas/CanvasPage';
@@ -62,7 +63,9 @@ export function App() {
     (async () => {
       await loadSessions();
       if (needsRestore) {
+        if (!savedId) return;
         const { select } = useSessionStore.getState();
+        useNotebookStore.getState().setNotebookMode(readNotebookModePreference(savedId));
         await select(savedId);
         if (useSessionStore.getState().currentId) {
           setPage('canvas');
@@ -130,7 +133,7 @@ export function App() {
   const handleCancel = goWelcome;
 
   const handleSelectSession = useCallback((id: string) => {
-    useNotebookStore.getState().setNotebookMode(true);
+    useNotebookStore.getState().setNotebookMode(readNotebookModePreference(id));
     select(id);
     setPage('canvas');
   }, [select]);
