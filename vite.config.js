@@ -1,14 +1,3 @@
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -56,49 +45,6 @@ var __asyncValues = (this && this.__asyncValues) || function (o) {
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
-var OPENCODE_BASE = 'https://opencode.ai/zen/v1/chat/completions';
-var OPENCODE_MODEL = 'deepseek-v4-flash-free';
-var OPENCODE_TOKEN = 'public';
-var OPENCODE_HEADERS = {
-    'User-Agent': 'opencode/1.17.13 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14',
-    'x-opencode-client': 'cli',
-    'x-opencode-project': 'global',
-};
-function opencodeFallback(res, body) {
-    return __awaiter(this, void 0, void 0, function () {
-        var parsed, opencodeResponse, text, _a;
-        return __generator(this, function (_b) {
-            switch (_b.label) {
-                case 0:
-                    _b.trys.push([0, 3, , 4]);
-                    parsed = JSON.parse(body);
-                    parsed.model = OPENCODE_MODEL;
-                    return [4 /*yield*/, fetch(OPENCODE_BASE, {
-                            method: 'POST',
-                            headers: __assign({ 'Content-Type': 'application/json', Authorization: "Bearer ".concat(OPENCODE_TOKEN) }, OPENCODE_HEADERS),
-                            body: JSON.stringify(parsed),
-                        })];
-                case 1:
-                    opencodeResponse = _b.sent();
-                    return [4 /*yield*/, opencodeResponse.text()];
-                case 2:
-                    text = _b.sent();
-                    res.setHeader('Content-Type', 'application/json');
-                    res.setHeader('Access-Control-Allow-Origin', '*');
-                    res.statusCode = opencodeResponse.ok ? opencodeResponse.status : 502;
-                    res.end(text);
-                    return [3 /*break*/, 4];
-                case 3:
-                    _a = _b.sent();
-                    res.statusCode = 502;
-                    res.setHeader('Content-Type', 'application/json');
-                    res.end(JSON.stringify({ error: 'Both Mistral and OpenCode failed' }));
-                    return [3 /*break*/, 4];
-                case 4: return [2 /*return*/];
-            }
-        });
-    });
-}
 var BROWSER_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -171,10 +117,15 @@ function devProxyPlugin() {
                         case 11: return [7 /*endfinally*/];
                         case 12:
                             mistralApiKey = process.env.MISTRAL_API_KEY;
-                            if (!mistralApiKey) return [3 /*break*/, 18];
+                            if (!mistralApiKey) {
+                                res.statusCode = 502;
+                                res.setHeader('Content-Type', 'application/json');
+                                res.end(JSON.stringify({ error: 'Default provider unavailable — set MISTRAL_API_KEY in your .env to use the Default provider in dev.' }));
+                                return [2 /*return*/];
+                            }
                             _f.label = 13;
                         case 13:
-                            _f.trys.push([13, 17, , 18]);
+                            _f.trys.push([13, 16, , 17]);
                             return [4 /*yield*/, fetch('https://api.mistral.ai/v1/chat/completions', {
                                     method: 'POST',
                                     headers: {
@@ -185,7 +136,6 @@ function devProxyPlugin() {
                                 })];
                         case 14:
                             mistralResponse = _f.sent();
-                            if (!mistralResponse.ok) return [3 /*break*/, 16];
                             return [4 /*yield*/, mistralResponse.text()];
                         case 15:
                             text = _f.sent();
@@ -193,18 +143,14 @@ function devProxyPlugin() {
                             res.setHeader('Access-Control-Allow-Origin', '*');
                             res.statusCode = mistralResponse.status;
                             res.end(text);
-                            return [2 /*return*/];
-                        case 16: return [3 /*break*/, 18];
-                        case 17:
+                            return [3 /*break*/, 17];
+                        case 16:
                             _a = _f.sent();
-                            return [3 /*break*/, 18];
-                        case 18: 
-                        // Phase 2: Fallback to OpenCode
-                        return [4 /*yield*/, opencodeFallback(res, body)];
-                        case 19:
-                            // Phase 2: Fallback to OpenCode
-                            _f.sent();
-                            return [2 /*return*/];
+                            res.statusCode = 502;
+                            res.setHeader('Content-Type', 'application/json');
+                            res.end(JSON.stringify({ error: 'Upstream Mistral request failed.' }));
+                            return [3 /*break*/, 17];
+                        case 17: return [2 /*return*/];
                     }
                 });
             }); });

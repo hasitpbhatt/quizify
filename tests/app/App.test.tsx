@@ -28,11 +28,6 @@ vi.mock('@/lib/tasks/outlineTask', () => ({
   outlineTask: mockOutlineTask,
 }));
 
-const mockGetProviderConfig = vi.hoisted(() => vi.fn(() => ({ requiresApiKey: false })));
-vi.mock('@/lib/llm/providers', () => ({
-  getProviderConfig: mockGetProviderConfig,
-}));
-
 const mockRunPipeline = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/pipeline', () => ({
   runPipeline: mockRunPipeline,
@@ -170,11 +165,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   sessionStorageMock.clear();
   useSettingsStore.setState({
-    apiKey: '',
     persona: 'student',
-    provider: 'default',
   });
-  mockGetProviderConfig.mockReturnValue({ requiresApiKey: false });
   mockFetchSourceContent.mockReset();
   mockExecutePromptTask.mockReset();
   mockRunPipeline.mockReset();
@@ -269,22 +261,8 @@ describe('App', () => {
     });
   });
 
-  it('does not start generation when api key is missing for provider that requires it', async () => {
-    mockGetProviderConfig.mockReturnValue({ requiresApiKey: true });
-    useSettingsStore.setState({ apiKey: '', persona: 'student', provider: 'mistral' });
-
-    render(<App />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('generate-btn'));
-    });
-
-    // Should stay on welcome (generate should return early)
-    expect(screen.getByTestId('welcome-modal')).toBeInTheDocument();
-    expect(mockFetchSourceContent).not.toHaveBeenCalled();
-  });
-
   it('does not start generation when persona is missing', async () => {
-    useSettingsStore.setState({ apiKey: '', persona: null as any, provider: 'default' });
+    useSettingsStore.setState({ persona: null as any });
 
     render(<App />);
     await act(async () => {

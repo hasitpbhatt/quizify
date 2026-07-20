@@ -2,7 +2,7 @@ import { truncateByParagraphs } from '@/lib/truncate';
 import { getCachedSource, setCachedSource } from '@/lib/db/sourceCache';
 import { chat } from '@/lib/llm/chat';
 import { debugLog } from '@/lib/debug';
-import type { LlmProvider, Persona } from '@/shared/types';
+import type { Persona } from '@/shared/types';
 
 export interface SourceResult {
   content: string;
@@ -70,10 +70,6 @@ async function raceProxies(url: string): Promise<{ content: string; source: Sour
 
   debugLog('log', 'fetch', 'proxy start url=%s', absolute);
 
-  // Try the server-side proxy exclusively.
-  // In dev: Vite dev middleware at /api/fetch (and /__proxy as fallback).
-  // In prod: Cloudflare Function at /api/fetch.
-  // Server-to-server requests have no CORS restrictions.
   if (import.meta.env.DEV) {
     try {
       const res = await fetchViaViteProxy(absolute);
@@ -105,21 +101,21 @@ async function raceProxies(url: string): Promise<{ content: string; source: Sour
   return null;
 }
 
-async function callLlm(prompt: string, apiKey: string, provider?: LlmProvider): Promise<string> {
+async function callLlm(prompt: string): Promise<string> {
   const response = await chat(
     [{ role: 'user', content: prompt }],
-    { apiKey, provider, maxTokens: 4000, temperature: 0.3 },
+    { maxTokens: 4000, temperature: 0.3 },
   );
   return response.content;
 }
 
-async function fetchSubjectFromLlm(subject: string, apiKey: string, provider?: LlmProvider): Promise<string> {
+async function fetchSubjectFromLlm(subject: string): Promise<string> {
   const prompt =
     `You are a research assistant. The user wants to learn about "${subject}". ` +
     `Produce a detailed educational overview covering: key definitions, core concepts, ` +
     `important examples, common pitfalls, and real-world applications. ` +
     `Output only the content, no disclaimers. Format in clear paragraphs with section headers.`;
-  return callLlm(prompt, apiKey, provider);
+  return callLlm(prompt);
 }
 
 function extractSubjectFromUrl(input: string): string {
@@ -138,7 +134,7 @@ function extractSubjectFromUrl(input: string): string {
 
 export async function fetchSourceContent(
   input: string,
-  opts: { apiKey: string; persona: Persona; provider?: LlmProvider; signal?: AbortSignal }
+  opts: { persona: Persona; signal?: AbortSignal }
 ): Promise<SourceResult> {
   const cached = await getCachedSource(input);
   if (cached) {
@@ -160,15 +156,12 @@ export async function fetchSourceContent(
     }
   }
 
-  // Fallback: proxy failed or input was not a URL — generate from LLM knowledge.
-  // For URLs we extract a clean subject from the path (e.g. "/wiki/Photosynthesis" → "Photosynthesis")
-  // so the LLM generates quality educational content from scratch rather than trying to browse the URL.
   if (!content) {
     if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const subject = isLikelyUrl(input) ? extractSubjectFromUrl(input) : input;
     debugLog('warn', 'fetch', 'LLM subject_fallback subject=%s', subject.slice(0, 100));
     try {
-      content = await fetchSubjectFromLlm(subject, opts.apiKey, opts.provider);
+      content = await fetchSubjectFromLlm(subject);
       source = 'llm';
     } catch (err) {
       throw new Error(

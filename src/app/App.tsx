@@ -12,7 +12,6 @@ import { Toaster } from './Toaster';
 import { fetchSourceContent } from '@/lib/fetchSourceContent';
 import { executePromptTask } from '@/lib/llm/promptTask';
 import { outlineTask } from '@/lib/tasks/outlineTask';
-import { getProviderConfig } from '@/lib/llm/providers';
 import { runPipeline, type PipelineStep } from '@/lib/pipeline';
 import { useToastStore } from '@/shared/stores/toastStore';
 import { isDebugMode } from '@/lib/debug';
@@ -41,7 +40,7 @@ function extractHostname(url: string): string {
 export function App() {
   useTheme();
   const [page, setPage] = useState<'welcome' | 'progress' | 'canvas'>('welcome');
-  const [progress, setProgress] = useState<JourneyProgress>({ stage: 'fetch', label: 'Reading the source…' });
+  const [progress, setProgress] = useState<JourneyProgress>({ stage: 'fetch', label: 'Reading the source\u2026' });
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const reachedCanvasRef = useRef(false);
@@ -100,6 +99,17 @@ export function App() {
     return () => document.removeEventListener('visibilitychange', handler);
   }, [loadSessions]);
 
+  // Warn before tab close/reload when viewing canvas
+  useEffect(() => {
+    if (page !== 'canvas') return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [page]);
+
   // Abort in-flight pipeline on unmount (navigating away mid-generation)
   useEffect(() => {
     return () => {
@@ -111,7 +121,7 @@ export function App() {
   const goWelcome = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
-    setProgress({ stage: 'fetch', label: 'Reading the source…' });
+    setProgress({ stage: 'fetch', label: 'Reading the source\u2026' });
     setError(null);
     setPreviewData(null);
     setPage('welcome');
@@ -126,9 +136,8 @@ export function App() {
   }, [select]);
 
   const handleGenerate = useCallback(async (url: string) => {
-    const { apiKey, persona, provider } = useSettingsStore.getState();
-    const cfg = getProviderConfig(provider);
-    if ((cfg.requiresApiKey && !apiKey) || !persona) return;
+    const { persona } = useSettingsStore.getState();
+    if (!persona) return;
 
     const abortController = new AbortController();
     abortRef.current = abortController;
@@ -145,7 +154,7 @@ export function App() {
       // Stage 1 — fetch the source
       latency.startStage('fetch', 'Reading the source\u2026');
       setProgress({ stage: 'fetch', label: 'Reading the source\u2026' });
-      const src = await fetchSourceContent(url, { apiKey, persona, provider, signal: abortController.signal });
+      const src = await fetchSourceContent(url, { persona, signal: abortController.signal });
       latency.endStage('fetch');
 
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -154,7 +163,6 @@ export function App() {
       const isTest = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
       if (!isTest) {
         await new Promise<void>((resolve, reject) => {
-          // Try to find a markdown header (# title) or fallback to hostname
           let title = '';
           const lines = src.content.split('\n');
           for (const line of lines) {
@@ -168,7 +176,6 @@ export function App() {
             title = extractHostname(src.url);
           }
 
-          // Clean common markdown markup for snippet display
           let cleanText = src.content
             .replace(/[#*`_]/g, '')
             .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
@@ -198,7 +205,7 @@ export function App() {
       latency.startStage('outline', 'Sketching an outline\u2026');
       setProgress({ stage: 'outline', label: 'Sketching an outline\u2026' });
       const outline = await executePromptTask(outlineTask, {
-        apiKey, provider, persona, signal: abortController.signal,
+        persona, signal: abortController.signal,
         context: { url },
         onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
       }, src.content);
@@ -221,8 +228,6 @@ export function App() {
         outline.title,
         outline.concepts.map(c => ({ id: c.id, title: c.title, explanation: c.explanation })),
         persona,
-        apiKey,
-        provider,
         src.url,
         (p) => {
           setProgress({ stage: p.step, label: p.label });
@@ -249,7 +254,6 @@ export function App() {
       console.error('[app] generate failed:', err);
       const msg = err instanceof Error ? err.message : 'Something went wrong.';
       setError(msg);
-      // Non-destructive recovery: if transitioned to canvas, stay on canvas to keep partial nodes
       if (reachedCanvasRef.current) {
         useToastStore.getState().add(`Generation paused: ${msg}`);
       } else {

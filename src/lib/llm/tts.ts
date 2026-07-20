@@ -1,32 +1,18 @@
-import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { debugLog } from '@/lib/debug';
 
 const TTS_FETCH_TIMEOUT_MS = 10000;
 
 export async function fetchTtsBlob(text: string): Promise<Blob | null> {
-  const { apiKey, provider } = useSettingsStore.getState();
-  
-  if (!apiKey || provider !== 'mistral') {
-    debugLog('log', 'tts', 'Mistral TTS unavailable provider=%s has_key=%s → browser fallback', provider, !!apiKey);
-    return null; // Will fallback to browser TTS
-  }
-
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), TTS_FETCH_TIMEOUT_MS);
 
     debugLog('log', 'tts', 'Mistral TTS request text_len=%d', text.length);
 
-    const res = await fetch('https://api.mistral.ai/v1/audio/speech', {
+    const res = await fetch('/api/tts', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + apiKey,
-      },
-      body: JSON.stringify({
-        model: 'voxtral-mini-tts-2603',
-        input: text,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
       signal: controller.signal,
     });
 

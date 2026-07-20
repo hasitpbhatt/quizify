@@ -1,9 +1,7 @@
 import { useState, useCallback } from 'react';
 import { executePromptTask } from '@/lib/llm/promptTask';
 import { gradeTask } from '@/lib/tasks/gradeTask';
-import { getGradingModel } from '@/lib/llm/providers';
 import { useSessionStore } from '@/shared/stores/sessionStore';
-import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useToastStore } from '@/shared/stores/toastStore';
 import { debugLog } from '@/lib/debug';
 import * as sessionsDb from '@/lib/db/sessionsDb';
@@ -73,8 +71,7 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
   const [error, setError] = useState<string | null>(null);
   const [retryInfo, setRetryInfo] = useState<{ attempt: number; maxRetries: number } | null>(null);
 
-  const submit = useCallback(async (given: string | string[], apiKey: string) => {
-    const { provider } = useSettingsStore.getState();
+  const submit = useCallback(async (given: string | string[]) => {
     setSubmitting(true);
     setError(null);
     setRetryInfo(null);
@@ -82,12 +79,11 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
       let result: SubmitResult;
 
       if (quiz.format === 'shortAnswer' || quiz.format === 'freeText') {
-        debugLog('log', 'grade', 'LLM grade start format=%s model=%s quiz_id=%s', quiz.format, getGradingModel(provider), quizId);
+        debugLog('log', 'grade', 'LLM grade start format=%s quiz_id=%s', quiz.format, quizId);
         try {
           result = await executePromptTask(gradeTask, {
-            apiKey, provider, persona: 'curious', signal: undefined,
+            persona: 'curious', signal: undefined,
             context: { conceptTitle: quiz.parentConceptId },
-            model: getGradingModel(provider),
             onRetry: (info) => {
               setRetryInfo({ attempt: info.attempt, maxRetries: info.maxRetries });
               useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`);

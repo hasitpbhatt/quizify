@@ -475,8 +475,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   // Disable via either:
   //   URL:   append ?nbFit=0 to the page URL
   //   Store: localStorage.setItem('nbFit', '0') from devtools
-  // The 500ms poll catches same-tab localStorage writes (the storage event
-  // only fires in other tabs).
   useEffect(() => {
     const readFlag = () => {
       const url = new URLSearchParams(window.location.search);
@@ -486,10 +484,8 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     };
     readFlag();
     window.addEventListener('storage', readFlag);
-    const poll = window.setInterval(readFlag, 500);
     return () => {
       window.removeEventListener('storage', readFlag);
-      window.clearInterval(poll);
     };
   }, []);
 
@@ -577,12 +573,20 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   }, [immersiveNotebook, session, concepts, focusOnActiveConcept]);
 
   // Migration: sessionStorage summary quiz results → Session.scores (IndexedDB)
+  const scoreMigratedRef = useRef(false);
   useEffect(() => {
     if (!session) return;
-    if (Object.keys(session.scores).length > 0) return;
+    if (scoreMigratedRef.current) return;
+    if (Object.keys(session.scores).length > 0) {
+      scoreMigratedRef.current = true;
+      return;
+    }
 
     const saved = sessionStorage.getItem(`summary-quiz-${session.id}`);
-    if (!saved) return;
+    if (!saved) {
+      scoreMigratedRef.current = true;
+      return;
+    }
 
     try {
       const parsed = JSON.parse(saved) as boolean[];
@@ -592,8 +596,9 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       });
       sessionStorage.removeItem(`summary-quiz-${session.id}`);
       updateCurrent({ scores });
+      scoreMigratedRef.current = true;
     } catch {
-      // ignore bad data
+      scoreMigratedRef.current = true;
     }
   }, [session, updateCurrent]);
 
@@ -673,7 +678,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
           <MiniMap
             nodeColor="var(--accent)"
             maskColor="rgba(0,0,0,0.1)"
-            style={{ background: 'var(--bg-elevated)' }}
+            style={{ background: 'var(--bg-elevated)', pointerEvents: 'none' }}
           />
         )}
       </ReactFlow>

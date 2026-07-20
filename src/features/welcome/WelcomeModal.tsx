@@ -1,11 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Sparkles, GraduationCap, Briefcase, Microscope, Eye, EyeOff, ArrowRight, ChevronDown, Key, Cpu, Globe, X, Clock } from 'lucide-react';
+import { Sparkles, GraduationCap, Briefcase, Microscope, ArrowRight, Globe, X, Clock } from 'lucide-react';
 import { PersonaCard } from './PersonaCard';
 import { useWelcomeState, EXAMPLE_CHIPS } from './useWelcomeState';
-import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useSessionStore } from '@/shared/stores/sessionStore';
-import { PROVIDERS } from '@/lib/llm/providers';
-import type { LlmProvider, Persona, Session } from '@/shared/types';
+import type { Persona, Session } from '@/shared/types';
 import styles from './WelcomeModal.module.css';
 
 const PERSONA_ICONS: Record<string, typeof Sparkles> = {
@@ -43,11 +41,8 @@ const PERSONAS: { value: Persona; label: string; sublabel: string; description: 
 ];
 
 export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSelectSession }: WelcomeModalProps) {
-  const { url, persona, provider, setUrl, setApiKey, setPersona, setProvider, submitEnabled, submitDisabledReason } = useWelcomeState();
-  const { apiKey } = useSettingsStore();
+  const { url, persona, setUrl, setPersona, submitEnabled, submitDisabledReason } = useWelcomeState();
   const { remove: removeSession } = useSessionStore();
-  const [showKey, setShowKey] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [exampleUrl, setExampleUrl] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -163,6 +158,9 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
               <ArrowRight size={16} />
             </button>
           </div>
+          {persona && submitDisabledReason && (
+            <p className={styles.generateHint}>{submitDisabledReason}</p>
+          )}
           <div className={styles.chips}>
             {EXAMPLE_CHIPS.map((chip) => (
               <button
@@ -196,7 +194,7 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
           <p className={styles.personaHint}>
             {persona
               ? `Depth & quiz difficulty tuned to the ${PERSONAS.find(p => p.value === persona)?.label.toLowerCase()} in you.`
-              : 'We’ll match the depth and quiz style to your pick.'}
+              : 'We\u2019ll match the depth and quiz style to your pick.'}
           </p>
         </section>
 
@@ -224,7 +222,7 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
               </div>
             </div>
             <div className={styles.sessionList}>
-            {filteredSessions.map((s) => {
+            {filteredSessions.map((s, idx) => {
                 const Icon = PERSONA_ICONS[s.persona] ?? Sparkles;
                 const nodesList = s.nodes || [];
                 const conceptCount = nodesList.filter(n => n.data?.kind === 'concept').length;
@@ -234,6 +232,9 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
                 const masteryPct = quizNodes.length > 0 ? Math.round((masteredQuizzes.length / quizNodes.length) * 100) : null;
                   return (
                     <div key={s.id} className={styles.sessionCard} onClick={() => { onSelectSession(s.id); setConfirmingDelete(null); }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectSession(s.id); } }}>
+                      {idx === 0 && sortBy === 'recent' && !searchQuery && (
+                        <span className={styles.resumeBadge}>Resume</span>
+                      )}
                       <Icon size={16} />
                       <div className={styles.sessionInfo}>
                         <span className={styles.sessionName}>{s.name}</span>
@@ -264,81 +265,6 @@ export function WelcomeModal({ onGenerate, error, onClearError, sessions, onSele
             </div>
           </section>
         )}
-
-        <section className={styles.settingsSection}>
-          <button
-            className={styles.settingsToggle}
-            onClick={() => setShowSettings(v => !v)}
-            aria-expanded={showSettings}
-            type="button"
-          >
-            <span className={styles.settingsToggleLead}>
-              <Key size={14} />
-              <span>API keys</span>
-            </span>
-            <span className={styles.settingsToggleTrail}>
-              {apiKey.length > 0 ? (
-                <span className={styles.badgeOk}>Set</span>
-              ) : (
-                <span className={styles.badgeWarn}>Required</span>
-              )}
-              <ChevronDown size={14} className={showSettings ? styles.chevronOpen : ''} />
-            </span>
-          </button>
-
-          {showSettings && (
-            <div className={styles.settingsPanel}>
-              <div className={styles.field}>
-                <label className={styles.fieldLabel}>AI Provider</label>
-                <div className={styles.providerRow}>
-                  {(Object.values(PROVIDERS) as Array<typeof PROVIDERS[LlmProvider]>).map((p) => (
-                    <button
-                      key={p.name}
-                      className={`${styles.providerBtn} ${provider === p.name ? styles.providerBtnActive : ''}`}
-                      onClick={() => setProvider(p.name)}
-                      type="button"
-                    >
-                      {p.name === 'default' ? <Globe size={14} /> : p.name === 'nvidia' ? <Cpu size={14} /> : <Sparkles size={14} />}
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {PROVIDERS[provider].requiresApiKey ? (
-                <div className={styles.field}>
-                  <label className={styles.fieldLabel} htmlFor="provider-api-key">{PROVIDERS[provider].apiKeyLabel}</label>
-                  <div className={styles.inputWrapper}>
-                    <input
-                      id="provider-api-key"
-                      className={styles.monoInput}
-                      type={showKey ? 'text' : 'password'}
-                      placeholder={PROVIDERS[provider].apiKeyPlaceholder}
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                    <button
-                      className={styles.toggleBtn}
-                      onClick={() => setShowKey((v) => !v)}
-                      aria-label={showKey ? 'Hide key' : 'Show key'}
-                      type="button"
-                    >
-                      {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  <p className={styles.fieldHint}>
-                    Stored only on this device. Get a free key from{' '}
-                    <a className={styles.mutedLink} href={PROVIDERS[provider].signupUrl} target="_blank" rel="noopener noreferrer">{PROVIDERS[provider].signupUrl.replace(/^https?:\/\//, '')}</a>.
-                  </p>
-                </div>
-              ) : (
-                <p className={styles.fieldHint}>{PROVIDERS[provider].apiKeyHint}</p>
-              )}
-            </div>
-          )}
-        </section>
       </main>
 
       {confirmingDelete && (() => {

@@ -1,7 +1,7 @@
 import { chat, type ChatOptions, type RetryInfo } from './chat';
 import { ParseError } from './errors';
 import { debugLog } from '@/lib/debug';
-import type { Persona, LlmProvider, ChatMessage } from '@/shared/types';
+import type { Persona, ChatMessage } from '@/shared/types';
 
 export interface PromptTask<T> {
   id: string;
@@ -15,8 +15,6 @@ export interface PromptTask<T> {
 }
 
 export interface TaskOptions {
-  apiKey: string;
-  provider: LlmProvider;
   persona: Persona;
   signal?: AbortSignal;
   onRetry?: (info: RetryInfo) => void;
@@ -36,8 +34,6 @@ export async function executePromptTask<T>(
   ];
 
   const chatOpts: ChatOptions = {
-    apiKey: opts.apiKey,
-    provider: opts.provider,
     responseFormat: task.responseFormat,
     signal: opts.signal,
     onRetry: opts.onRetry,

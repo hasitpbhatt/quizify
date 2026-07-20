@@ -1,11 +1,9 @@
 import { AuthError, RateLimitError, NetworkError } from './errors';
-import { getProviderConfig, getApiBase } from './providers';
-import { acquireToken } from './rateLimiter';
+import { getDefaultModel, getFallbackModel, getApiBase } from './providers';
 import { sleep } from './sleep';
-import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { countCall } from '@/lib/perf';
 import { debugLog } from '@/lib/debug';
-import type { ChatMessage, LlmProvider } from '@/shared/types';
+import type { ChatMessage } from '@/shared/types';
 
 export interface RetryInfo {
   attempt: number;
@@ -17,8 +15,6 @@ export interface RetryInfo {
 
 export interface ChatOptions {
   model?: string;
-  apiKey: string;
-  provider?: LlmProvider;
   temperature?: number;
   responseFormat?: 'json';
   signal?: AbortSignal;
@@ -35,12 +31,6 @@ export interface ChatResponse {
   usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
 }
 
-interface EndpointEntry {
-  apiBase: string;
-  label: string;
-  models: string[];
-}
-
 const DEFAULT_MAX_RETRIES = 3;
 const BASE_DELAY = 1500;
 const TIMEOUT_MS = 60_000;
@@ -48,24 +38,27 @@ const MAX_CALL_DEADLINE_MS = 90_000;
 
 async function tryEndpoint(
   messages: ChatMessage[],
-  entry: EndpointEntry,
   opts: {
-    apiKey: string;
     responseFormat?: 'json';
     userSignal?: AbortSignal;
     maxTokens: number;
     temperature: number;
+    model?: string;
     onRetry?: (info: RetryInfo) => void;
     onToken?: (delta: string) => void;
     maxRetries: number;
     startTime: number;
-    provider: LlmProvider;
     timeoutMs: number;
   },
 ): Promise<ChatResponse | null> {
-  const { apiKey, userSignal, responseFormat, maxTokens, onRetry, onToken, maxRetries, startTime, provider, timeoutMs } = opts;
+  const { userSignal, responseFormat, maxTokens, model: userModel, onRetry, onToken, maxRetries, startTime, timeoutMs } = opts;
+  const apiBase = getApiBase();
+  const models = userModel
+    ? [userModel]
+    : [getDefaultModel(), getFallbackModel()].filter((m, i, arr) => m && arr.indexOf(m) === i);
+  const label = 'Mistral';
 
-  for (const model of entry.models) {
+  for (const model of models) {
     const body: Record<string, unknown> = {
       model,
       messages,
@@ -82,11 +75,9 @@ async function tryEndpoint(
     while (attempt <= maxRetries) {
       const elapsed = Date.now() - startTime;
       const remaining = MAX_CALL_DEADLINE_MS - elapsed;
-      if (remaining <= 0) throw new NetworkError(`Total deadline exceeded for ${entry.label}`);
+      if (remaining <= 0) throw new NetworkError(`Total deadline exceeded for ${label}`);
 
       try {
-        await acquireToken(provider);
-
         const perAttemptMs = Math.min(timeoutMs, remaining);
         const ac = new AbortController();
         const signal = anySignal(userSignal, AbortSignal.timeout(perAttemptMs), ac.signal);
@@ -94,18 +85,15 @@ async function tryEndpoint(
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
         };
-        if (apiKey) {
-          headers.Authorization = `Bearer ${apiKey}`;
-        }
 
         if (onToken) {
           body.stream = true;
         }
 
         countCall();
-        debugLog('log', 'llm', 'POST %s model=%s format=%s attempt=%d/%d', entry.label, model, responseFormat ?? 'text', attempt, maxRetries);
+        debugLog('log', 'llm', 'POST %s model=%s format=%s attempt=%d/%d', label, model, responseFormat ?? 'text', attempt, maxRetries);
 
-        const res = await fetch(entry.apiBase, {
+        const res = await fetch(apiBase, {
           method: 'POST',
           headers,
           body: JSON.stringify(body),
@@ -116,8 +104,8 @@ async function tryEndpoint(
 
         if (res.status === 429 || res.status >= 500) {
           if (attempt >= maxRetries) {
-            if (model === entry.models[entry.models.length - 1]) {
-              throw res.status === 429 ? new RateLimitError() : new NetworkError(`${entry.label} returned ${res.status}`);
+            if (model === models[models.length - 1]) {
+              throw res.status === 429 ? new RateLimitError() : new NetworkError(`${label} returned ${res.status}`);
             }
             break;
           }
@@ -139,7 +127,7 @@ async function tryEndpoint(
         }
 
         if (!res.ok) {
-          if (model === entry.models[entry.models.length - 1]) throw new NetworkError(`${entry.label} returned ${res.status}`);
+          if (model === models[models.length - 1]) throw new NetworkError(`${label} returned ${res.status}`);
           break;
         }
 
@@ -176,7 +164,7 @@ async function tryEndpoint(
         if (err instanceof DOMException && err.name === 'AbortError') { debugLog('warn', 'llm', 'chat abort model=%s', model); throw err; }
 
         if (attempt >= maxRetries) {
-          if (model === entry.models[entry.models.length - 1]) {
+          if (model === models[models.length - 1]) {
             return null;
           }
           break;
@@ -240,36 +228,19 @@ async function readStream(res: Response, onToken: (delta: string) => void): Prom
 }
 
 export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<ChatResponse> {
-  const { apiKey, signal: userSignal, responseFormat, maxTokens = 4096, timeoutMs = TIMEOUT_MS } = opts;
-  const provider = opts.provider ?? useSettingsStore.getState().provider ?? 'mistral';
-  const cfg = getProviderConfig(provider);
-  const model = opts.model ?? cfg.defaultModel;
+  const { signal: userSignal, responseFormat, maxTokens = 4096, timeoutMs = TIMEOUT_MS } = opts;
+  const model = opts.model ?? getDefaultModel();
   const temperature = opts.temperature ?? 0.3;
-  const apiBase = getApiBase(provider);
   const maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
   const startTime = Date.now();
 
-  const shared = { apiKey, userSignal, responseFormat, maxTokens, temperature, onRetry: opts.onRetry, onToken: opts.onToken, maxRetries, startTime, provider, timeoutMs };
-
-  const modelsToTry = model === cfg.defaultModel
-    ? [cfg.defaultModel, cfg.fallbackModel].filter((m, i, arr) => m && arr.indexOf(m) === i)
-    : [model];
-
-  const entries: EndpointEntry[] = [
-    {
-      apiBase,
-      label: cfg.label,
-      models: modelsToTry,
-    },
-  ];
+  const shared = { userSignal, responseFormat, maxTokens, temperature, model, onRetry: opts.onRetry, onToken: opts.onToken, maxRetries, startTime, timeoutMs };
 
   const msgChars = messages.reduce((s, m) => s + (m.content?.length ?? 0), 0);
-  debugLog('log', 'llm', 'chat start provider=%s model=%s msgs=%d chars=%d', cfg.label, model, messages.length, msgChars);
+  debugLog('log', 'llm', 'chat start model=%s msgs=%d chars=%d', model, messages.length, msgChars);
 
-  for (const entry of entries) {
-    const result = await tryEndpoint(messages, entry, shared);
-    if (result !== null) return result;
-  }
+  const result = await tryEndpoint(messages, shared);
+  if (result !== null) return result;
 
   throw new NetworkError('All endpoints exhausted');
 }

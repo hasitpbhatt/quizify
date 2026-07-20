@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Persona, LlmProvider, ChatMessage } from '@/shared/types';
+import type { Persona, ChatMessage } from '@/shared/types';
 
 const mockChat = vi.hoisted(() => vi.fn<(...args: unknown[]) => Promise<{ content: string }>>());
 vi.mock('@/lib/llm/chat', () => ({
@@ -25,8 +25,6 @@ function makeTask(overrides?: Partial<PromptTask<TestResult>>): PromptTask<TestR
 
 function makeOpts(overrides?: Partial<TaskOptions>): TaskOptions {
   return {
-    apiKey: 'test-key',
-    provider: 'mistral' as LlmProvider,
     persona: 'student' as Persona,
     ...overrides,
   };
@@ -45,10 +43,9 @@ describe('executePromptTask', () => {
 
     expect(result).toEqual({ name: 'Alice', value: 42 });
     expect(mockChat).toHaveBeenCalledOnce();
-    const [messages, opts] = mockChat.mock.calls[0] as [ChatMessage[], Record<string, unknown>];
+    const [messages] = mockChat.mock.calls[0] as [ChatMessage[], Record<string, unknown>];
     expect(messages[0]).toMatchObject({ role: 'system', content: 'You are a student assistant.' });
     expect(messages[1]).toMatchObject({ role: 'user', content: 'Process: {"topic":"math"}' });
-    expect(opts).toMatchObject({ apiKey: 'test-key', provider: 'mistral' });
   });
 
   it('passes model option to chat', async () => {

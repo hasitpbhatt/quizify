@@ -522,6 +522,25 @@
 
 .errorDismiss:hover { background: rgba(224, 49, 49, 0.20); }
 
+.generateHint {
+  margin: var(--space-1) 0 0;
+  font-size: var(--fs-caption);
+  color: var(--text-tertiary);
+  line-height: var(--lh-normal);
+  text-align: center;
+}
+
+.resumeBadge {
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-caption);
+  color: var(--accent);
+  background: var(--accent-subtle);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .modal, .settingsPanel { animation: none; }
   .generateBtn:hover { transform: none; }

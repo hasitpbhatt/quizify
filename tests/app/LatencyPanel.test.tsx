@@ -2,7 +2,6 @@ import { it, expect, beforeEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { LatencyPanel } from '@/app/LatencyPanel';
 import { useLatencyStore } from '@/shared/stores/latencyStore';
-import { useSettingsStore } from '@/shared/stores/settingsStore';
 
 beforeEach(() => {
   useLatencyStore.setState({
@@ -12,7 +11,6 @@ beforeEach(() => {
     visible: false,
     overallStart: null,
   });
-  useSettingsStore.setState({ provider: 'default' });
 });
 
 it('returns null when visible is false', () => {

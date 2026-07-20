@@ -34,7 +34,7 @@ import {
   runPipeline,
   type ConceptInfo,
 } from '@/lib/pipeline';
-import type { LlmProvider, Persona } from '@/shared/types';
+import type { Persona } from '@/shared/types';
 
 beforeEach(() => {
   resetCounter();
@@ -251,8 +251,6 @@ describe('runWithConcurrency', () => {
 describe('processOneConcept', () => {
   const concept = { id: 'c1', title: 'Test Concept', explanation: 'Initial explanation' };
   const topic = 'Test Topic';
-  const apiKey = 'key';
-  const provider: LlmProvider = 'default';
   const persona: Persona = 'curious';
 
   function setup(existingNodes: CanvasNode[] = []): {
@@ -280,7 +278,7 @@ describe('processOneConcept', () => {
     }));
 
     const { nodes, edges, generated, persist, notify } = setup();
-    const tail = await processOneConcept(nodes, edges, generated, concept, 0, topic, apiKey, provider, persona, undefined, persist, notify);
+    const tail = await processOneConcept(nodes, edges, generated, concept, 0, topic, persona, undefined, persist, notify);
 
     expect(tail).toBe('c1-quiz-1');
     expect(generated).toEqual([{ id: 'c1', title: 'Test Concept', explanation: 'Deep explanation', example: 'Great example' }]);
@@ -305,7 +303,7 @@ describe('processOneConcept', () => {
     const signal = AbortSignal.abort();
 
     await expect(
-      processOneConcept(nodes, edges, generated, concept, 0, topic, apiKey, provider, persona, signal, persist, notify),
+      processOneConcept(nodes, edges, generated, concept, 0, topic, persona, signal, persist, notify),
     ).rejects.toThrow('Aborted');
   });
 
@@ -313,7 +311,7 @@ describe('processOneConcept', () => {
     mockExecute.mockRejectedValueOnce(new Error('API error'));
 
     const { nodes, edges, generated, persist, notify } = setup();
-    const tail = await processOneConcept(nodes, edges, generated, concept, 0, topic, apiKey, provider, persona, undefined, persist, notify);
+    const tail = await processOneConcept(nodes, edges, generated, concept, 0, topic, persona, undefined, persist, notify);
 
     expect(tail).toBeNull();
     expect(persist).not.toHaveBeenCalled();
@@ -343,7 +341,7 @@ describe('runContentPhase', () => {
       quizzes: [makeQuizItem({ format: 'multipleChoice', prompt: 'Q?' })],
     }));
 
-    await runContentPhase(nodes, edges, generated, tails, concepts, 'Topic', 'key', 'default' as LlmProvider, 'curious' as Persona, undefined, persist, notify);
+    await runContentPhase(nodes, edges, generated, tails, concepts, 'Topic', 'curious' as Persona, undefined, persist, notify);
 
     expect(generated).toHaveLength(2);
     expect(tails).toEqual(['c1-quiz-0', 'c2-quiz-0']);
@@ -369,7 +367,7 @@ describe('pushSummary', () => {
     const persist = vi.fn().mockResolvedValue(undefined);
     const notify = vi.fn();
 
-    await pushSummary(nodes, edges, generated, tails, 1, 'Topic', 'key', 'default' as LlmProvider, 'curious' as Persona, undefined, persist, notify);
+    await pushSummary(nodes, edges, generated, tails, 1, 'Topic', 'curious' as Persona, undefined, persist, notify);
 
     expect(nodes).toHaveLength(1);
     expect(nodes[0].id).toBe('__summary__');
@@ -394,7 +392,7 @@ describe('pushSummary', () => {
     const persist = vi.fn().mockResolvedValue(undefined);
     const notify = vi.fn();
 
-    await pushSummary(nodes, edges, [], [], 0, 'Topic', 'key', 'default' as LlmProvider, 'curious' as Persona, undefined, persist, notify);
+    await pushSummary(nodes, edges, [], [], 0, 'Topic', 'curious' as Persona, undefined, persist, notify);
 
     expect(nodes).toHaveLength(0);
     expect(persist).not.toHaveBeenCalled();
@@ -411,7 +409,7 @@ describe('pushSummary', () => {
     const notify = vi.fn();
 
     await expect(
-      pushSummary(nodes, edges, generated, tails, 1, 'Topic', 'key', 'default' as LlmProvider, 'curious' as Persona, undefined, persist, notify),
+      pushSummary(nodes, edges, generated, tails, 1, 'Topic', 'curious' as Persona, undefined, persist, notify),
     ).resolves.toBeUndefined();
 
     expect(nodes).toHaveLength(0);
@@ -447,7 +445,7 @@ describe('runPipeline', () => {
       }));
 
     const onProgress = vi.fn();
-    const result = await runPipeline('Test Title', concepts, 'curious' as Persona, 'key', 'default' as LlmProvider, 'https://example.com', onProgress);
+    const result = await runPipeline('Test Title', concepts, 'curious' as Persona, 'https://example.com', onProgress);
 
     expect(result.nodes.length).toBeGreaterThan(0);
     expect(result.edges.length).toBeGreaterThan(0);
@@ -476,7 +474,7 @@ describe('runPipeline', () => {
       .mockResolvedValueOnce(contentFor('Two'))
       .mockRejectedValueOnce(new Error('Summary fail'));
 
-    const result = await runPipeline('Test', concepts, 'curious' as Persona, 'key', 'default' as LlmProvider);
+    const result = await runPipeline('Test', concepts, 'curious' as Persona);
 
     expect(result.nodes.some(n => n.type === 'summary')).toBe(false);
   });

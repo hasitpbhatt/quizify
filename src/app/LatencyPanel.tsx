@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useLatencyStore } from '@/shared/stores/latencyStore';
 import { useIsMobile } from '@/shared/useMediaQuery';
-import { isLowRpmProvider } from '@/lib/llm/providers';
-import { useSettingsStore } from '@/shared/stores/settingsStore';
 import styles from './LatencyPanel.module.css';
 
 function subscribe(cb: () => void) {
@@ -18,7 +16,6 @@ export function LatencyPanel() {
   const [now, setNow] = useState(performance.now());
   const rafRef = useRef<number>(0);
   const store = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  const provider = useSettingsStore((s) => s.provider);
 
   useEffect(() => {
     let running = true;
@@ -90,11 +87,7 @@ export function LatencyPanel() {
             ))}
           </div>
 
-          {isLowRpmProvider(provider) && (
-            <div className={styles.note}>
-              Low-RPM provider — summary skipped
-            </div>
-          )}
+
         </>
       )}
     </div>

@@ -1,99 +1,49 @@
-import { PROVIDERS, getProviderConfig, getGradingModel, getApiBase } from '@/lib/llm/providers';
-import { useSettingsStore } from '@/shared/stores/settingsStore';
+import { PROVIDER, getGradingModel, getApiBase, getDefaultModel, getFallbackModel, getContentModel } from '@/lib/llm/providers';
 
-beforeEach(() => {
-  useSettingsStore.setState({ provider: 'mistral' });
-});
-
-describe('PROVIDERS config', () => {
-  it('has exactly 3 providers', () => {
-    expect(Object.keys(PROVIDERS)).toHaveLength(3);
+describe('PROVIDER config', () => {
+  it('apiBase is /api/chat', () => {
+    expect(PROVIDER.apiBase).toBe('/api/chat');
   });
 
-  it('lists default, mistral, and nvidia', () => {
-    expect(PROVIDERS).toHaveProperty('default');
-    expect(PROVIDERS).toHaveProperty('mistral');
-    expect(PROVIDERS).toHaveProperty('nvidia');
+  it('defaultModel is mistral-large-latest', () => {
+    expect(PROVIDER.defaultModel).toBe('mistral-large-latest');
   });
 
-  describe('default provider', () => {
-    const cfg = PROVIDERS.default;
-    it('has requiresApiKey: false', () => {
-      expect(cfg.requiresApiKey).toBe(false);
-    });
-    it('uses /api/chat as the API base (Quizify-managed Mistral proxy)', () => {
-      expect(cfg.apiBase).toBe('/api/chat');
-    });
-    it('uses mistral-large-latest as the default model', () => {
-      expect(cfg.defaultModel).toBe('mistral-large-latest');
-    });
-    it('uses mistral-medium-latest as the fallback model', () => {
-      expect(cfg.fallbackModel).toBe('mistral-medium-latest');
-    });
-    it('uses mistral-small-latest as the grading model', () => {
-      expect(cfg.gradingModel).toBe('mistral-small-latest');
-    });
+  it('fallbackModel is mistral-medium-latest', () => {
+    expect(PROVIDER.fallbackModel).toBe('mistral-medium-latest');
   });
 
-  describe('mistral provider', () => {
-    const cfg = PROVIDERS.mistral;
-    it('has requiresApiKey: true', () => {
-      expect(cfg.requiresApiKey).toBe(true);
-    });
-    it('uses Mistral API base', () => {
-      expect(cfg.apiBase).toBe('https://api.mistral.ai/v1/chat/completions');
-    });
+  it('gradingModel is mistral-small-latest', () => {
+    expect(PROVIDER.gradingModel).toBe('mistral-small-latest');
   });
 
-  describe('nvidia provider', () => {
-    const cfg = PROVIDERS.nvidia;
-    it('has requiresApiKey: true', () => {
-      expect(cfg.requiresApiKey).toBe(true);
-    });
-    it('uses NVIDIA API base', () => {
-      expect(cfg.apiBase).toBe('https://integrate.api.nvidia.com/v1/chat/completions');
-    });
+  it('contentModel is mistral-medium-2508', () => {
+    expect(PROVIDER.contentModel).toBe('mistral-medium-2508');
+  });
+
+  it('allowStreamingSplit is true', () => {
+    expect(PROVIDER.allowStreamingSplit).toBe(true);
   });
 });
 
-describe('getProviderConfig', () => {
-  it('returns config for given provider', () => {
-    expect(getProviderConfig('nvidia').name).toBe('nvidia');
+describe('helper functions', () => {
+  it('getDefaultModel returns PROVIDER.defaultModel', () => {
+    expect(getDefaultModel()).toBe(PROVIDER.defaultModel);
   });
 
-  it('returns mistral config when no provider given and store has mistral', () => {
-    useSettingsStore.setState({ provider: 'mistral' });
-    const cfg = getProviderConfig();
-    expect(cfg.name).toBe('mistral');
+  it('getFallbackModel returns PROVIDER.fallbackModel', () => {
+    expect(getFallbackModel()).toBe(PROVIDER.fallbackModel);
   });
 
-  it('returns default config when store has default', () => {
-    useSettingsStore.setState({ provider: 'default' });
-    const cfg = getProviderConfig();
-    expect(cfg.name).toBe('default');
-  });
-});
-
-describe('getGradingModel', () => {
-  it('returns grading model for default provider', () => {
-    expect(getGradingModel('default')).toBe('mistral-small-latest');
+  it('getGradingModel returns PROVIDER.gradingModel', () => {
+    expect(getGradingModel()).toBe(PROVIDER.gradingModel);
   });
 
-  it('returns grading model for mistral provider', () => {
-    expect(getGradingModel('mistral')).toBe('mistral-small-latest');
+  it('getContentModel returns PROVIDER.contentModel', () => {
+    expect(getContentModel()).toBe(PROVIDER.contentModel);
   });
 
-  it('returns grading model for nvidia provider', () => {
-    expect(getGradingModel('nvidia')).toBe('meta/llama-3.3-70b-instruct');
-  });
-});
-
-describe('getApiBase', () => {
-  it('returns API base for default provider', () => {
-    expect(getApiBase('default')).toBe('/api/chat');
-  });
-
-  it('returns API base for mistral provider', () => {
-    expect(getApiBase('mistral')).toBe('https://api.mistral.ai/v1/chat/completions');
+  it('getApiBase returns PROVIDER.apiBase', () => {
+    expect(getApiBase()).toBe(PROVIDER.apiBase);
   });
 });

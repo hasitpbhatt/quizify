@@ -8,8 +8,8 @@ import { FillBlank } from './formats/FillBlank';
 import { Ordering } from './formats/Ordering';
 import type { SubmitResult } from './useQuizAnswer';
 import { useQuizAnswer } from './useQuizAnswer';
-import { useSettingsStore } from '@/shared/stores/settingsStore';
-import { PROVIDERS } from '@/lib/llm/providers';
+import { useSessionStore } from '@/shared/stores/sessionStore';
+import * as sessionsDb from '@/lib/db/sessionsDb';
 
 interface Props {
   quiz: QuizData;
@@ -92,11 +92,25 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
 
   useFocusTrap(overlayRef, '.quiz-close-btn');
 
+  const handleResetQuiz = useCallback(async () => {
+    const { currentId, updateCurrent } = useSessionStore.getState();
+    if (!currentId) return;
+    const authoritative = await sessionsDb.getSession(currentId);
+    if (!authoritative) return;
+    const quizIndex = authoritative.nodes.findIndex(n => n.id === quizId && n.data?.kind === 'quiz');
+    if (quizIndex === -1) return;
+    const updatedNodes = [...authoritative.nodes];
+    updatedNodes[quizIndex] = {
+      ...updatedNodes[quizIndex],
+      data: { ...updatedNodes[quizIndex].data, attempts: [], state: 'untested', bestScore: undefined } as QuizData,
+    };
+    await updateCurrent({ nodes: updatedNodes });
+    setSubmitted(false);
+    setResult(null);
+  }, [quizId]);
+
   const handleSubmit = useCallback(async (answer: string | string[]) => {
-    const { apiKey, provider } = useSettingsStore.getState();
-    const cfg = PROVIDERS[provider];
-    if (cfg.requiresApiKey && !apiKey) return;
-    const res = await submit(answer, apiKey);
+    const res = await submit(answer);
     setResult(res);
     setSubmitted(true);
   }, [submit]);
@@ -230,16 +244,30 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
                 {result.rationale}
               </div>
             </div>
-            <button
-              onClick={() => { setSubmitted(false); setResult(null); }}
-              style={{
-                padding: '8px 20px', borderRadius: 6, border: '1px solid var(--border)',
-                background: 'var(--bg-elevated)', color: 'var(--text-primary)',
-                cursor: 'pointer', fontFamily: 'var(--font-ui)', fontSize: 13,
-              }}
-            >
-              Try Again
-            </button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button
+                onClick={() => { setSubmitted(false); setResult(null); }}
+                style={{
+                  padding: '8px 20px', borderRadius: 6, border: '1px solid var(--border)',
+                  background: 'var(--bg-elevated)', color: 'var(--text-primary)',
+                  cursor: 'pointer', fontFamily: 'var(--font-ui)', fontSize: 13,
+                }}
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => {
+                  handleResetQuiz();
+                }}
+                style={{
+                  padding: '8px 20px', borderRadius: 6, border: '1px solid var(--border)',
+                  background: 'transparent', color: 'var(--text-secondary)',
+                  cursor: 'pointer', fontFamily: 'var(--font-ui)', fontSize: 13,
+                }}
+              >
+                Reset quiz
+              </button>
+            </div>
           </div>
         ) : null}
 

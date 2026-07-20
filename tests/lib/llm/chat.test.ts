@@ -1,7 +1,5 @@
 import { chat } from '@/lib/llm/chat';
-import { resetRateLimiter } from '@/lib/llm/rateLimiter';
 import { AuthError, RateLimitError, NetworkError } from '@/lib/llm/errors';
-import { useSettingsStore } from '@/shared/stores/settingsStore';
 
 vi.mock('@/lib/llm/sleep', () => ({
   sleep: vi.fn().mockResolvedValue(undefined),
@@ -12,8 +10,6 @@ vi.stubGlobal('fetch', mockFetch);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resetRateLimiter();
-  useSettingsStore.setState({ provider: 'default' });
 });
 
 function okResponse(overrides: Partial<{ content: string; model: string; usage: object }> = {}) {
@@ -57,25 +53,25 @@ describe('chat', () => {
   describe('successful requests', () => {
     it('returns content from a successful request', async () => {
       mockFetch.mockResolvedValue(okResponse({ content: 'Response text' }));
-      const result = await chat(messages, { apiKey: '', provider: 'default' });
+      const result = await chat(messages, {});
       expect(result.content).toBe('Response text');
     });
 
     it('returns model name', async () => {
       mockFetch.mockResolvedValue(okResponse({ model: 'test-model' }));
-      const result = await chat(messages, { apiKey: '', provider: 'default' });
+      const result = await chat(messages, {});
       expect(result.model).toBe('test-model');
     });
 
     it('returns usage stats when present', async () => {
       mockFetch.mockResolvedValue(okResponse({ usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 } }));
-      const result = await chat(messages, { apiKey: '', provider: 'default' });
+      const result = await chat(messages, {});
       expect(result.usage).toEqual({ promptTokens: 10, completionTokens: 20, totalTokens: 30 });
     });
 
     it('returns undefined usage when not in response', async () => {
       mockFetch.mockResolvedValue(okResponse());
-      const result = await chat(messages, { apiKey: '', provider: 'default' });
+      const result = await chat(messages, {});
       expect(result.usage).toBeUndefined();
     });
 
@@ -84,7 +80,7 @@ describe('chat', () => {
         ok: true, status: 200,
         json: () => Promise.resolve({ choices: [] }),
       });
-      const result = await chat(messages, { apiKey: '', provider: 'default' });
+      const result = await chat(messages, {});
       expect(result.content).toBe('');
     });
   });
@@ -92,7 +88,7 @@ describe('chat', () => {
   describe('request formatting', () => {
     it('sends POST with correct Content-Type', async () => {
       mockFetch.mockResolvedValue(okResponse());
-      await chat(messages, { apiKey: '', provider: 'default' });
+      await chat(messages, {});
       const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
       expect(opts.method).toBe('POST');
       expect(opts.headers).toMatchObject({ 'Content-Type': 'application/json' });
@@ -100,7 +96,7 @@ describe('chat', () => {
 
     it('sends messages and model in the body', async () => {
       mockFetch.mockResolvedValue(okResponse());
-      await chat(messages, { apiKey: '', provider: 'default' });
+      await chat(messages, {});
       const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
       const body = JSON.parse(opts.body as string);
       expect(body.messages).toEqual(messages);
@@ -110,7 +106,7 @@ describe('chat', () => {
 
     it('includes response_format json when requested', async () => {
       mockFetch.mockResolvedValue(okResponse());
-      await chat(messages, { apiKey: '', responseFormat: 'json', provider: 'default' });
+      await chat(messages, { responseFormat: 'json' });
       const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
       const body = JSON.parse(opts.body as string);
       expect(body.response_format).toEqual({ type: 'json_object' });
@@ -118,7 +114,7 @@ describe('chat', () => {
 
     it('uses custom model when provided', async () => {
       mockFetch.mockResolvedValue(okResponse());
-      await chat(messages, { apiKey: '', model: 'custom-model', provider: 'default' });
+      await chat(messages, { model: 'custom-model' });
       const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
       const body = JSON.parse(opts.body as string);
       expect(body.model).toBe('custom-model');
@@ -126,109 +122,72 @@ describe('chat', () => {
 
     it('uses custom temperature when provided', async () => {
       mockFetch.mockResolvedValue(okResponse());
-      await chat(messages, { apiKey: '', temperature: 0.7, provider: 'default' });
+      await chat(messages, { temperature: 0.7 });
       const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
       const body = JSON.parse(opts.body as string);
       expect(body.temperature).toBe(0.7);
     });
-  });
 
-  describe('auth headers', () => {
-    it('does not send Authorization header for default provider (server proxies via /api/chat)', async () => {
+    it('does not send Authorization header', async () => {
       mockFetch.mockResolvedValue(okResponse());
-      await chat(messages, { apiKey: '', provider: 'default' });
+      await chat(messages, {});
       const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
       const headers = opts.headers as Record<string, string>;
       expect(headers.Authorization).toBeUndefined();
-      expect(headers['x-opencode-client']).toBeUndefined();
-    });
-
-    it('sends Bearer token from apiKey for mistral provider', async () => {
-      mockFetch.mockResolvedValue(okResponse());
-      await chat(messages, { apiKey: 'sk-test', provider: 'mistral' });
-      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
-      expect((opts.headers as Record<string, string>).Authorization).toBe('Bearer sk-test');
-    });
-
-    it('does not send OpenCode-specific headers for any provider', async () => {
-      mockFetch.mockResolvedValue(okResponse());
-      await chat(messages, { apiKey: 'sk-test', provider: 'mistral' });
-      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
-      const headers = opts.headers as Record<string, string>;
-      expect(headers['x-opencode-client']).toBeUndefined();
-      expect(headers['User-Agent']).toBeUndefined();
     });
   });
 
   describe('error handling and retries', () => {
     it('throws AuthError on 401', async () => {
       mockFetch.mockResolvedValue(statusResponse(401));
-      await expect(chat(messages, { apiKey: 'bad', provider: 'default' })).rejects.toThrow(AuthError);
+      await expect(chat(messages, {})).rejects.toThrow(AuthError);
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
     it('throws AuthError on 403', async () => {
       mockFetch.mockResolvedValue(statusResponse(403));
-      await expect(chat(messages, { apiKey: 'bad', provider: 'default' })).rejects.toThrow(AuthError);
+      await expect(chat(messages, {})).rejects.toThrow(AuthError);
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
     it('retries on 429 and throws RateLimitError after exhaustion', async () => {
       mockFetch.mockResolvedValue(statusResponse(429));
-      await expect(chat(messages, { apiKey: '', model: 'custom-test', provider: 'default' })).rejects.toThrow(RateLimitError);
+      await expect(chat(messages, { model: 'custom-test' })).rejects.toThrow(RateLimitError);
       expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(3);
     });
 
     it('retries on 5xx and throws NetworkError after exhaustion', async () => {
       mockFetch.mockResolvedValue(statusResponse(502));
-      await expect(chat(messages, { apiKey: '', model: 'custom-test', provider: 'default' })).rejects.toThrow(NetworkError);
+      await expect(chat(messages, { model: 'custom-test' })).rejects.toThrow(NetworkError);
       expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(3);
     });
 
     it('throws NetworkError on non-retryable error status', async () => {
       mockFetch.mockResolvedValue(statusResponse(400));
-      await expect(chat(messages, { apiKey: '', provider: 'default' })).rejects.toThrow(NetworkError);
+      await expect(chat(messages, {})).rejects.toThrow(NetworkError);
     });
 
     it('aborts on user signal', async () => {
       const ac = new AbortController();
       ac.abort();
       abortAwareMock(okResponse());
-      await expect(chat(messages, { apiKey: '', signal: ac.signal })).rejects.toThrow(/abort/i);
+      await expect(chat(messages, { signal: ac.signal })).rejects.toThrow(/abort/i);
     });
 
     it('handles network failure with retry then fallback', async () => {
       mockFetch.mockRejectedValue(new TypeError('Failed to fetch'));
-      await expect(chat(messages, { apiKey: '', model: 'custom-test', provider: 'default' })).rejects.toThrow('All endpoints exhausted');
+      await expect(chat(messages, { model: 'custom-test' })).rejects.toThrow('All endpoints exhausted');
     });
   });
 
-  describe('fallback endpoint', () => {
-    it('does not fall back to a second endpoint for default provider (single-endpoint)', async () => {
-      mockFetch.mockResolvedValue(statusResponse(429));
-      await expect(chat(messages, { apiKey: '', provider: 'default' })).rejects.toThrow(RateLimitError);
-      // For default we have 2 models (primary + fallback) × (maxRetries+1) attempts each = up to 8 calls.
-      // The point: no second *endpoint* (URL) beyond the first — we still retry across models within the same endpoint.
-      expect(mockFetch.mock.calls.length).toBeLessThanOrEqual(8);
-      // Single endpoint ⇒ all calls hit the same apiBase.
-      const urls = new Set(mockFetch.mock.calls.map(([u]) => u as string));
-      expect(urls.size).toBe(1);
-    });
-
-    it('does not include fallback endpoint for mistral', async () => {
-      mockFetch.mockResolvedValue(statusResponse(429));
-      await expect(chat(messages, { apiKey: 'sk-test', model: 'custom-test', provider: 'mistral' })).rejects.toThrow(RateLimitError);
-    });
-  });
-
-  describe('fallback models', () => {
+  describe('fallback model', () => {
     it('tries fallback model after default model fails', async () => {
       mockFetch
         .mockResolvedValue(statusResponse(429))
         .mockResolvedValue(statusResponse(429))
         .mockResolvedValue(statusResponse(429))
         .mockResolvedValue(okResponse({ content: 'Fallback model response' }));
-      const result = await chat(messages, { apiKey: '', provider: 'default' });
+      const result = await chat(messages, {});
       expect(result.content).toBe('Fallback model response');
     });
   });
@@ -236,7 +195,7 @@ describe('chat', () => {
   describe('response with missing optional fields', () => {
     it('handles JSON without choices array gracefully', async () => {
       mockFetch.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({}) });
-      const result = await chat(messages, { apiKey: '', provider: 'default' });
+      const result = await chat(messages, {});
       expect(result.content).toBe('');
     });
   });

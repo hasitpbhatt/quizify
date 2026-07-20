@@ -1,8 +1,7 @@
-import { SUMMARY_NODE_ID, type LlmProvider, type Persona, type CanvasNode, type CanvasEdge, type ConceptData, type QuizData, type SummaryData } from '@/shared/types';
+import { SUMMARY_NODE_ID, type Persona, type CanvasNode, type CanvasEdge, type ConceptData, type QuizData, type SummaryData } from '@/shared/types';
 import { executePromptTask } from '@/lib/llm/promptTask';
 import { contentTask } from '@/lib/tasks/contentTask';
 import { summaryTask } from '@/lib/tasks/summaryTask';
-import { isLowRpmProvider, getContentModel } from '@/lib/llm/providers';
 import { debugLog } from '@/lib/debug';
 import type { QuizItem } from '@/lib/llm/contentParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
@@ -88,8 +87,6 @@ export async function processOneConcept(
   concept: { id: string; title: string; explanation: string },
   index: number,
   topic: string,
-  apiKey: string,
-  provider: LlmProvider,
   persona: Persona,
   signal: AbortSignal | undefined,
   persist: () => Promise<void>,
@@ -104,9 +101,8 @@ export async function processOneConcept(
 
   try {
     const content = await executePromptTask(contentTask, {
-      apiKey, provider, persona, signal,
+      persona, signal,
       context: { topic },
-      model: getContentModel(provider),
       onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
       onParseRetry: (raw) => console.warn(`[pipeline] ParseError for concept ${concept.id}, retrying. Raw:\n${raw.slice(0, 500)}`),
     }, concept);
@@ -206,8 +202,6 @@ export async function runContentPhase(
   conceptLastNodeIds: (string | null)[],
   concepts: Array<{ id: string; title: string; explanation: string }>,
   topic: string,
-  apiKey: string,
-  provider: LlmProvider,
   persona: Persona,
   signal: AbortSignal | undefined,
   persist: () => Promise<void>,
@@ -220,7 +214,7 @@ export async function runContentPhase(
   await runWithConcurrency(concepts, Math.min(CONCURRENCY, total), async (concept, i) => {
     const lastNodeId = await processOneConcept(
       nodes, edges, generatedConcepts, concept, i, topic,
-      apiKey, provider, persona, signal, persist, onNotify,
+      persona, signal, persist, onNotify,
     );
     conceptLastNodeIds[i] = lastNodeId;
     completed++;
@@ -254,8 +248,6 @@ export async function pushSummary(
   conceptLastNodeIds: (string | null)[],
   conceptsLength: number,
   topic: string,
-  apiKey: string,
-  provider: LlmProvider,
   persona: Persona,
   signal: AbortSignal | undefined,
   persist: () => Promise<void>,
@@ -266,7 +258,7 @@ export async function pushSummary(
   onNotify('summary', 'Creating summary & final quiz\u2026');
   try {
     const parsed = await executePromptTask(summaryTask, {
-      apiKey, provider, persona, signal,
+      persona, signal,
       context: { topic },
       onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
     }, generatedConcepts);
@@ -305,8 +297,6 @@ export async function runPipeline(
   outlineTitle: string,
   concepts: Array<{ id: string; title: string; explanation: string }>,
   persona: Persona,
-  apiKey: string,
-  provider: LlmProvider,
   sourceUrl?: string,
   onProgress?: ProgressCallback,
   signal?: AbortSignal,
@@ -339,7 +329,7 @@ export async function runPipeline(
   debugLog('log', 'pipeline', 'phase 1: generating %d concepts (concurrency=%s)', concepts.length, CONCURRENCY === Infinity ? 'Infinity' : String(CONCURRENCY));
   await runContentPhase(
     nodes, edges, generatedConcepts, conceptLastNodeIds,
-    concepts, topic, apiKey, provider, persona,
+    concepts, topic, persona,
     signal, persist, notify,
   );
 
@@ -348,15 +338,13 @@ export async function runPipeline(
   await persist();
   debugLog('log', 'pipeline', 'phase 2: %d chain edges', concepts.length - 1);
 
-  // --- Phase 3: Summary (skipped for low-RPM providers to save a call) ---
-  if (!isLowRpmProvider(provider)) {
-    debugLog('log', 'pipeline', 'phase 3: summary start');
-    await pushSummary(
-      nodes, edges, generatedConcepts, conceptLastNodeIds,
-      concepts.length, topic, apiKey, provider, persona,
-      signal, persist, notify,
-    );
-  }
+  // --- Phase 3: Summary ---
+  debugLog('log', 'pipeline', 'phase 3: summary start');
+  await pushSummary(
+    nodes, edges, generatedConcepts, conceptLastNodeIds,
+    concepts.length, topic, persona,
+    signal, persist, notify,
+  );
 
   notify('done', 'Canvas ready!');
   return { nodes, edges };

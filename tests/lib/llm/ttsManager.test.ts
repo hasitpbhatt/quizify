@@ -1,12 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const mockSettingsStore = vi.hoisted(() => ({
-  getState: vi.fn(() => ({ apiKey: '', provider: 'default' })),
-}));
-vi.mock('@/shared/stores/settingsStore', () => ({
-  useSettingsStore: mockSettingsStore,
-}));
-
 import { ttsManager } from '@/lib/llm/ttsManager';
 
 beforeEach(() => {
@@ -16,7 +9,6 @@ beforeEach(() => {
   ttsManager['callbacks'] = {};
   ttsManager['subscriptions'] = [];
   vi.clearAllMocks();
-  mockSettingsStore.getState.mockReturnValue({ apiKey: '', provider: 'default' });
 });
 
 afterEach(() => {
@@ -282,22 +274,7 @@ describe('finishSegment', () => {
 });
 
 describe('SpeechSynthesis path', () => {
-  it('calls SpeechSynthesis when provider is not mistral', async () => {
-    mockSettingsStore.getState.mockReturnValue({ apiKey: '', provider: 'nvidia' });
-
-    const speakSpy = vi.spyOn(window.speechSynthesis, 'speak');
-
-    ttsManager.enqueue({ nodeId: 'n1', text: 'hello' });
-    ttsManager.start();
-
-    await vi.waitFor(() => {
-      expect(speakSpy).toHaveBeenCalled();
-    }, { timeout: 2000 });
-  });
-
-  it('calls SpeechSynthesis when no api key is set', async () => {
-    mockSettingsStore.getState.mockReturnValue({ apiKey: '', provider: 'mistral' });
-
+  it('calls SpeechSynthesis for all segments', async () => {
     const speakSpy = vi.spyOn(window.speechSynthesis, 'speak');
 
     ttsManager.enqueue({ nodeId: 'n1', text: 'hello' });

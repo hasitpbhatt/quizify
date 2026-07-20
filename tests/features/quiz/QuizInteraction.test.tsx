@@ -71,14 +71,10 @@ vi.mock('@/features/quiz/formats/Ordering', () => ({
 }));
 
 const mockSettingsStore = vi.hoisted(() => ({
-  getState: vi.fn(() => ({ apiKey: 'test-key', provider: 'mistral' })),
+  getState: vi.fn(() => ({ persona: null, theme: 'auto' })),
 }));
 vi.mock('@/shared/stores/settingsStore', () => ({
   useSettingsStore: mockSettingsStore,
-}));
-
-vi.mock('@/lib/llm/providers', () => ({
-  PROVIDERS: { mistral: { requiresApiKey: true } },
 }));
 
 function makeQuiz(overrides?: Partial<QuizData>): QuizData {
@@ -117,7 +113,7 @@ beforeEach(() => {
     attempts: [],
     retryInfo: null,
   });
-  mockSettingsStore.getState.mockReturnValue({ apiKey: 'test-key', provider: 'mistral' });
+  mockSettingsStore.getState.mockReturnValue({ persona: null, theme: 'auto' });
 });
 
 describe('QuizInteraction', () => {
@@ -173,7 +169,7 @@ describe('QuizInteraction', () => {
       fireEvent.click(screen.getByTestId('mc-submit'));
     });
 
-    expect(mockSubmit).toHaveBeenCalledWith('A', 'test-key');
+    expect(mockSubmit).toHaveBeenCalledWith('A');
   });
 
   it('shows result after successful submit', async () => {

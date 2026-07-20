@@ -1,7 +1,6 @@
 import { fetchSourceContent, isLikelyUrl } from '@/lib/fetchSourceContent';
 import { setCachedSource, getCachedSource } from '@/lib/db/sourceCache';
 import { getDb, STORES } from '@/lib/db/db';
-import { useSettingsStore } from '@/shared/stores/settingsStore';
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -49,7 +48,6 @@ function mockWith(patternMap: Record<string, () => Promise<unknown>>) {
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  useSettingsStore.setState({ provider: 'default' });
   const db = await getDb();
   const tx = db.transaction([STORES.SOURCE_CACHE], 'readwrite');
   await tx.objectStore(STORES.SOURCE_CACHE).clear();
@@ -74,7 +72,7 @@ describe('fetchSourceContent', () => {
   describe('cache hit', () => {
     it('returns cached content without network calls', async () => {
       await setCachedSource('https://example.com', 'cached text');
-      const result = await fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' });
+      const result = await fetchSourceContent('https://example.com', { persona: 'student' });
       expect(result).toEqual({ content: 'cached text', source: 'cache', url: 'https://example.com' });
       expect(mockFetch).not.toHaveBeenCalled();
     });
@@ -85,7 +83,7 @@ describe('fetchSourceContent', () => {
       mockWith({
         '/__proxy': () => Promise.resolve(ok(LONG)),
       });
-      const result = await fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' });
+      const result = await fetchSourceContent('https://example.com', { persona: 'student' });
       expect(result.content).toBe(LONG);
       expect(result.source).toBe('cfproxy');
     });
@@ -94,7 +92,7 @@ describe('fetchSourceContent', () => {
       mockWith({
         '/api/fetch': () => Promise.resolve(ok(LONG)),
       });
-      const result = await fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' });
+      const result = await fetchSourceContent('https://example.com', { persona: 'student' });
       expect(result.content).toBe(LONG);
       expect(result.source).toBe('cfproxy');
     });
@@ -105,20 +103,12 @@ describe('fetchSourceContent', () => {
       mockWith({
         '/api/chat': () => Promise.resolve(llmResp(LONG)),
       });
-      const result = await fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' });
+      const result = await fetchSourceContent('https://example.com', { persona: 'student' });
       expect(result.source).toBe('llm');
       expect(result.content).toBe(LONG);
     });
 
-    it('uses selected provider for the LLM call', async () => {
-      useSettingsStore.setState({ provider: 'mistral' });
-      mockWith({
-        'https://api.mistral.ai': () => Promise.resolve(llmResp(LONG)),
-      });
-      const result = await fetchSourceContent('https://example.com', { apiKey: 'mist-key', persona: 'student' });
-      expect(result.source).toBe('llm');
-      expect(result.content).toBe(LONG);
-    });
+
   });
 
   describe('text subject (non-URL)', () => {
@@ -126,7 +116,7 @@ describe('fetchSourceContent', () => {
       mockWith({
         '/api/chat': () => Promise.resolve(llmResp(LONG)),
       });
-      const result = await fetchSourceContent('gravity', { apiKey: '', persona: 'student' });
+      const result = await fetchSourceContent('gravity', { persona: 'student' });
       expect(result.source).toBe('llm');
       expect(result.content).toBe(LONG);
     });
@@ -136,7 +126,7 @@ describe('fetchSourceContent', () => {
         '/api/chat': () => Promise.resolve(errStatus(400)),
       });
       await expect(
-        fetchSourceContent('gravity', { apiKey: '', persona: 'student' })
+        fetchSourceContent('gravity', { persona: 'student' })
       ).rejects.toThrow(/Couldn't generate content for "gravity"/);
     });
   });
@@ -145,7 +135,7 @@ describe('fetchSourceContent', () => {
     it('throws when fetched content is too short', async () => {
       mockWith({ '/api/fetch': () => Promise.resolve(ok(SHORT)) });
       await expect(
-        fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' })
+        fetchSourceContent('https://example.com', { persona: 'student' })
       ).rejects.toThrow(/Failed to fetch content/);
     });
   });
@@ -153,7 +143,7 @@ describe('fetchSourceContent', () => {
   describe('caching', () => {
     it('caches content after successful fetch', async () => {
       mockWith({ '/api/fetch': () => Promise.resolve(ok(LONG)) });
-      await fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' });
+      await fetchSourceContent('https://example.com', { persona: 'student' });
       const cached = await getCachedSource('https://example.com');
       expect(cached).toBe(LONG);
     });
