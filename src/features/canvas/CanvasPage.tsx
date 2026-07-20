@@ -39,14 +39,23 @@ import styles from './CanvasPage.module.css';
 const nodeTypes = { concept: ConceptNode, quiz: QuizNode, summary: SummaryNode, note: NoteNode };
 const edgeTypes = { wiggly: WigglyEdge };
 
-function toReactFlowNodes(canvasNodes: CanvasNode[], currentConceptIndex: number, revealedQuizIds: Set<string>): Node[] {
+function toReactFlowNodes(
+  canvasNodes: CanvasNode[],
+  currentConceptIndex: number,
+  revealedQuizIds: Set<string>,
+  skipNotebookAnimation = false,
+): Node[] {
   return canvasNodes.map(n => {
     const data: Record<string, unknown> = { ...n.data };
-    if (n.data.kind === 'concept' && (n.data as ConceptData).index < currentConceptIndex) {
+    if (skipNotebookAnimation) {
       data.skipTyping = true;
-    }
-    if (n.data.kind === 'quiz' && !revealedQuizIds.has(n.id)) {
-      data.skipTyping = true;
+    } else {
+      if (n.data.kind === 'concept' && (n.data as ConceptData).index < currentConceptIndex) {
+        data.skipTyping = true;
+      }
+      if (n.data.kind === 'quiz' && !revealedQuizIds.has(n.id)) {
+        data.skipTyping = true;
+      }
     }
     return {
       id: n.id,
@@ -122,10 +131,11 @@ function filterVisibleNodes(
 
 interface CanvasPageProps {
   progress?: { stage: string; label: string };
+  isGenerating?: boolean;
   onHome?: () => void;
 }
 
-export function CanvasPage({ progress, onHome }: CanvasPageProps) {
+export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPageProps) {
   const currentId = useSessionStore(s => s.currentId);
   const sessions = useSessionStore(s => s.sessions);
   const session = sessions.find(s => s.id === currentId);
@@ -137,6 +147,8 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
   const isMobile = useIsMobile();
   const notebookMode = useNotebookStore(s => s.notebookMode);
   const toggleNotebookMode = useNotebookStore(s => s.toggleNotebookMode);
+  // During generation, stream content without notebook TTS gating or typewriter delays.
+  const immersiveNotebook = notebookMode && !isGenerating;
   const ttsPlaying = useNotebookStore(s => s.ttsPlaying);
   const ttsPaused = useNotebookStore(s => s.ttsPaused);
   const segmentIndex = useNotebookStore(s => s.segmentIndex);
@@ -168,19 +180,19 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
       focusTimeoutRef.current = null;
       reactFlow.fitView({
         nodes: nodesToFocus.map(id => ({ id })),
-        duration: notebookMode ? 0 : 800,
+        duration: immersiveNotebook ? 0 : 800,
         padding: 0.25,
-        minZoom: notebookMode ? 0.5 : 0.7,
+        minZoom: immersiveNotebook ? 0.5 : 0.7,
         maxZoom: 0.95,
       });
       // Lock the zoom chosen by the initial fit; live refits use translation only.
-      if (notebookMode) {
+      if (immersiveNotebook) {
         const vp = reactFlow.getViewport();
         liveFitZoomRef.current = vp.zoom;
       }
       liveFitBottomRef.current = null;
     }, 100);
-  }, [session, reactFlow, notebookMode]);
+  }, [session, reactFlow, immersiveNotebook]);
 
   useEffect(() => () => {
     if (focusTimeoutRef.current) {
@@ -218,12 +230,17 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
 
   const visibleData = useMemo(() => {
     if (!session) return { nodes: [], edges: [] };
-    return filterVisibleNodes(session.nodes, session.edges, currentConceptIndex, revealedQuizIds, notebookMode);
-  }, [session, currentConceptIndex, revealedQuizIds, notebookMode]);
+    return filterVisibleNodes(session.nodes, session.edges, currentConceptIndex, revealedQuizIds, immersiveNotebook);
+  }, [session, currentConceptIndex, revealedQuizIds, immersiveNotebook]);
 
   const nodes: Node[] = useMemo(
-    () => toReactFlowNodes(visibleData.nodes, currentConceptIndex, revealedQuizIds),
-    [visibleData.nodes, currentConceptIndex, revealedQuizIds],
+    () => toReactFlowNodes(
+      visibleData.nodes,
+      currentConceptIndex,
+      revealedQuizIds,
+      isGenerating,
+    ),
+    [visibleData.nodes, currentConceptIndex, revealedQuizIds, isGenerating],
   );
   const edges: Edge[] = useMemo(
     () => toReactFlowEdges(visibleData.edges),
@@ -326,7 +343,7 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
   // In notebook mode: subscribe to TTS for the current concept — segment end
   // reveals its quizzes; char progress drives the boundary-based viewport refit.
   useEffect(() => {
-    if (!notebookMode || !session) return;
+    if (!immersiveNotebook || !session) return;
 
     const currentConcept = concepts.find(c => c.data.index === currentConceptIndex);
     if (!currentConcept) return;
@@ -405,15 +422,17 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
       liveFitZoomRef.current = null;
       liveFitBottomRef.current = null;
     };
-  }, [notebookMode, currentConceptIndex, session, concepts, revealedQuizIds, reactFlow, focusOnActiveConcept]);
+  }, [immersiveNotebook, currentConceptIndex, session, concepts, revealedQuizIds, reactFlow, focusOnActiveConcept]);
 
   // In notebook mode: enqueue TTS for the current concept when it becomes active.
   // Gated on !prefers-reduced-motion: auto-audio violates WCAG 2.2.
   useEffect(() => {
-    if (!notebookMode || !session) return;
+    if (!immersiveNotebook || !session) return;
 
     const currentConcept = concepts.find(c => c.data.index === currentConceptIndex);
     if (!currentConcept) return;
+    // Wait until pipeline has filled in the concept body before narrating.
+    if ((currentConcept.data as ConceptData).example === 'Loading...') return;
 
     const notebookStore = useNotebookStore.getState();
     if (notebookStore.hasTypingCompleted(currentConcept.id)) return;
@@ -435,14 +454,14 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
         ttsManager.start();
       }
     }
-  }, [currentConceptIndex, notebookMode, session, concepts, focusOnActiveConcept]);
+  }, [currentConceptIndex, immersiveNotebook, session, concepts, focusOnActiveConcept]);
 
-  // Stop TTS narration when exiting notebook mode
+  // Stop TTS narration when exiting notebook mode or while content is still generating
   useEffect(() => {
-    if (!notebookMode) {
+    if (!notebookMode || isGenerating) {
       ttsManager.stop();
     }
-  }, [notebookMode]);
+  }, [notebookMode, isGenerating]);
 
   // Sync ttsManager state → notebookStore so buttons reflect real TTS state
   useEffect(() => {
@@ -482,7 +501,7 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     const unsub = ttsManager.subscribeState((state) => {
       const fireFinalFit = prev === 'playing' && (state === 'idle' || state === 'stopped');
       prev = state;
-      if (!fireFinalFit || !notebookMode || !session) return;
+      if (!fireFinalFit || !immersiveNotebook || !session) return;
       const active = concepts.find(c => c.data.index === currentConceptIndex);
       if (!active) return;
       liveFitZoomRef.current = null;
@@ -493,24 +512,24 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
       focusOnActiveConcept(active.id, true);
     });
     return unsub;
-  }, [notebookMode, session, concepts, currentConceptIndex, focusOnActiveConcept]);
+  }, [immersiveNotebook, session, concepts, currentConceptIndex, focusOnActiveConcept]);
 
   // Window resize invalidates the locked zoom and last-known bottom so the
   // next char-progress event recomputes translation for the new viewport.
   useEffect(() => {
-    if (!notebookMode) return;
+    if (!immersiveNotebook) return;
     const onResize = () => {
       liveFitZoomRef.current = null;
       liveFitBottomRef.current = null;
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [notebookMode]);
+  }, [immersiveNotebook]);
 
   // Keyboard navigation in notebook mode: arrows + PageUp/PageDown + Space
   // translate the viewport by fixed steps. Gated on no modal open.
   useEffect(() => {
-    if (!notebookMode) return;
+    if (!immersiveNotebook) return;
     const handler = (e: KeyboardEvent) => {
       if (activeQuiz || summaryQuiz) return;
       const target = e.target as HTMLElement | null;
@@ -543,19 +562,19 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     const container = containerRef.current;
     container?.addEventListener('keydown', handler);
     return () => container?.removeEventListener('keydown', handler);
-  }, [notebookMode, activeQuiz, summaryQuiz, reactFlow]);
+  }, [immersiveNotebook, activeQuiz, summaryQuiz, reactFlow]);
 
   // Focus the first concept once when restoring a session. The narration effect
   // may request the same focus, so both paths intentionally use the same fit.
   useEffect(() => {
-    if (!notebookMode || !session || orientedSessionRef.current === session.id) return;
+    if (!immersiveNotebook || !session || orientedSessionRef.current === session.id) return;
 
     const firstConcept = concepts.find(c => c.data.index === 0);
     if (!firstConcept) return;
 
     orientedSessionRef.current = session.id;
     focusOnActiveConcept(firstConcept.id);
-  }, [notebookMode, session, concepts, focusOnActiveConcept]);
+  }, [immersiveNotebook, session, concepts, focusOnActiveConcept]);
 
   // Migration: sessionStorage summary quiz results → Session.scores (IndexedDB)
   useEffect(() => {
@@ -600,7 +619,7 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     onShowHelp: handleKbHelp,
   });
 
-  if (!session || nodes.length === 0) {
+  if (!session || (nodes.length === 0 && !isGenerating)) {
     return (
       <div className={styles.empty}>
         <p>No canvas data yet. Generate an outline first.</p>
@@ -608,8 +627,20 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
     );
   }
 
+  if (nodes.length === 0 && isGenerating) {
+    return (
+      <div className={styles.buildingState}>
+        <div className={styles.buildingOrb} aria-hidden />
+        <p className={styles.buildingLabel}>Building your canvas</p>
+        {progress?.label && <p>{progress.label}</p>}
+      </div>
+    );
+  }
+
+  const showProgress = isGenerating && progress && progress.stage !== 'done';
+
   if (isMobile && session) {
-    return <MobileFocusView nodes={visibleData.nodes} progress={progress} />;
+    return <MobileFocusView nodes={visibleData.nodes} progress={progress} isGenerating={isGenerating} />;
   }
 
   return (
@@ -619,20 +650,20 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
         <CanvasErrorFallback error={error} onReset={reset} onHome={onHome ?? (() => {})} />
       )}
     >
-    <div ref={containerRef} className={styles.container} data-notebook={notebookMode ? 'true' : undefined} tabIndex={notebookMode ? 0 : undefined}>
+    <div ref={containerRef} className={styles.container} data-notebook={notebookMode ? 'true' : undefined} data-generating={isGenerating ? 'true' : undefined} tabIndex={immersiveNotebook ? 0 : undefined}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        fitView={!notebookMode}
+        fitView={!immersiveNotebook}
         minZoom={0.3}
         maxZoom={2}
-        panOnDrag={!notebookMode}
-        selectionOnDrag={!notebookMode}
+        panOnDrag={!immersiveNotebook}
+        selectionOnDrag={!immersiveNotebook}
         panOnScroll={true}
         nodesConnectable={false}
-        nodesDraggable={!notebookMode}
+        nodesDraggable={!immersiveNotebook}
         onNodeClick={handleNodeClick}
         proOptions={{ hideAttribution: true }}
       >
@@ -655,19 +686,15 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
         hasit.in
       </a>
 
-      {progress && progress.stage === 'detail' && (
+      {showProgress && (
         <div className={styles.progressBadge}>
+          <span className={styles.progressDot} aria-hidden />
           {progress.label}
         </div>
       )}
 
+      {!notebookMode && (
       <div className={styles.actionsRow}>
-        {notebookMode ? (
-          <button className={styles.actionBtn} onClick={toggleNotebookMode} title="Exit Notebook mode" aria-label="Exit Notebook mode">
-            <X size={14} />
-            <span>Exit Notebook</span>
-          </button>
-        ) : (
           <>
             <div className={styles.exportWrapper} ref={exportRef}>
               <button className={styles.actionBtn} onClick={() => setShowExport(v => !v)} title="Export">
@@ -693,8 +720,8 @@ export function CanvasPage({ progress, onHome }: CanvasPageProps) {
               <BookOpen size={14} />
             </button>
           </>
-        )}
       </div>
+      )}
 
 
 

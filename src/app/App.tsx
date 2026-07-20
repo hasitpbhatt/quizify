@@ -44,6 +44,8 @@ export function App() {
   const [progress, setProgress] = useState<JourneyProgress>({ stage: 'fetch', label: 'Reading the source…' });
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const reachedCanvasRef = useRef(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const { load: loadSessions, sessions, currentId, select } = useSessionStore();
   const [previewData, setPreviewData] = useState<{
     title: string;
@@ -106,7 +108,7 @@ export function App() {
     };
   }, []);
 
-  const handleCancel = useCallback(() => {
+  const goWelcome = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
     setProgress({ stage: 'fetch', label: 'Reading the source…' });
@@ -114,6 +116,8 @@ export function App() {
     setPreviewData(null);
     setPage('welcome');
   }, []);
+
+  const handleCancel = goWelcome;
 
   const handleSelectSession = useCallback((id: string) => {
     useNotebookStore.getState().setNotebookMode(true);
@@ -128,6 +132,8 @@ export function App() {
 
     const abortController = new AbortController();
     abortRef.current = abortController;
+    reachedCanvasRef.current = false;
+    setIsGenerating(true);
     setError(null);
     setPage('progress');
 
@@ -202,11 +208,12 @@ export function App() {
 
       // Stage 3+ — pipeline (detail, quiz, summary, build)
       const { create: createSession, select } = useSessionStore.getState();
-      useNotebookStore.getState().setNotebookMode(true);
+      useNotebookStore.setState({ notebookMode: true, completedTypingNodeIds: {} });
       const session = await createSession({ url: src.url, hostname: extractHostname(src.url), persona });
       await select(session.id);
 
       // Navigate to canvas early so we can stream nodes in real-time
+      reachedCanvasRef.current = true;
       setPage('canvas');
 
       let pipelineStage = '';
@@ -243,19 +250,20 @@ export function App() {
       const msg = err instanceof Error ? err.message : 'Something went wrong.';
       setError(msg);
       // Non-destructive recovery: if transitioned to canvas, stay on canvas to keep partial nodes
-      if (page === 'canvas') {
+      if (reachedCanvasRef.current) {
         useToastStore.getState().add(`Generation paused: ${msg}`);
       } else {
         setPage('welcome');
       }
     } finally {
+      setIsGenerating(false);
       abortRef.current = null;
     }
   }, []);
 
   const main = page === 'progress' ? (
     <div key="progress" className="pageEnter">
-      <Toolbar onNewSession={() => setPage('welcome')} />
+      <Toolbar onNewSession={goWelcome} />
       <ProgressScreen
         progress={progress}
         error={error}
@@ -264,9 +272,11 @@ export function App() {
       />
     </div>
   ) : page === 'canvas' ? (
-    <div key="canvas" className="pageEnter">
-      <Toolbar onNewSession={() => setPage('welcome')} />
-      <ReactFlowProvider><CanvasPage progress={progress} onHome={() => setPage('welcome')} /></ReactFlowProvider>
+    <div key="canvas" className={isGenerating ? 'pageEnterInstant' : 'pageEnter'}>
+      <Toolbar onNewSession={goWelcome} />
+      <ReactFlowProvider>
+        <CanvasPage progress={progress} isGenerating={isGenerating} onHome={goWelcome} />
+      </ReactFlowProvider>
     </div>
   ) : (
     <div key="welcome" className="pageEnter">

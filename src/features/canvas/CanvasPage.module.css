@@ -95,7 +95,7 @@
 
 .progressBadge {
   position: absolute;
-  bottom: 8px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -107,9 +107,58 @@
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
-  padding: 4px 14px;
+  padding: 6px 16px;
   white-space: nowrap;
   animation: fadeIn 0.2s ease-out;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(90vw, 480px);
+  box-shadow: var(--shadow-sm);
+}
+
+.progressDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  animation: progressPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes progressPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.85); }
+}
+
+.buildingState {
+  height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  background: var(--bg-canvas);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  padding: 24px;
+  text-align: center;
+}
+
+.buildingOrb {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite;
+}
+
+.buildingLabel {
+  color: var(--text-primary);
+  font-weight: var(--fw-h2);
+  font-size: var(--fs-body);
 }
 
 @keyframes fadeIn {
@@ -152,6 +201,10 @@
 .exitNotebookBtn:hover {
   transform: scale(1.08);
   background: var(--bg-elevated);
+}
+
+.container[data-generating='true'] {
+  animation: none;
 }
 
 .container {

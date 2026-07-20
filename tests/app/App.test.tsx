@@ -146,9 +146,11 @@ vi.mock('@/shared/stores/sessionStore', () => ({
 }));
 
 const mockSetNotebookMode = vi.hoisted(() => vi.fn());
+const mockNotebookSetState = vi.hoisted(() => vi.fn());
 vi.mock('@/shared/stores/notebookStore', () => ({
   useNotebookStore: {
     getState: () => ({ setNotebookMode: mockSetNotebookMode }),
+    setState: mockNotebookSetState,
   },
 }));
 
@@ -177,6 +179,7 @@ beforeEach(() => {
   mockExecutePromptTask.mockReset();
   mockRunPipeline.mockReset();
   mockSetNotebookMode.mockReset();
+  mockNotebookSetState.mockReset();
 });
 
 afterEach(() => {
@@ -408,12 +411,11 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.getByTestId('canvas-page')).toBeInTheDocument();
     });
-    expect(mockSetNotebookMode).toHaveBeenCalledWith(true);
+    expect(mockNotebookSetState).toHaveBeenCalledWith({ notebookMode: true, completedTypingNodeIds: {} });
     expect(mockSessionStore.create).toHaveBeenCalled();
 
-    // setNotebookMode(true) must be called before create resolves so the
-    // CanvasPage-first-visit animations and TTS gating start clean.
-    const setOrder = mockSetNotebookMode.mock.invocationCallOrder[0] ?? 0;
+    // Notebook mode must be enabled before create resolves so the canvas mounts cleanly.
+    const setOrder = mockNotebookSetState.mock.invocationCallOrder[0] ?? 0;
     const createOrder = mockSessionStore.create.mock.invocationCallOrder[0] ?? Infinity;
     expect(setOrder).toBeLessThan(createOrder);
   });

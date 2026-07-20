@@ -11,6 +11,7 @@ import styles from './MobileFocusView.module.css';
 interface Props {
   nodes: CanvasNode[];
   progress?: { stage: string; label: string };
+  isGenerating?: boolean;
 }
 
 function formatKind(node: CanvasNode): string {
@@ -44,7 +45,7 @@ function renderContent(node: CanvasNode): { title?: string; body: string } {
   return { body: '' };
 }
 
-export function MobileFocusView({ nodes, progress }: Props) {
+export function MobileFocusView({ nodes, progress, isGenerating = false }: Props) {
   const [index, setIndex] = useState(0);
   const [showMinimap, setShowMinimap] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
@@ -147,7 +148,7 @@ export function MobileFocusView({ nodes, progress }: Props) {
     setActiveQuiz(null);
   }, []);
 
-  const isGenerating = progress && progress.stage !== 'done';
+  const isGeneratingProgress = isGenerating || (progress != null && progress.stage !== 'done');
 
   const outlineItemClass = (isCurrent: boolean) => {
     return [styles.outlineItem, isCurrent ? styles.activeOutlineItem : ''].filter(Boolean).join(' ');
@@ -155,7 +156,7 @@ export function MobileFocusView({ nodes, progress }: Props) {
 
   return (
     <div className={styles.wrapper} data-notebook={notebookMode ? 'true' : undefined}>
-      {isGenerating && (
+      {isGeneratingProgress && progress && (
         <div className={styles.progressBar}>
           <span className={styles.progressDot} />
           <span className={styles.progressLabel}>{progress.label}</span>

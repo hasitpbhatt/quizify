@@ -46,6 +46,24 @@ describe('CanvasPage', () => {
     });
   });
 
+  it('shows building state while generating with no nodes yet', async () => {
+    const session = factories.mockSession([], []);
+    await sessionsDb.putSession(session);
+    useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
+
+    render(
+      <ReactFlowProvider>
+        <CanvasPage isGenerating progress={{ stage: 'detail', label: 'Generating content (0/3 done…)' }} />
+      </ReactFlowProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Building your canvas')).toBeInTheDocument();
+      expect(screen.getByText('Generating content (0/3 done…)')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No canvas data yet. Generate an outline first.')).not.toBeInTheDocument();
+  });
+
   it('shows empty state when session has no nodes', async () => {
     const session = factories.mockSession([], []);
     await sessionsDb.putSession(session);
