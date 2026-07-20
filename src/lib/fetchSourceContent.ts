@@ -122,6 +122,20 @@ async function fetchSubjectFromLlm(subject: string, apiKey: string, provider?: L
   return callLlm(prompt, apiKey, provider);
 }
 
+function extractSubjectFromUrl(input: string): string {
+  try {
+    const url = new URL(input);
+    const path = url.pathname.replace(/\/$/, '');
+    const lastSegment = path.split('/').filter(Boolean).pop();
+    if (lastSegment) {
+      return decodeURIComponent(lastSegment.replace(/[_\-]/g, ' '));
+    }
+    return url.hostname.replace(/^www\./, '');
+  } catch {
+    return input;
+  }
+}
+
 export async function fetchSourceContent(
   input: string,
   opts: { apiKey: string; persona: Persona; provider?: LlmProvider; signal?: AbortSignal }
@@ -142,31 +156,19 @@ export async function fetchSourceContent(
       source = fallback.source;
       debugLog('log', 'fetch', 'proxy OK source=%s len=%d', source, content.length);
     } else {
-      debugLog('warn', 'fetch', 'proxy race FAILED');
-    }
-
-    if (!content) {
-      if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-      debugLog('warn', 'fetch', 'LLM URL_fallback url=%s', input.slice(0, 100));
-      try {
-        content = await callLlm(
-          `Summarize the content found at ${input.startsWith('http') ? input : `https://${input}`}. ` +
-          `Focus on educational value — definitions, explanations, examples, code snippets if applicable.`,
-          opts.apiKey,
-          opts.provider,
-        );
-        source = 'llm';
-      } catch {
-        // fall through
-      }
+      debugLog('warn', 'fetch', 'proxy failed');
     }
   }
 
-  // Fallback: if URL fetching failed (or input was not a URL), treat as subject
+  // Fallback: proxy failed or input was not a URL — generate from LLM knowledge.
+  // For URLs we extract a clean subject from the path (e.g. "/wiki/Photosynthesis" → "Photosynthesis")
+  // so the LLM generates quality educational content from scratch rather than trying to browse the URL.
   if (!content) {
-    debugLog('warn', 'fetch', 'LLM subject_fallback input=%s', input.slice(0, 100));
+    if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    const subject = isLikelyUrl(input) ? extractSubjectFromUrl(input) : input;
+    debugLog('warn', 'fetch', 'LLM subject_fallback subject=%s', subject.slice(0, 100));
     try {
-      content = await fetchSubjectFromLlm(input, opts.apiKey, opts.provider);
+      content = await fetchSubjectFromLlm(subject, opts.apiKey, opts.provider);
       source = 'llm';
     } catch (err) {
       throw new Error(

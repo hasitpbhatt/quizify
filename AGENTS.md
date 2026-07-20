@@ -2,7 +2,8 @@
 
 Reading this file first should save you from re-exploring the codebase every
 session. It captures what Quizify is, how it's wired, and the gotchas that bit
-us before.
+us before. See `docs/architecture.md` for the Mermaid diagram of the full user
+journey and data flow.
 
 ## What this app is
 
@@ -80,15 +81,20 @@ The `catch` block sends ANY non-abort error back to `'welcome'` and stores the m
 
 ## Source fetching (`src/lib/fetchSourceContent.ts`)
 
-Order: IDB cache → Jina (`https://r.jina.ai/{url}`, optional Bearer token) → public CORS proxies (allorigins / corsproxy / cors-eu) → ask LLM for a summary of the URL (uses whichever provider is selected). Content is truncated via `truncateByParagraphs` and cached to IDB asynchronously. In dev mode the Vite middleware at `/__proxy?url=` is tried first to avoid CORS (see `devProxyPlugin` in `vite.config.ts`).
+Order: IDB cache → server-side proxy → LLM subject fallback. No external CORS proxies are used (they were removed after causing persistent CORS errors).
+
+**Strategy (3 tiers):**
+1. **IDB cache** — `source_cache` store, keyed by URL, expires after 24h.
+2. **Server-side proxy** — Dev: Vite middleware at `/__proxy?url=` or `/api/fetch?url=`; Prod: Cloudflare Function at `/api/fetch?url=`. Both fetch server-to-server (no CORS) and return `Access-Control-Allow-Origin: *`.
+3. **LLM subject generation** — When the proxy fails (no Cloudflare deployment, or Vite can't reach the target), `extractSubjectFromUrl()` extracts a clean subject from the URL path (e.g., `/wiki/Photosynthesis` → `"Photosynthesis"`), then `fetchSubjectFromLlm()` generates quality educational content from scratch. For non-URL topic inputs, the subject is used directly.
+
+Content is truncated via `truncateByParagraphs` and cached to IDB asynchronously. See `docs/architecture.md` for the fetch flow diagram.
 
 ## Quiz grading
 
 Quiz answers are graded by sending the user's answer + the quiz's `rationale`/`correctAnswer` to whichever provider is selected (Mistral or NVIDIA); parsing in `src/lib/llm/gradeParser.ts`, prompt in `src/lib/prompts/grade.ts`. Attempts are appended to `QuizData.attempts`; `bestScore` and `state` (`untested | inProgress | correct | partial | incorrect | mastered`) drive the UI.
 
 ## Gotchas — read these before touching store/pipeline code
-
-0. **Dual-width maintenance: CSS `.node` widths × notebook.css `max-width`.** Each node type has a fixed `width` in its `.module.css` (concept: 390px, quiz: 360px, summary: 450px, note: 360px). Notebook mode overrides these with `width: auto; max-width: 450px` in `src/styles/notebook.css:38` — capped at the widest non-notebook node (summary). Whenever you change the CSS widths, **you must also update `notebook.css:38`'s `max-width`** so notebook view doesn't clip or run wider than the non-notebook view.
 
 1. **State-store race (FIXED, keep it fixed).** `sessionStore.create` and `runPipeline`'s `updateCurrent` both await IndexedDB writes and then `set({ sessions })`. If they run concurrently they used to clobber each other's `sessions` array, leaving `session.nodes` empty and the canvas blank. Rules that prevent regressions:
    - In `App.tsx`, always `await createSession(...)` and `await select(session.id)` before AND after `runPipeline`. Never call `createSession` without awaiting.
@@ -142,3 +148,5 @@ src/
 - **2026-07-05** — Added TTS support via Mistral Voxtral (`src/lib/llm/tts.ts`). Falls back to browser Web Speech API when Mistral TTS is unavailable or NVIDIA provider is selected.
 - **2026-07-06** — Fixed abort signal not propagating through `chat()`. Root cause: `tryEndpoint`'s third parameter type declared `signal?: AbortSignal` and destructured as `const { ..., signal: userSignal, ... } = opts`, but the caller `chat()` passed a `shared` object with a `userSignal` property (not `signal`). So `userSignal` was always `undefined` inside `tryEndpoint`, meaning caller-provided `AbortSignal` was never passed to `anySignal()`. Fix: changed the type to `userSignal?: AbortSignal` and destructured directly as `userSignal`. See `src/lib/llm/chat.ts:42-50`.
 - **2026-07-07** — Parallelized per-concept content generation in pipeline. Replaced sequential `for` loop with bounded-concurrency pool (`CONCURRENCY` const in `pipeline.ts`, default `Infinity`). Concept shells pushed upfront; all LLM calls fire in parallel. A mutex (`createMutex`) serializes `updateCurrent` writes to prevent IDB races. Inter-concept chain edges built after all concepts resolve. Removed 2s sleep between concepts. Failed concepts are caught and skipped (non-fatal). See `src/lib/pipeline.ts`.
+- **2026-07-20** — Removed all external CORS proxies (`allorigins.win`, `corsproxy.io`, `cors.eu.org`, `codetabs.com`, `cors.lol`, `corsfix.com`) from `raceProxies`. They caused persistent `net::ERR_FAILED` CORS errors in the browser. Replaced with exclusive server-side proxy path: Vite dev middleware (`/__proxy` + `/api/fetch`) in dev, Cloudflare Function (`/api/fetch`) in prod. Both fetch server-to-server (no CORS) and return `Access-Control-Allow-Origin: *`. See `src/lib/fetchSourceContent.ts` and `functions/api/fetch.ts`.
+- **2026-07-20** — Removed the "LLM URL summary" fallback in `fetchSourceContent.ts` that asked the LLM to "Summarize the content found at URL" (LLMs can't browse URLs, producing vague content that caused `parseOutline` to throw "Missing or empty 'concepts' array"). Replaced with `extractSubjectFromUrl()` which extracts a clean subject from the URL path (e.g., `/wiki/Photosynthesis` → `"Photosynthesis"`) and feeds it to `fetchSubjectFromLlm()` for quality educational content generation from scratch. See `src/lib/fetchSourceContent.ts:extractSubjectFromUrl`.
