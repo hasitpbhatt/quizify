@@ -37,6 +37,13 @@ npm run format     # prettier --write "src/**/*.{ts,tsx,css}"
 npm test           # vitest run
 ```
 
+**Pre-PR checklist (run all three after final amend before push):**
+```bash
+npm run build      # typecheck + vite build — catches TS errors including unused imports in test files
+npm run lint       # no lint errors
+npm test           # all tests pass
+```
+
 ## Path aliases
 
 `@/*` → `./src/*` (configured in `tsconfig.json` paths and `vite.config.ts` resolve.alias). Import via `@/shared/...`, `@/lib/...`, `@/features/...`, `@/app/...`.
