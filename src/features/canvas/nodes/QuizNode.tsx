@@ -16,6 +16,15 @@ const badgeColors: Record<string, { bg: string; text: string }> = {
   mastered: { bg: 'rgba(34,197,94,0.15)', text: '#22c55e' },
 };
 
+const formatColors: Record<string, string> = {
+  multipleChoice: '#5457E8',
+  trueFalse: '#E0617A',
+  shortAnswer: '#3DA8BE',
+  freeText: '#9B6DD6',
+  fillBlank: '#E0A24A',
+  ordering: '#4BAE6F',
+};
+
 function toQuizData(data: Record<string, unknown>): QuizData {
   if (data.kind !== 'quiz') throw new Error(`Expected quiz data, got ${String(data.kind)}`);
   return data as unknown as QuizData;
@@ -62,7 +71,14 @@ function QuizNodeInner(props: NodeProps) {
   return (
     <div ref={nodeRef} className={styles.node} data-node-type="quiz" data-state={data.state}>
       <Handle type="target" position={Position.Left} />
-      <div className={styles.format}>{formatLabel}</div>
+      <div className={styles.format}>
+        <span
+          className={styles.formatDot}
+          style={{ background: formatColors[data.format] ?? 'var(--accent)' }}
+          aria-hidden="true"
+        />
+        {formatLabel}
+      </div>
       <div className={styles.prompt}>
         {notebookMode ? (
           promptParagraphs.map((p, i) => (

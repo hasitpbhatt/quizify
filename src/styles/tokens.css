@@ -122,4 +122,10 @@
   --note-bg: #4F4A12;
   --note-text: #E8E2A0;
   --note-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
+
+  /* React Flow Controls are themed via data-theme, not .react-flow.dark */
+  --xy-controls-button-background-color-default: var(--bg-elevated);
+  --xy-controls-button-color-default: var(--text-primary);
+  --xy-controls-button-border-color-default: var(--border);
+  --xy-controls-button-background-color-hover-default: var(--bg-glass);
 }

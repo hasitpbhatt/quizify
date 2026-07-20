@@ -2,20 +2,19 @@
   background: var(--bg-glass);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: var(--radius-lg);
   padding: var(--space-5);
   width: 420px;
   font-family: var(--font-ui);
   position: relative;
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+  box-shadow: var(--shadow-sm), inset 0 0 0 0.5px var(--border-hairline);
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .node:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-  border-color: var(--border-strong);
+  transform: scale(1.01);
+  box-shadow: var(--shadow-md), inset 0 0 0 0.5px var(--border-hairline);
 }
 
 .loading {

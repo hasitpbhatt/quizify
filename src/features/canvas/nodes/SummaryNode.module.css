@@ -2,7 +2,8 @@
   background: var(--bg-glass);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border: 2px solid var(--accent);
+  border: none;
+  border-left: 3px solid var(--accent);
   border-radius: var(--radius-xl);
   padding: var(--space-6);
   width: 480px;
