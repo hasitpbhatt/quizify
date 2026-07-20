@@ -80,17 +80,17 @@ describe('fetchSourceContent', () => {
     });
   });
 
-  describe('URL subject — proxy fallback', () => {
-    it('uses the first successful proxy', async () => {
+  describe('URL subject — server-side proxy', () => {
+    it('uses the vite dev proxy', async () => {
       mockWith({
-        'allorigins': () => Promise.resolve(ok(LONG)),
+        '/__proxy': () => Promise.resolve(ok(LONG)),
       });
       const result = await fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' });
       expect(result.content).toBe(LONG);
-      expect(result.source).not.toBe('llm');
+      expect(result.source).toBe('cfproxy');
     });
 
-    it('tries cfproxy when all public proxies fail', async () => {
+    it('uses the Cloudflare Function proxy', async () => {
       mockWith({
         '/api/fetch': () => Promise.resolve(ok(LONG)),
       });
@@ -143,7 +143,7 @@ describe('fetchSourceContent', () => {
 
   describe('content validation', () => {
     it('throws when fetched content is too short', async () => {
-      mockWith({ 'allorigins': () => Promise.resolve(ok(SHORT)) });
+      mockWith({ '/api/fetch': () => Promise.resolve(ok(SHORT)) });
       await expect(
         fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' })
       ).rejects.toThrow(/Failed to fetch content/);
@@ -152,7 +152,7 @@ describe('fetchSourceContent', () => {
 
   describe('caching', () => {
     it('caches content after successful fetch', async () => {
-      mockWith({ 'allorigins': () => Promise.resolve(ok(LONG)) });
+      mockWith({ '/api/fetch': () => Promise.resolve(ok(LONG)) });
       await fetchSourceContent('https://example.com', { apiKey: '', persona: 'student' });
       const cached = await getCachedSource('https://example.com');
       expect(cached).toBe(LONG);
