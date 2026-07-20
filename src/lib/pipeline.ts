@@ -94,6 +94,11 @@ export async function processOneConcept(
 ): Promise<string | null> {
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
+  // Index the shell nodes once so per-concept lookups are O(1) instead of a
+  // linear findIndex inside each parallel worker (was O(N²) across N workers).
+  const nodeIndexById = new Map<string, number>();
+  for (let i = 0; i < nodes.length; i++) nodeIndexById.set(nodes[i].id, i);
+
   const cursorX = 100 + index * PAIR_WIDTH;
 
   const conceptStart = performance.now();
@@ -119,7 +124,7 @@ export async function processOneConcept(
     const totalColumnHeight = n > 0 ? quizHeights.reduce((a, b) => a + b + GAP_ROW, 0) - GAP_ROW : 0;
     const conceptY = n > 0 ? START_Y + Math.floor((totalColumnHeight - estimateConceptHeight(content.detail.explanation)) / 2) : START_Y;
 
-    const nodeIndex = nodes.findIndex(c => c.id === concept.id);
+    const nodeIndex = nodeIndexById.get(concept.id) ?? -1;
     if (nodeIndex !== -1) {
       nodes[nodeIndex] = {
         ...nodes[nodeIndex],
@@ -300,6 +305,7 @@ export async function runPipeline(
   sourceUrl?: string,
   onProgress?: ProgressCallback,
   signal?: AbortSignal,
+  sessionId?: string,
 ): Promise<{ nodes: CanvasNode[]; edges: CanvasEdge[] }> {
   const notify = (step: PipelineStep, label: string, error?: string) => {
     onProgress?.({ step, label, error });
@@ -313,8 +319,11 @@ export async function runPipeline(
   const nodes: CanvasNode[] = [];
   const edges: CanvasEdge[] = [];
 
+  // Bind the target session id at pipeline start so a concurrent session
+  // switch (currentId change) can never redirect a pipeline write to the
+  // wrong session. Falls back to the ambient currentId inside updateCurrent.
   const persist = () => withMutex(() =>
-    updateCurrent({ nodes: [...nodes], edges: [...edges], updatedAt: Date.now() })
+    updateCurrent({ nodes: [...nodes], edges: [...edges], updatedAt: Date.now() }, sessionId)
   );
 
   const generatedConcepts: ConceptInfo[] = [];

@@ -162,6 +162,10 @@ export function App() {
       // Intercept with Preview so user commits knowingly (skip in test mode)
       const isTest = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
       if (!isTest) {
+        // Guard against an indefinite hang: if the user never acts on the
+        // preview, auto-cancel (treated like a manual Cancel) so generation
+        // doesn't stay parked on the progress screen forever.
+        const PREVIEW_TIMEOUT_MS = 5 * 60 * 1000;
         await new Promise<void>((resolve, reject) => {
           let title = '';
           const lines = src.content.split('\n');
@@ -183,19 +187,27 @@ export function App() {
           const sentences = cleanText.split(/[.!?]\s+/);
           const snippet = sentences.slice(0, 3).join('. ') + (sentences.length > 3 ? '...' : '.');
 
-          setPreviewData({
-            title,
-            snippet,
-            onConfirm: () => {
-              setPreviewData(null);
-              resolve();
-            },
-            onCancel: () => {
-              setPreviewData(null);
-              handleCancel();
-              reject(new DOMException('Aborted', 'AbortError'));
-            }
-          });
+          let cancelled = false;
+          const timeout = setTimeout(() => {
+            if (cancelled) return;
+            onCancel();
+          }, PREVIEW_TIMEOUT_MS);
+
+          const onConfirm = () => {
+            cancelled = true;
+            clearTimeout(timeout);
+            setPreviewData(null);
+            resolve();
+          };
+          const onCancel = () => {
+            cancelled = true;
+            clearTimeout(timeout);
+            setPreviewData(null);
+            handleCancel();
+            reject(new DOMException('Aborted', 'AbortError'));
+          };
+
+          setPreviewData({ title, snippet, onConfirm, onCancel });
         });
       }
 
@@ -238,6 +250,7 @@ export function App() {
           latency.startStage(p.step, p.label);
         },
         abortController.signal,
+        session.id,
       );
 
       if (pipelineStage) latency.endStage(pipelineStage);

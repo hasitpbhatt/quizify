@@ -2,6 +2,18 @@ import { create } from 'zustand';
 import type { Session, QuizData } from '@/shared/types';
 import * as sessionsDb from '@/lib/db/sessionsDb';
 
+/**
+ * Serializes async critical sections so overlapping `updateCurrent` calls
+ * (e.g. a pipeline `persist()` and a quiz-grade write) can't interleave their
+ * IDB read → merge → put → set and clobber each other's data.
+ */
+function createMutex() {
+  let chain: Promise<unknown> = Promise.resolve();
+  return <T>(fn: () => Promise<T>): Promise<T> =>
+    (chain = chain.then(() => fn(), () => fn())) as Promise<T>;
+}
+const writeMutex = createMutex();
+
 interface SessionState {
   sessions: Session[];
   currentId: string | null;
@@ -11,7 +23,7 @@ interface SessionState {
   create: (opts: { url: string; hostname: string; persona: import('@/shared/types').Persona }) => Promise<Session>;
   select: (id: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
-  updateCurrent: (patch: Partial<Session>) => Promise<void>;
+  updateCurrent: (patch: Partial<Session>, sessionId?: string) => Promise<void>;
 }
 
 function generateId(): string {
@@ -100,54 +112,60 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     });
   },
 
-  updateCurrent: async (patch) => {
-    const { currentId } = get();
-    if (!currentId) return;
+  updateCurrent: async (patch, sessionId) => {
+    const targetId = sessionId ?? get().currentId;
+    if (!targetId) return;
 
-    // Read the authoritative copy from IDB so we never overwrite fields that
-    // a concurrent update (e.g. addNote + quiz grading) just wrote.
-    const existing = await sessionsDb.getSession(currentId);
-    if (!existing) return;
+    // Serialize the IDB read → merge → put → set so overlapping writers
+    // (pipeline persist + quiz grading) can't clobber each other. Without
+    // this, two concurrent updateCurrent calls could each read stale data
+    // and the last put wins, silently dropping one write.
+    await writeMutex(async () => {
+      // Read the authoritative copy from IDB so we never overwrite fields that
+      // a concurrent update (e.g. addNote + quiz grading) just wrote.
+      const existing = await sessionsDb.getSession(targetId);
+      if (!existing) return;
 
-    // When patch replaces nodes, preserve quiz grade data from IDB so the
-    // pipeline's persist() doesn't clobber user-authored attempts/state.
-    let mergedPatch = patch;
-    if (patch.nodes && existing.nodes.length > 0) {
-      const existingNodeMap = new Map(existing.nodes.map(n => [n.id, n]));
-      const mergedNodes = patch.nodes.map(node => {
-        const existingNode = existingNodeMap.get(node.id);
-        if (existingNode?.data?.kind === 'quiz' && node.data?.kind === 'quiz') {
-          const existingQuiz = existingNode.data as QuizData;
-          const patchQuiz = node.data as QuizData;
-          // Pipeline writes default { attempts: [], state: 'untested' } — don't
-          // let that overwrite a user's in-progress or completed grade.
-          if (
-            patchQuiz.attempts.length === 0 &&
-            patchQuiz.state === 'untested' &&
-            (existingQuiz.attempts.length > 0 || existingQuiz.state !== 'untested')
-          ) {
-            return {
-              ...node,
-              data: {
-                ...patchQuiz,
-                attempts: existingQuiz.attempts,
-                state: existingQuiz.state,
-                bestScore: existingQuiz.bestScore,
-              } as QuizData,
-            };
+      // When patch replaces nodes, preserve quiz grade data from IDB so the
+      // pipeline's persist() doesn't clobber user-authored attempts/state.
+      let mergedPatch = patch;
+      if (patch.nodes && existing.nodes.length > 0) {
+        const existingNodeMap = new Map(existing.nodes.map(n => [n.id, n]));
+        const mergedNodes = patch.nodes.map(node => {
+          const existingNode = existingNodeMap.get(node.id);
+          if (existingNode?.data?.kind === 'quiz' && node.data?.kind === 'quiz') {
+            const existingQuiz = existingNode.data as QuizData;
+            const patchQuiz = node.data as QuizData;
+            // Pipeline writes default { attempts: [], state: 'untested' } — don't
+            // let that overwrite a user's in-progress or completed grade.
+            if (
+              patchQuiz.attempts.length === 0 &&
+              patchQuiz.state === 'untested' &&
+              (existingQuiz.attempts.length > 0 || existingQuiz.state !== 'untested')
+            ) {
+              return {
+                ...node,
+                data: {
+                  ...patchQuiz,
+                  attempts: existingQuiz.attempts,
+                  state: existingQuiz.state,
+                  bestScore: existingQuiz.bestScore,
+                } as QuizData,
+              };
+            }
           }
-        }
-        return node;
-      });
-      mergedPatch = { ...patch, nodes: mergedNodes };
-    }
+          return node;
+        });
+        mergedPatch = { ...patch, nodes: mergedNodes };
+      }
 
-    const updated: Session = { ...existing, ...mergedPatch, updatedAt: Date.now() };
-    await sessionsDb.putSession(updated);
+      const updated: Session = { ...existing, ...mergedPatch, updatedAt: Date.now() };
+      await sessionsDb.putSession(updated);
 
-    set((state) => ({
-      sessions: upsertSession(state.sessions, updated),
-      currentId: state.currentId ?? currentId,
-    }));
+      set((state) => ({
+        sessions: upsertSession(state.sessions, updated),
+        currentId: state.currentId ?? targetId,
+      }));
+    });
   },
 }));

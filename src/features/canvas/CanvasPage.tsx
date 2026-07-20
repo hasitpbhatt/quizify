@@ -85,7 +85,17 @@ function filterVisibleNodes(
   revealedQuizIds: Set<string>,
   notebookMode: boolean,
 ): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
-  const conceptCount = nodes.filter(n => n.data.kind === 'concept').length;
+  // Build concept-index lookups once (O(N)) instead of calling
+  // getConceptIndex (a linear find) per quiz — was O(N²).
+  const conceptIndexMap = new Map<string, number>();
+  let conceptCount = 0;
+  for (const n of nodes) {
+    if (n.data.kind === 'concept') {
+      conceptIndexMap.set(n.id, (n.data as ConceptData).index);
+      conceptCount++;
+    }
+  }
+
   const visibleNodeIds = new Set<string>();
 
   for (const n of nodes) {
@@ -108,7 +118,9 @@ function filterVisibleNodes(
     }
     if (n.data.kind === 'quiz') {
       const q = n.data as QuizData;
-      const parentIdx = getConceptIndex(nodes, q.parentConceptId);
+      const parentIdx = conceptIndexMap.has(q.parentConceptId)
+        ? conceptIndexMap.get(q.parentConceptId)!
+        : getConceptIndex(nodes, q.parentConceptId);
       if (parentIdx < 0) continue;
 
       if (parentIdx < currentConceptIndex) {
