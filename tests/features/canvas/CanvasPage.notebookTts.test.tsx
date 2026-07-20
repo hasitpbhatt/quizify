@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { render, waitFor, screen, fireEvent } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { CanvasPage } from '@/features/canvas/CanvasPage';
 import { useSessionStore } from '@/shared/stores/sessionStore';
@@ -228,5 +228,28 @@ describe('CanvasPage — notebook-mode captions (NB-3)', () => {
     await waitFor(() => {
       expect(document.querySelector('.notebookCaption')).toBeNull();
     });
+  });
+});
+
+describe('CanvasPage — notebook-mode outline/TOC (NB-5)', () => {
+  it('renders a table-of-contents button and opens the outline with node titles', async () => {
+    const concept = factories.mockConceptNode();
+    const quiz = factories.mockQuizNode(concept.id);
+    const session = factories.mockSession([concept, quiz], [factories.mockEdge(concept.id, quiz.id)]);
+    await sessionsDb.putSession(session);
+    useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
+    useNotebookStore.setState({ notebookMode: true, completedTypingNodeIds: {} });
+
+    renderCanvas();
+
+    const contentsBtn = await screen.findByTitle('Table of contents');
+    expect(contentsBtn).toBeInTheDocument();
+    fireEvent.click(contentsBtn);
+
+    const panel = await screen.findByRole('dialog', { name: 'Table of contents' });
+    expect(panel).toBeInTheDocument();
+    // The visible concept title should appear in the TOC (quizzes are hidden
+    // until revealed in notebook mode, so they aren't listed yet).
+    expect(screen.getByText('Quantum Computing')).toBeInTheDocument();
   });
 });

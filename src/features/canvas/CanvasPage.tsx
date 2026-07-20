@@ -23,7 +23,7 @@ import { SummaryQuizInteraction } from '@/features/quiz/SummaryQuizInteraction';
 import { NoteNode } from './nodes/NoteNode';
 import { MobileFocusView } from './MobileFocusView';
 import { useIsMobile } from '@/shared/useMediaQuery';
-import { Plus, BookOpen, Play, Pause, Square, Download, ChevronDown, X, Volume2, VolumeX } from 'lucide-react';
+import { Plus, BookOpen, Play, Pause, Square, Download, ChevronDown, X, Volume2, VolumeX, List, SkipForward } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
 import { exportSessionJson } from '@/lib/export/json';
@@ -305,6 +305,25 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const [showExport, setShowExport] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
 
+  const [showOutline, setShowOutline] = useState(false);
+  const outlineRef = useRef<HTMLDivElement>(null);
+
+  // Jump to a node in notebook mode: concepts focus directly; quizzes/notes/
+  // summary jump to their parent concept so the reading position follows.
+  const jumpToNode = useCallback((nodeId: string) => {
+    if (!session) return;
+    const target = session.nodes.find(n => n.id === nodeId);
+    if (!target) return;
+    if (target.data.kind === 'concept') {
+      focusOnActiveConcept(nodeId, true);
+    } else if (target.data.kind === 'quiz') {
+      focusOnActiveConcept((target.data as QuizData).parentConceptId, true);
+    } else {
+      focusOnActiveConcept((session.nodes.find(n => n.data.kind === 'concept') as CanvasNode | undefined)?.id ?? nodeId, true);
+    }
+    setShowOutline(false);
+  }, [session, focusOnActiveConcept]);
+
   useEffect(() => {
     if (!showExport) return;
     const handler = (e: MouseEvent) => {
@@ -315,6 +334,17 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showExport]);
+
+  useEffect(() => {
+    if (!showOutline) return;
+    const handler = (e: MouseEvent) => {
+      if (outlineRef.current && !(e.target instanceof Node && outlineRef.current.contains(e.target))) {
+        setShowOutline(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showOutline]);
 
   const handleExportJson = useCallback(() => {
     if (!session) return;
@@ -818,12 +848,18 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
             <X size={14} />
           </button>
           <div className="notebookDivider" />
+          <button onClick={() => setShowOutline(v => !v)} title="Table of contents">
+            <List size={14} />
+          </button>
           <button
             onClick={() => setTtsEnabled(!ttsEnabled)}
             title={ttsEnabled ? 'Mute narration' : 'Unmute narration'}
             aria-pressed={!ttsEnabled}
           >
             {ttsEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+          </button>
+          <button onClick={() => ttsManager.skip()} title="Skip segment" disabled={!ttsPlaying && !ttsPaused}>
+            <SkipForward size={14} />
           </button>
           <button onClick={handlePlayPause} title={ttsPaused ? 'Resume' : 'Play/Pause'}>
             {ttsPaused ? <Play size={14} /> : ttsPlaying ? <Pause size={14} /> : <Play size={14} />}
@@ -850,6 +886,44 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
               ? `${segmentIndex + 1} / ${totalSegments}`
               : 'Queued'}
           </span>
+        </div>
+      )}
+
+      {notebookMode && showOutline && session && (
+        <div
+          className="notebookOutlineOverlay"
+          onClick={() => setShowOutline(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Table of contents"
+        >
+          <div className="notebookOutlinePanel" ref={outlineRef} onClick={e => e.stopPropagation()}>
+            <div className="notebookOutlineHeader">
+              <span className="notebookOutlineTitle">Contents</span>
+              <button className="notebookOutlineClose" onClick={() => setShowOutline(false)} aria-label="Close contents">✕</button>
+            </div>
+            <div className="notebookOutlineList">
+              {visibleData.nodes.map((n) => {
+                const kind = n.data.kind;
+                const kindLabel = kind.charAt(0).toUpperCase() + kind.slice(1);
+                const title =
+                  kind === 'concept' ? (n.data as ConceptData).title
+                  : kind === 'summary' ? `${(n.data as SummaryData).recap.length} recap points`
+                  : kind === 'quiz' ? (n.data as QuizData).prompt
+                  : (n.data as NoteData).text.slice(0, 40);
+                return (
+                  <button
+                    key={n.id}
+                    className="notebookOutlineItem"
+                    onClick={() => jumpToNode(n.id)}
+                  >
+                    <span className="notebookOutlineKind">{kindLabel}</span>
+                    <span className="notebookOutlineItemTitle">{title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 

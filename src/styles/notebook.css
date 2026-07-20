@@ -347,6 +347,101 @@
   outline-offset: 1px;
 }
 
+/* --- Notebook table-of-contents overlay (desktop) --- */
+.notebookOutlineOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.notebookOutlinePanel {
+  width: min(420px, 90vw);
+  max-height: 75vh;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.notebookOutlineHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.notebookOutlineTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-ui), system-ui, sans-serif;
+}
+
+.notebookOutlineClose {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notebookOutlineList {
+  overflow-y: auto;
+  padding: var(--space-2) 0;
+}
+
+.notebookOutlineItem {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  width: 100%;
+  padding: var(--space-3) var(--space-5);
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-hairline);
+  transition: background 0.15s ease;
+}
+
+.notebookOutlineItem:hover {
+  background: var(--bg-subtle);
+}
+
+.notebookOutlineKind {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 2px;
+  letter-spacing: 0.5px;
+  font-family: var(--font-ui), system-ui, sans-serif;
+}
+
+.notebookOutlineItemTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-family: var(--font-ui), system-ui, sans-serif;
+  overflow-wrap: anywhere;
+}
+
 .notebookControls .progressLabel {
   color: var(--text-secondary);
   white-space: nowrap;
