@@ -19,13 +19,9 @@ export function useWelcomeState() {
   const { persona, setPersona } = useSettingsStore();
   const [url, setUrl] = useState('');
 
-  const submitEnabled = persona !== null && url.trim().length > 0;
+  const submitEnabled = url.trim().length > 0;
 
-  const submitDisabledReason = !persona
-    ? 'Pick a profile above'
-    : !url.trim()
-      ? 'Enter a URL or topic'
-      : null;
+  const submitDisabledReason = !url.trim() ? 'Enter a URL or topic' : null;
 
   return {
     persona,
