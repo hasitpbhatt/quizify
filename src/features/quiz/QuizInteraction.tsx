@@ -132,9 +132,13 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose, notebookM
       role="dialog"
       aria-modal="true"
       aria-labelledby={promptId}
-      onClick={notebookMode ? undefined : (e) => {
-        if (e.target === overlayRef.current) onClose();
-      }}
+      onClick={
+        notebookMode
+          ? undefined
+          : (e) => {
+              if (e.target === overlayRef.current) onClose();
+            }
+      }
       style={{
         position: 'fixed',
         inset: 0,
@@ -269,12 +273,9 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose, notebookM
                 padding: 12,
                 borderRadius: 8,
                 marginBottom: 12,
-                background: result.grade === 'partial'
-                  ? 'rgba(234,179,8,0.1)'
-                  : 'rgba(239,68,68,0.1)',
-                border: result.grade === 'partial'
-                  ? '1px solid #eab308'
-                  : '1px solid #ef4444',
+                background:
+                  result.grade === 'partial' ? 'rgba(234,179,8,0.1)' : 'rgba(239,68,68,0.1)',
+                border: result.grade === 'partial' ? '1px solid #eab308' : '1px solid #ef4444',
               }}
             >
               <div
@@ -329,13 +330,8 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose, notebookM
                 borderRadius: 8,
                 marginBottom: 12,
                 background:
-                  result.grade === 'correct'
-                    ? 'rgba(34,197,94,0.1)'
-                    : 'rgba(234,179,8,0.1)',
-                border:
-                  result.grade === 'correct'
-                    ? '1px solid #22c55e'
-                    : '1px solid #eab308',
+                  result.grade === 'correct' ? 'rgba(34,197,94,0.1)' : 'rgba(234,179,8,0.1)',
+                border: result.grade === 'correct' ? '1px solid #22c55e' : '1px solid #eab308',
               }}
             >
               <div
@@ -347,9 +343,7 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose, notebookM
                   fontFamily: 'var(--font-ui)',
                 }}
               >
-                {result.grade === 'correct'
-                  ? '\u2713 Correct'
-                  : '~ Partial'}
+                {result.grade === 'correct' ? '\u2713 Correct' : '~ Partial'}
               </div>
               <div
                 style={{
