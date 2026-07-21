@@ -35,7 +35,9 @@ function SummaryNodeInner(props: NodeProps) {
     if (!notebookMode || !isAnimating) {
       // Default: render as full bullet list
       return data.recap.map((item, i) => (
-        <div key={i} className={styles.recapItem}>{item}</div>
+        <div key={i} className={styles.recapItem}>
+          {item}
+        </div>
       ));
     }
 
@@ -48,7 +50,9 @@ function SummaryNodeInner(props: NodeProps) {
       if (revealed >= bulletEnd) {
         // This bullet is fully revealed
         items.push(
-          <div key={i} className={styles.recapItem}>{data.recap[i]}</div>
+          <div key={i} className={styles.recapItem}>
+            {data.recap[i]}
+          </div>,
         );
       } else if (revealed > bulletStart) {
         // This bullet is partially revealed
@@ -57,7 +61,7 @@ function SummaryNodeInner(props: NodeProps) {
           <div key={i} className={styles.recapItem}>
             {partialText}
             <span className="notebookCursor" />
-          </div>
+          </div>,
         );
         // Remaining bullets are hidden
         break;
@@ -74,9 +78,7 @@ function SummaryNodeInner(props: NodeProps) {
     <div className={styles.node}>
       <Handle type="target" position={Position.Left} />
       <div className={styles.header}>Summary</div>
-      <div className={styles.recap}>
-        {renderRecap()}
-      </div>
+      <div className={styles.recap}>{renderRecap()}</div>
       {!notebookMode && (
         <>
           <div className={styles.quizCount}>
@@ -88,9 +90,7 @@ function SummaryNodeInner(props: NodeProps) {
               <div>Mastery</div>
             </div>
           ) : (
-            <button className={styles.launchBtn}>
-              Take Final Quiz
-            </button>
+            <button className={styles.launchBtn}>Take Final Quiz</button>
           )}
         </>
       )}
@@ -101,7 +101,10 @@ function SummaryNodeInner(props: NodeProps) {
 
 function SummaryNodeWrapper(props: NodeProps) {
   return (
-    <ErrorBoundary name="SummaryNode" fallback={<NodeErrorFallback nodeId={props.id} type="summary" />}>
+    <ErrorBoundary
+      name="SummaryNode"
+      fallback={<NodeErrorFallback nodeId={props.id} type="summary" />}
+    >
       <SummaryNodeInner {...props} />
     </ErrorBoundary>
   );

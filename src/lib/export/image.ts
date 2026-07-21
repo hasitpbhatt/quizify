@@ -13,7 +13,7 @@ export async function exportCanvasAsPng(
   const viewport = reactFlowInstance.getViewport();
 
   await reactFlowInstance.fitView({ duration: 0, padding: 0.1 });
-  await new Promise(resolve => requestAnimationFrame(resolve));
+  await new Promise((resolve) => requestAnimationFrame(resolve));
 
   try {
     const canvas = await html2canvas(container, {
@@ -23,9 +23,7 @@ export async function exportCanvasAsPng(
       logging: false,
     });
 
-    const blob = await new Promise<Blob | null>(resolve =>
-      canvas.toBlob(resolve, 'image/png'),
-    );
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
 
     if (blob) {
       downloadBlob(blob, sessionFilename(session, 'png'));

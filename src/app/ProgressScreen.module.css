@@ -23,8 +23,14 @@
 }
 
 @keyframes cardIn {
-  from { opacity: 0; transform: translateY(8px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .header {
@@ -52,8 +58,15 @@
 }
 
 @keyframes corePulse {
-  0%, 100% { transform: scale(1); opacity: 0.9; }
-  50% { transform: scale(0.85); opacity: 1; }
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(0.85);
+    opacity: 1;
+  }
 }
 
 .orbRing,
@@ -66,11 +79,19 @@
   animation: ringOut 2.4s var(--ease-out) infinite;
 }
 
-.orbRing2 { animation-delay: 1.2s; }
+.orbRing2 {
+  animation-delay: 1.2s;
+}
 
 @keyframes ringOut {
-  0% { transform: scale(0.5); opacity: 0.6; }
-  100% { transform: scale(1.4); opacity: 0; }
+  0% {
+    transform: scale(0.5);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
 }
 
 .title {
@@ -105,10 +126,14 @@
   padding: var(--space-3) var(--space-3);
   border-radius: var(--radius-sm);
   opacity: 0.35;
-  transition: opacity var(--dur) var(--ease-out), background var(--dur) var(--ease-out);
+  transition:
+    opacity var(--dur) var(--ease-out),
+    background var(--dur) var(--ease-out);
 }
 
-.stage-done { opacity: 0.6; }
+.stage-done {
+  opacity: 0.6;
+}
 .stage-active {
   opacity: 1;
   background: var(--accent-subtle);
@@ -153,8 +178,14 @@
 }
 
 @keyframes checkPop {
-  from { transform: scale(0.4); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .dotPulse {
@@ -166,8 +197,15 @@
 }
 
 @keyframes dotPulse {
-  0%, 100% { transform: scale(0.7); opacity: 0.6; }
-  50% { transform: scale(1.1); opacity: 1; }
+  0%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
 }
 
 .dotEmpty {
@@ -191,8 +229,12 @@
   color: var(--text-primary);
 }
 
-.stage-active .stageLabel { color: var(--accent-pressed); }
-:root[data-theme='dark'] .stage-active .stageLabel { color: var(--accent-hover); }
+.stage-active .stageLabel {
+  color: var(--accent-pressed);
+}
+:root[data-theme='dark'] .stage-active .stageLabel {
+  color: var(--accent-hover);
+}
 
 .stageHint {
   font-size: var(--fs-caption);
@@ -236,7 +278,9 @@
   transition: color var(--dur-fast) var(--ease-out);
 }
 
-.cancelLink:hover { color: var(--text-secondary); }
+.cancelLink:hover {
+  color: var(--text-secondary);
+}
 
 .cancelBtn {
   padding: var(--space-3) var(--space-5);
@@ -251,7 +295,9 @@
   transition: background var(--dur-fast) var(--ease-out);
 }
 
-.cancelBtn:hover { background: var(--accent-hover); }
+.cancelBtn:hover {
+  background: var(--accent-hover);
+}
 
 .ambient {
   position: absolute;
@@ -269,13 +315,27 @@
   transform: translate(-50%, -50%);
 }
 
-.ambient[data-mounted='true'] { opacity: 0.8; }
+.ambient[data-mounted='true'] {
+  opacity: 0.8;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .orbCore, .orbRing, .orbRing2, .dotPulse { animation: none; }
-  .orbCore { opacity: 0.9; }
-  .card { animation: none; opacity: 1; }
-  .check { animation: none; }
+  .orbCore,
+  .orbRing,
+  .orbRing2,
+  .dotPulse {
+    animation: none;
+  }
+  .orbCore {
+    opacity: 0.9;
+  }
+  .card {
+    animation: none;
+    opacity: 1;
+  }
+  .check {
+    animation: none;
+  }
 }
 
 .compactBar {
@@ -297,9 +357,15 @@
   transition: opacity var(--dur) var(--ease-out);
 }
 
-.compactStage-done { opacity: 0.6; }
-.compactStage-active { opacity: 1; }
-.compactStage-error { opacity: 1; }
+.compactStage-done {
+  opacity: 0.6;
+}
+.compactStage-active {
+  opacity: 1;
+}
+.compactStage-error {
+  opacity: 1;
+}
 
 .compactDot {
   display: flex;
@@ -442,4 +508,3 @@
 .previewConfirmBtn:hover {
   background: var(--accent-hover);
 }
-

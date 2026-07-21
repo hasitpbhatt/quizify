@@ -13,7 +13,9 @@
   cursor: default;
   /* Use the per-note rotation custom property (set inline from JS) */
   transform: rotate(var(--note-rotate, -0.5deg));
-  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 /* Folded corner effect */
@@ -24,17 +26,15 @@
   right: 0;
   width: 24px;
   height: 24px;
-  background: linear-gradient(
-    135deg,
-    transparent 50%,
-    rgba(0, 0, 0, 0.12) 50%
-  );
+  background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.12) 50%);
   border-top-left-radius: 4px;
 }
 
 .node:hover {
   transform: rotate(calc(var(--note-rotate, -0.5deg) - 1.5deg)) scale(1.02);
-  box-shadow: var(--note-shadow), 0 8px 24px rgba(0,0,0,0.12);
+  box-shadow:
+    var(--note-shadow),
+    0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 .text {
@@ -74,8 +74,8 @@
   height: 24px;
   border: none;
   border-radius: 50%;
-  background: rgba(0,0,0,0.08);
-  color: rgba(0,0,0,0.6);
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.6);
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
@@ -83,7 +83,10 @@
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 
 .node:hover .deleteBtn {
@@ -91,7 +94,7 @@
 }
 
 .deleteBtn:hover {
-  background: rgba(220,38,38,0.2);
+  background: rgba(220, 38, 38, 0.2);
   color: #dc2626;
 }
 
@@ -104,5 +107,5 @@
   opacity: 0.6;
   padding: 2px 6px;
   border-radius: var(--radius-xs);
-  background: rgba(0,0,0,0.06);
+  background: rgba(0, 0, 0, 0.06);
 }

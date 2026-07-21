@@ -8,7 +8,10 @@ export interface ExampleChip {
 
 export const EXAMPLE_CHIPS: ExampleChip[] = [
   { label: 'Wikipedia: photosynthesis', url: 'https://en.wikipedia.org/wiki/Photosynthesis' },
-  { label: 'Article: Why async/await', url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function' },
+  {
+    label: 'Article: Why async/await',
+    url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function',
+  },
   { label: 'Topic: agentic AI', url: 'agentic AI' },
 ];
 
@@ -18,9 +21,11 @@ export function useWelcomeState() {
 
   const submitEnabled = persona !== null && url.trim().length > 0;
 
-  const submitDisabledReason =
-    !persona ? 'Pick a profile above' :
-    !url.trim() ? 'Enter a URL or topic' : null;
+  const submitDisabledReason = !persona
+    ? 'Pick a profile above'
+    : !url.trim()
+      ? 'Enter a URL or topic'
+      : null;
 
   return {
     persona,

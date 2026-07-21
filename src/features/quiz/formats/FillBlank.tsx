@@ -18,7 +18,7 @@ export function FillBlank({ blankedSentence, disabled, onSubmit }: Props) {
         <input
           className={styles.blankInput}
           value={value}
-          onChange={e => setValue(e.target.value)}
+          onChange={(e) => setValue(e.target.value)}
           disabled={disabled}
         />
         {parts[1] || ''}

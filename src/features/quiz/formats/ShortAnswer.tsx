@@ -14,10 +14,12 @@ export function ShortAnswer({ disabled, onSubmit }: Props) {
       <input
         className={styles.input}
         value={value}
-        onChange={e => setValue(e.target.value)}
+        onChange={(e) => setValue(e.target.value)}
         disabled={disabled}
         placeholder="Type your answer…"
-        onKeyDown={e => { if (e.key === 'Enter' && value.trim()) onSubmit(value.trim()); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && value.trim()) onSubmit(value.trim());
+        }}
       />
       <button
         className={styles.submitBtn}

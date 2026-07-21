@@ -37,9 +37,7 @@ export function LatencyPanel() {
   const overallElapsed = Math.round(now - store.overallStart);
   const overallSec = Math.floor(overallElapsed / 1000);
   const overallMin = Math.floor(overallSec / 60);
-  const overallStr = overallMin > 0
-    ? `${overallMin}m ${overallSec % 60}s`
-    : `${overallSec}s`;
+  const overallStr = overallMin > 0 ? `${overallMin}m ${overallSec % 60}s` : `${overallSec}s`;
 
   function stageDuration(entry: { startTime: number; endTime?: number }): string {
     const end = entry.endTime ?? now;
@@ -50,31 +48,57 @@ export function LatencyPanel() {
 
   function stageIcon(entry: { endTime?: number; stage: string }) {
     if (entry.endTime) return <span className={styles.iconDone}>✓</span>;
-    return entry.stage === 'done'
-      ? <span className={styles.iconDone}>✓</span>
-      : <span className={styles.iconRunning} />;
+    return entry.stage === 'done' ? (
+      <span className={styles.iconDone}>✓</span>
+    ) : (
+      <span className={styles.iconRunning} />
+    );
   }
 
   return (
-    <div className={isMobile ? styles.mobileBar : styles.panel} role="status" aria-label="Generation latency debug panel">
+    <div
+      className={isMobile ? styles.mobileBar : styles.panel}
+      role="status"
+      aria-label="Generation latency debug panel"
+    >
       {isMobile ? (
         <>
           <span className={styles.metaLabel}>⏱ {overallStr}</span>
           <span className={styles.metaLabel}>📞 {store.callCount}</span>
           <span className={styles.metaLabel}>⚡ {store.rpm}/min</span>
-          <button className={styles.dismissBtn} onClick={() => useLatencyStore.getState().setVisible(false)} type="button" aria-label="Close debug panel">✕</button>
+          <button
+            className={styles.dismissBtn}
+            onClick={() => useLatencyStore.getState().setVisible(false)}
+            type="button"
+            aria-label="Close debug panel"
+          >
+            ✕
+          </button>
         </>
       ) : (
         <>
           <div className={styles.header}>
             <span className={styles.title}>⏱ Latency</span>
-            <button className={styles.dismissBtn} onClick={() => useLatencyStore.getState().setVisible(false)} type="button" aria-label="Close debug panel">✕</button>
+            <button
+              className={styles.dismissBtn}
+              onClick={() => useLatencyStore.getState().setVisible(false)}
+              type="button"
+              aria-label="Close debug panel"
+            >
+              ✕
+            </button>
           </div>
 
           <div className={styles.meta}>
-            <span className={styles.metaLabel}>Elapsed: <strong>{overallStr}</strong></span>
-            <span className={styles.metaLabel}>LLM calls: <strong>{store.callCount}</strong></span>
-            <span className={styles.metaLabel}>Rate: <strong>{store.rpm}/min</strong></span>
+            <span className={styles.metaLabel}>
+              Elapsed: <strong>{overallStr}</strong>
+            </span>
+            <span className={styles.metaLabel}>
+              LLM calls: <strong>{store.callCount}</strong>
+            </span>
+            <span className={styles.metaLabel}>
+              Rate: <strong>{store.rpm}/min</strong>
+            </span>
           </div>
 
           <div className={styles.stages}>
@@ -86,8 +110,6 @@ export function LatencyPanel() {
               </div>
             ))}
           </div>
-
-
         </>
       )}
     </div>

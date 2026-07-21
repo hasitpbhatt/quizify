@@ -112,7 +112,9 @@
   font-family: var(--font-ui);
   cursor: pointer;
   box-shadow: var(--shadow-xs);
-  transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .topActionBtn:hover {
@@ -127,7 +129,7 @@
   position: absolute;
   inset: 0;
   z-index: 20;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -182,8 +184,13 @@
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .progressLabel {
@@ -295,8 +302,12 @@
 }
 
 @keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
 .outlineHeader {
@@ -370,31 +381,45 @@
 }
 
 /* --- Mobile Notebook Mode Styles --- */
-.wrapper[data-notebook="true"] {
-  background-color: #FAF8F5 !important;
+.wrapper[data-notebook='true'] {
+  background-color: #faf8f5 !important;
 }
 
-[data-theme='dark'] .wrapper[data-notebook="true"] {
-  background-color: #12110E !important;
+[data-theme='dark'] .wrapper[data-notebook='true'] {
+  background-color: #12110e !important;
 }
 
-.wrapper[data-notebook="true"] .card {
+.wrapper[data-notebook='true'] .card {
   background-color: transparent !important;
   /* Ruled-line notebook paper: red margin line + horizontal rules */
   background-image:
-    linear-gradient(90deg, transparent 27px, rgba(239, 68, 68, 0.2) 27px, rgba(239, 68, 68, 0.2) 28px, transparent 28px),
+    linear-gradient(
+      90deg,
+      transparent 27px,
+      rgba(239, 68, 68, 0.2) 27px,
+      rgba(239, 68, 68, 0.2) 28px,
+      transparent 28px
+    ),
     repeating-linear-gradient(
       transparent,
       transparent 27px,
       rgba(84, 87, 232, 0.08) 27px,
       rgba(84, 87, 232, 0.08) 28px
     ) !important;
-  background-size: 100% 100%, 100% 28px;
+  background-size:
+    100% 100%,
+    100% 28px;
 }
 
-[data-theme='dark'] .wrapper[data-notebook="true"] .card {
+[data-theme='dark'] .wrapper[data-notebook='true'] .card {
   background-image:
-    linear-gradient(90deg, transparent 27px, rgba(239, 68, 68, 0.15) 27px, rgba(239, 68, 68, 0.15) 29px, transparent 29px),
+    linear-gradient(
+      90deg,
+      transparent 27px,
+      rgba(239, 68, 68, 0.15) 27px,
+      rgba(239, 68, 68, 0.15) 29px,
+      transparent 29px
+    ),
     repeating-linear-gradient(
       transparent,
       transparent 27px,
@@ -403,12 +428,12 @@
     ) !important;
 }
 
-.wrapper[data-notebook="true"] .nodeContent {
+.wrapper[data-notebook='true'] .nodeContent {
   padding-left: 40px;
   margin-left: 8px;
 }
 
-.wrapper[data-notebook="true"] .title {
+.wrapper[data-notebook='true'] .title {
   font-family: 'Caveat', cursive !important;
   font-size: 26px !important;
   font-weight: 700 !important;
@@ -416,7 +441,7 @@
   margin-bottom: var(--space-3);
 }
 
-.wrapper[data-notebook="true"] .body {
+.wrapper[data-notebook='true'] .body {
   font-family: 'Caveat', cursive !important;
   font-size: 19px !important;
   font-weight: 500 !important;
@@ -424,17 +449,17 @@
   line-height: 1.4 !important;
 }
 
-[data-theme='dark'] .wrapper[data-notebook="true"] .title {
+[data-theme='dark'] .wrapper[data-notebook='true'] .title {
   color: #a3c4f3 !important;
 }
 
-[data-theme='dark'] .wrapper[data-notebook="true"] .body {
+[data-theme='dark'] .wrapper[data-notebook='true'] .body {
   color: #a3c4f3 !important;
 }
 
-.wrapper[data-notebook="true"] button,
-.wrapper[data-notebook="true"] span,
-.wrapper[data-notebook="true"] div[class*="Tag"],
-.wrapper[data-notebook="true"] .outlineHeaderTitle {
+.wrapper[data-notebook='true'] button,
+.wrapper[data-notebook='true'] span,
+.wrapper[data-notebook='true'] div[class*='Tag'],
+.wrapper[data-notebook='true'] .outlineHeaderTitle {
   font-family: var(--font-ui), sans-serif !important;
 }

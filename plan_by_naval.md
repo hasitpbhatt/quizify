@@ -3,6 +3,7 @@
 Product review lens: Naval Ravikant-style first principles, leverage, and compounding user value.
 
 Date: 2026-07-20
+Updated: 2026-07-21
 
 ## Executive decision
 
@@ -370,3 +371,75 @@ The first handoff is complete when a learner can:
 6. Continue without re-reading the entire lesson or searching through session history.
 
 That is the first moment Quizify behaves like a tutor rather than a document generator.
+
+## Update 2026-07-21 — Full-experience review pass
+
+A Naval-style review of the end-to-end experience (welcome → progress → canvas → quiz → return) surfaced ten critical issues. Most are not learner-memory features; they are friction, positioning, or copy fixes that block the value of the loop above. Tracking issues are linked below.
+
+### The return loop is still a lie at the front door
+
+The in-canvas learning cue (Phases 1–2) was shipped. The actual moment of return — the Welcome screen — was not. A returning learner still scans the session list and remembers where they stopped before the in-canvas cue can help.
+
+**Fix:** Surface one obvious primary action on the Welcome screen for the most-recent non-complete session. Data already exists; only the UI is missing. See [issue #30](https://github.com/hasitpbhatt/quizify/issues/30).
+
+### First-session friction is too high
+
+The persona grid blocks `submitEnabled` for new users. Asking a learner to self-diagnose as "curious vs expert" before they have seen a single generated lesson is a 90s onboarding pattern. Default to `curious`; shrink the grid to visually secondary. See [issue #31](https://github.com/hasitpbhatt/quizify/issues/31).
+
+This is the single change most likely to lift first-session completion — likely larger impact than any Phase 1 feature.
+
+### The progress screen exposes implementation, not patience
+
+Seven labeled pipeline stages (fetch → outline → detail → quiz → summary → build → done) are rendered as a seven-row list. The user does not perceive seven distinct waits. Collapse to three mental-model states: *Reading source → Building lesson → Ready*. Keep the seven stages for `latencyStore` only. See [issue #32](https://github.com/hasitpbhatt/quizify/issues/32).
+
+### Notebook mode's escape hatch is invisible
+
+The orientation cue (`CanvasPage.tsx:1008–1020`) only fires when `unlockedConceptIndex === 0`, so returning mid-lesson users see nothing. The canvas graph — the marketing differentiator — is gated behind Esc, which the user has no reason to try. Two-word fix in the Notebook pill: `Notebook · Esc to exit`. See [issue #33](https://github.com/hasitpbhatt/quizify/issues/33).
+
+### Phase 3 (quiz remediation) is still the biggest learning-quality gap
+
+The plan above already specifies it. The review confirmed the dead-end is still present in the product: incorrect answer → rationale block → "Try Again" from scratch, no scaffolded remediation. The `Reset quiz` button next to `Try Again` is also dangerous — one accidental click erases attempt history. Ship Phase 3. See [issue #34](https://github.com/hasitpbhatt/quizify/issues/34).
+
+### Welcome session cards punish engagement
+
+Mastery %, computed from `(correct | mastered) / total` quizzes, means a user who started a lesson and got everything wrong shows 0% — visually worse than a fresh session showing nothing. Hide mastery % until at least one quiz is graded; replace with completion-style copy (`3 of 4 concepts done`). See [issue #35](https://github.com/hasitpbhatt/quizify/issues/35).
+
+### Canvas corner attribution dilutes brand
+
+`hasit.in` link at `opacity: 0.5` in the bottom-right corner of the canvas looks like an "About" placeholder on the most valuable pixel real estate (where export controls live in every other canvas app). Move to the toolbar as a byline. See [issue #36](https://github.com/hasitpbhatt/quizify/issues/36).
+
+### Default view (Notebook vs Graph) is half-pregnant on positioning
+
+Welcome copy promises `a canvas you actually remember` with `draggable node graph`; UX delivers a single-concept Notebook forced by `App.tsx:233`. Pick one and align copy with behavior. See [issue #37](https://github.com/hasitpbhatt/quizify/issues/37).
+
+### Engineer-facing escape hatches shipped in prod
+
+`LatencyPanel`, `?nbFit=0` kill switch, and `isDebugMode` URL plumbing are all reachable from production URLs. No debug affordance should ship in a prod build; either fix the underlying math (live-fit refits) and remove the kill switch, or document why it's permanent. See [issue #38](https://github.com/hasitpbhatt/quizify/issues/38).
+
+### Full-screen quiz modal breaks Notebook calm flow
+
+`QuizInteraction.tsx` pops a fixed full-screen modal for every quiz, even in Notebook mode where the promise is "stay here and read." The canvas already supports inline quiz reveal via `revealedQuizIds` gating — lean into that. Split the interaction surface by mode: modal in graph mode, inline in notebook mode. See [issue #39](https://github.com/hasitpbhatt/quizify/issues/39).
+
+## Revised calculations on leverage
+
+Of the ten issues above, four have outsized impact relative to effort:
+
+1. **#31 (persona default)** — 33 lines of change, unblocks every first-session.
+2. **#30 (welcome return action)** — one component, data already present, completes the return loop.
+3. **#34 (quiz remediation)** — already specified as Phase 3; the largest learning-quality gap.
+4. **#35 (session cards punish engagement)** — CSS + copy, removes a silent anti-onboarding signal.
+
+Ship these four before any Phase 4+ work on source trust or scheduling. They are not new features; they are the loop described in this plan finally being honest at every step of the user's journey.
+
+## Tracker
+
+- [ ] #30 Welcome return action — [issue](https://github.com/hasitpbhatt/quizify/issues/30)
+- [ ] #31 Persona default — [issue](https://github.com/hasitpbhatt/quizify/issues/31)
+- [ ] #32 Collapse progress states — [issue](https://github.com/hasitpbhatt/quizify/issues/32)
+- [ ] #33 Notebook Esc discoverability — [issue](https://github.com/hasitpbhatt/quizify/issues/33)
+- [ ] #34 Phase 3 quiz remediation — [issue](https://github.com/hasitpbhatt/quizify/issues/34)
+- [ ] #35 Welcome session cards — [issue](https://github.com/hasitpbhatt/quizify/issues/35)
+- [ ] #36 Canvas corner attribution — [issue](https://github.com/hasitpbhatt/quizify/issues/36)
+- [ ] #37 Default view positioning — [issue](https://github.com/hasitpbhatt/quizify/issues/37)
+- [ ] #38 Debug affordances in prod — [issue](https://github.com/hasitpbhatt/quizify/issues/38)
+- [ ] #39 Quiz modal vs inline in notebook — [issue](https://github.com/hasitpbhatt/quizify/issues/39)

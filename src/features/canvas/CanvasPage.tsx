@@ -13,7 +13,15 @@ import '@xyflow/react/dist/style.css';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { getUnlockedConceptIndex, getConceptIndex } from '@/lib/progression';
-import { SUMMARY_NODE_ID, type CanvasNode, type CanvasEdge, type QuizData, type NoteData, type ConceptData, type SummaryData } from '@/shared/types';
+import {
+  SUMMARY_NODE_ID,
+  type CanvasNode,
+  type CanvasEdge,
+  type QuizData,
+  type NoteData,
+  type ConceptData,
+  type SummaryData,
+} from '@/shared/types';
 import { ConceptNode } from './nodes/ConceptNode';
 import { QuizNode } from './nodes/QuizNode';
 import { SummaryNode } from './nodes/SummaryNode';
@@ -23,7 +31,20 @@ import { SummaryQuizInteraction } from '@/features/quiz/SummaryQuizInteraction';
 import { NoteNode } from './nodes/NoteNode';
 import { MobileFocusView } from './MobileFocusView';
 import { useIsMobile } from '@/shared/useMediaQuery';
-import { Plus, BookOpen, Play, Pause, Square, Download, ChevronDown, X, Volume2, VolumeX, List, SkipForward } from 'lucide-react';
+import {
+  Plus,
+  BookOpen,
+  Play,
+  Pause,
+  Square,
+  Download,
+  ChevronDown,
+  X,
+  Volume2,
+  VolumeX,
+  List,
+  SkipForward,
+} from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { writeNotebookModePreference } from '@/shared/notebookModePreference';
 import { ttsManager } from '@/lib/llm/ttsManager';
@@ -35,7 +56,11 @@ import { downloadSessionMarkdown } from '@/lib/export/markdown';
 import { exportCanvasAsPng } from '@/lib/export/image';
 import { useToastStore } from '@/shared/stores/toastStore';
 import { useKeyboardShortcuts } from '@/shared/useKeyboardShortcuts';
-import { getNextLearningAction, normalizeLearningProgress, type NextLearningAction } from '@/shared/learningProgress';
+import {
+  getNextLearningAction,
+  normalizeLearningProgress,
+  type NextLearningAction,
+} from '@/shared/learningProgress';
 import '@/styles/notebook.css';
 import styles from './CanvasPage.module.css';
 
@@ -48,7 +73,7 @@ function toReactFlowNodes(
   revealedQuizIds: Set<string>,
   skipNotebookAnimation = false,
 ): Node[] {
-  return canvasNodes.map(n => {
+  return canvasNodes.map((n) => {
     const data: Record<string, unknown> = { ...n.data };
     if (skipNotebookAnimation) {
       data.skipTyping = true;
@@ -72,7 +97,7 @@ function toReactFlowNodes(
 }
 
 function toReactFlowEdges(canvasEdges: CanvasEdge[]): Edge[] {
-  return canvasEdges.map(e => ({
+  return canvasEdges.map((e) => ({
     id: e.id,
     source: e.source,
     target: e.target,
@@ -136,9 +161,9 @@ function filterVisibleNodes(
     }
   }
 
-  const filteredNodes = nodes.filter(n => visibleNodeIds.has(n.id));
-  const filteredEdges = edges.filter(e =>
-    visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target),
+  const filteredNodes = nodes.filter((n) => visibleNodeIds.has(n.id));
+  const filteredEdges = edges.filter(
+    (e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target),
   );
 
   return { nodes: filteredNodes, edges: filteredEdges };
@@ -151,30 +176,34 @@ interface CanvasPageProps {
 }
 
 export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPageProps) {
-  const currentId = useSessionStore(s => s.currentId);
-  const sessions = useSessionStore(s => s.sessions);
-  const session = sessions.find(s => s.id === currentId);
-  const [activeQuiz, setActiveQuiz] = useState<{ quizId: string; quiz: QuizData; conceptTitle: string } | null>(null);
+  const currentId = useSessionStore((s) => s.currentId);
+  const sessions = useSessionStore((s) => s.sessions);
+  const session = sessions.find((s) => s.id === currentId);
+  const [activeQuiz, setActiveQuiz] = useState<{
+    quizId: string;
+    quiz: QuizData;
+    conceptTitle: string;
+  } | null>(null);
   const [summaryQuiz, setSummaryQuiz] = useState<boolean>(false);
   const [revealedQuizIds, setRevealedQuizIds] = useState<Set<string>>(new Set());
   const [showOrientationCue, setShowOrientationCue] = useState(false);
   const [showLearningCue, setShowLearningCue] = useState(false);
   const [learningCueDismissed, setLearningCueDismissed] = useState(false);
-  const updateCurrent = useSessionStore(s => s.updateCurrent);
+  const updateCurrent = useSessionStore((s) => s.updateCurrent);
   const reactFlow = useReactFlow();
   const isMobile = useIsMobile();
-  const notebookMode = useNotebookStore(s => s.notebookMode);
-  const toggleNotebookMode = useNotebookStore(s => s.toggleNotebookMode);
+  const notebookMode = useNotebookStore((s) => s.notebookMode);
+  const toggleNotebookMode = useNotebookStore((s) => s.toggleNotebookMode);
   // During generation, stream content without notebook TTS gating or typewriter delays.
   const immersiveNotebook = notebookMode && !isGenerating;
-  const ttsEnabled = useSettingsStore(s => s.ttsEnabled);
-  const ttsRate = useSettingsStore(s => s.ttsRate);
-  const setTtsEnabled = useSettingsStore(s => s.setTtsEnabled);
-  const setTtsRate = useSettingsStore(s => s.setTtsRate);
-  const ttsPlaying = useNotebookStore(s => s.ttsPlaying);
-  const ttsPaused = useNotebookStore(s => s.ttsPaused);
-  const segmentIndex = useNotebookStore(s => s.segmentIndex);
-  const totalSegments = useNotebookStore(s => s.totalSegments);
+  const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
+  const ttsRate = useSettingsStore((s) => s.ttsRate);
+  const setTtsEnabled = useSettingsStore((s) => s.setTtsEnabled);
+  const setTtsRate = useSettingsStore((s) => s.setTtsRate);
+  const ttsPlaying = useNotebookStore((s) => s.ttsPlaying);
+  const ttsPaused = useNotebookStore((s) => s.ttsPaused);
+  const segmentIndex = useNotebookStore((s) => s.segmentIndex);
+  const totalSegments = useNotebookStore((s) => s.totalSegments);
   const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const liveFitZoomRef = useRef<number | null>(null);
   const liveFitBottomRef = useRef<number | null>(null);
@@ -234,42 +263,50 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     }
   }, [currentId]);
 
-  const focusOnActiveConcept = useCallback((conceptId: string, includeQuizzes = false) => {
-    if (!session) return;
-    const nodesToFocus = [conceptId];
-    if (includeQuizzes) {
-      const quizIds = session.nodes
-        .filter(n => n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === conceptId)
-        .map(n => n.id);
-      nodesToFocus.push(...quizIds);
-    }
-
-    // Coalesce focus requests made while the restored node tree is mounting.
-    if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
-    focusTimeoutRef.current = setTimeout(() => {
-      focusTimeoutRef.current = null;
-      reactFlow.fitView({
-        nodes: nodesToFocus.map(id => ({ id })),
-        duration: immersiveNotebook ? 0 : 800,
-        padding: 0.25,
-        minZoom: immersiveNotebook ? 0.5 : 0.7,
-        maxZoom: 0.95,
-      });
-      // Lock the zoom chosen by the initial fit; live refits use translation only.
-      if (immersiveNotebook) {
-        const vp = reactFlow.getViewport();
-        liveFitZoomRef.current = vp.zoom;
+  const focusOnActiveConcept = useCallback(
+    (conceptId: string, includeQuizzes = false) => {
+      if (!session) return;
+      const nodesToFocus = [conceptId];
+      if (includeQuizzes) {
+        const quizIds = session.nodes
+          .filter(
+            (n) => n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === conceptId,
+          )
+          .map((n) => n.id);
+        nodesToFocus.push(...quizIds);
       }
-      liveFitBottomRef.current = null;
-    }, 100);
-  }, [session, reactFlow, immersiveNotebook]);
 
-  useEffect(() => () => {
-    if (focusTimeoutRef.current) {
-      clearTimeout(focusTimeoutRef.current);
-      focusTimeoutRef.current = null;
-    }
-  }, []);
+      // Coalesce focus requests made while the restored node tree is mounting.
+      if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
+      focusTimeoutRef.current = setTimeout(() => {
+        focusTimeoutRef.current = null;
+        reactFlow.fitView({
+          nodes: nodesToFocus.map((id) => ({ id })),
+          duration: immersiveNotebook ? 0 : 800,
+          padding: 0.25,
+          minZoom: immersiveNotebook ? 0.5 : 0.7,
+          maxZoom: 0.95,
+        });
+        // Lock the zoom chosen by the initial fit; live refits use translation only.
+        if (immersiveNotebook) {
+          const vp = reactFlow.getViewport();
+          liveFitZoomRef.current = vp.zoom;
+        }
+        liveFitBottomRef.current = null;
+      }, 100);
+    },
+    [session, reactFlow, immersiveNotebook],
+  );
+
+  useEffect(
+    () => () => {
+      if (focusTimeoutRef.current) {
+        clearTimeout(focusTimeoutRef.current);
+        focusTimeoutRef.current = null;
+      }
+    },
+    [],
+  );
 
   const conceptTitles = useMemo(() => {
     const map = new Map<string, string>();
@@ -298,7 +335,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       session.nextReviewAtByConceptId,
       session.lastActivityAt,
     );
-    const orderedIds = concepts.map(c => c.id);
+    const orderedIds = concepts.map((c) => c.id);
     return getNextLearningAction(progress, orderedIds);
   }, [session, concepts]);
 
@@ -335,7 +372,15 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
 
     const timer = setTimeout(() => setShowLearningCue(true), 450);
     return () => clearTimeout(timer);
-  }, [notebookMode, session, currentId, isGenerating, nextAction, learningCueDismissed, showOrientationCue]);
+  }, [
+    notebookMode,
+    session,
+    currentId,
+    isGenerating,
+    nextAction,
+    learningCueDismissed,
+    showOrientationCue,
+  ]);
 
   const currentConceptIndex = useMemo(
     () => getUnlockedConceptIndex(session?.nodes ?? []),
@@ -347,38 +392,39 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
 
   const visibleData = useMemo(() => {
     if (!session) return { nodes: [], edges: [] };
-    return filterVisibleNodes(session.nodes, session.edges, currentConceptIndex, revealedQuizIds, immersiveNotebook);
+    return filterVisibleNodes(
+      session.nodes,
+      session.edges,
+      currentConceptIndex,
+      revealedQuizIds,
+      immersiveNotebook,
+    );
   }, [session, currentConceptIndex, revealedQuizIds, immersiveNotebook]);
 
   const nodes: Node[] = useMemo(
-    () => toReactFlowNodes(
-      visibleData.nodes,
-      currentConceptIndex,
-      revealedQuizIds,
-      isGenerating,
-    ),
+    () => toReactFlowNodes(visibleData.nodes, currentConceptIndex, revealedQuizIds, isGenerating),
     [visibleData.nodes, currentConceptIndex, revealedQuizIds, isGenerating],
   );
-  const edges: Edge[] = useMemo(
-    () => toReactFlowEdges(visibleData.edges),
-    [visibleData.edges],
-  );
+  const edges: Edge[] = useMemo(() => toReactFlowEdges(visibleData.edges), [visibleData.edges]);
 
-  const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
-    const canvasNode = session?.nodes.find(n => n.id === node.id);
-    if (!canvasNode) return;
-    if (canvasNode.data.kind === 'quiz') {
-      const quiz = canvasNode.data as QuizData;
-      const parentId = quiz.parentConceptId;
-      const conceptTitle = conceptTitles.get(parentId) ?? 'Concept';
-      if (notebookMode) {
-        useNotebookStore.getState().markTypingComplete(canvasNode.id);
+  const handleNodeClick = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      const canvasNode = session?.nodes.find((n) => n.id === node.id);
+      if (!canvasNode) return;
+      if (canvasNode.data.kind === 'quiz') {
+        const quiz = canvasNode.data as QuizData;
+        const parentId = quiz.parentConceptId;
+        const conceptTitle = conceptTitles.get(parentId) ?? 'Concept';
+        if (notebookMode) {
+          useNotebookStore.getState().markTypingComplete(canvasNode.id);
+        }
+        setActiveQuiz({ quizId: canvasNode.id, quiz, conceptTitle });
+      } else if (canvasNode.data.kind === 'summary') {
+        setSummaryQuiz(true);
       }
-      setActiveQuiz({ quizId: canvasNode.id, quiz, conceptTitle });
-    } else if (canvasNode.data.kind === 'summary') {
-      setSummaryQuiz(true);
-    }
-  }, [session, conceptTitles, notebookMode]);
+    },
+    [session, conceptTitles, notebookMode],
+  );
 
   const handleCloseQuiz = useCallback(() => {
     setActiveQuiz(null);
@@ -422,24 +468,34 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
 
   // Jump to a node in notebook mode: concepts focus directly; quizzes/notes/
   // summary jump to their parent concept so the reading position follows.
-  const jumpToNode = useCallback((nodeId: string) => {
-    if (!session) return;
-    const target = session.nodes.find(n => n.id === nodeId);
-    if (!target) return;
-    if (target.data.kind === 'concept') {
-      focusOnActiveConcept(nodeId, true);
-    } else if (target.data.kind === 'quiz') {
-      focusOnActiveConcept((target.data as QuizData).parentConceptId, true);
-    } else {
-      focusOnActiveConcept((session.nodes.find(n => n.data.kind === 'concept') as CanvasNode | undefined)?.id ?? nodeId, true);
-    }
-    setShowOutline(false);
-  }, [session, focusOnActiveConcept]);
+  const jumpToNode = useCallback(
+    (nodeId: string) => {
+      if (!session) return;
+      const target = session.nodes.find((n) => n.id === nodeId);
+      if (!target) return;
+      if (target.data.kind === 'concept') {
+        focusOnActiveConcept(nodeId, true);
+      } else if (target.data.kind === 'quiz') {
+        focusOnActiveConcept((target.data as QuizData).parentConceptId, true);
+      } else {
+        focusOnActiveConcept(
+          (session.nodes.find((n) => n.data.kind === 'concept') as CanvasNode | undefined)?.id ??
+            nodeId,
+          true,
+        );
+      }
+      setShowOutline(false);
+    },
+    [session, focusOnActiveConcept],
+  );
 
   useEffect(() => {
     if (!showExport) return;
     const handler = (e: MouseEvent) => {
-      if (exportRef.current && !(e.target instanceof Node && exportRef.current.contains(e.target))) {
+      if (
+        exportRef.current &&
+        !(e.target instanceof Node && exportRef.current.contains(e.target))
+      ) {
         setShowExport(false);
       }
     };
@@ -450,7 +506,10 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   useEffect(() => {
     if (!showOutline) return;
     const handler = (e: MouseEvent) => {
-      if (outlineRef.current && !(e.target instanceof Node && outlineRef.current.contains(e.target))) {
+      if (
+        outlineRef.current &&
+        !(e.target instanceof Node && outlineRef.current.contains(e.target))
+      ) {
         setShowOutline(false);
       }
     };
@@ -495,7 +554,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   useEffect(() => {
     if (!immersiveNotebook || !session) return;
 
-    const currentConcept = concepts.find(c => c.data.index === currentConceptIndex);
+    const currentConcept = concepts.find((c) => c.data.index === currentConceptIndex);
     if (!currentConcept) return;
 
     const margin = 80;
@@ -525,12 +584,15 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     const onSegmentEnd = (nodeId: string) => {
       if (nodeId === currentConcept.id) {
         const quizIds = session.nodes
-          .filter(n => n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === currentConcept.id)
-          .map(n => n.id);
+          .filter(
+            (n) =>
+              n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === currentConcept.id,
+          )
+          .map((n) => n.id);
         if (quizIds.length > 0) {
-          setRevealedQuizIds(prev => {
+          setRevealedQuizIds((prev) => {
             const next = new Set(prev);
-            quizIds.forEach(id => next.add(id));
+            quizIds.forEach((id) => next.add(id));
             return next;
           });
           focusOnActiveConcept(currentConcept.id, true);
@@ -572,7 +634,15 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       liveFitZoomRef.current = null;
       liveFitBottomRef.current = null;
     };
-  }, [immersiveNotebook, currentConceptIndex, session, concepts, revealedQuizIds, reactFlow, focusOnActiveConcept]);
+  }, [
+    immersiveNotebook,
+    currentConceptIndex,
+    session,
+    concepts,
+    revealedQuizIds,
+    reactFlow,
+    focusOnActiveConcept,
+  ]);
 
   // In notebook mode: enqueue TTS for the current concept when it becomes active.
   // Gated on !prefers-reduced-motion AND the user's TTS-enabled setting:
@@ -580,14 +650,18 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   useEffect(() => {
     if (!immersiveNotebook || !session) return;
 
-    const currentConcept = concepts.find(c => c.data.index === currentConceptIndex);
+    const currentConcept = concepts.find((c) => c.data.index === currentConceptIndex);
     if (!currentConcept) return;
     // Wait until pipeline has filled in the concept body before narrating.
     if ((currentConcept.data as ConceptData).example === 'Loading...') return;
 
     const notebookStore = useNotebookStore.getState();
     if (notebookStore.hasTypingCompleted(currentConcept.id)) return;
-    if (ttsManager.currentSegmentId === currentConcept.id || ttsManager.hasSegment(currentConcept.id)) return;
+    if (
+      ttsManager.currentSegmentId === currentConcept.id ||
+      ttsManager.hasSegment(currentConcept.id)
+    )
+      return;
 
     const shouldStartTts =
       lastConceptIndexRef.current !== currentConceptIndex ||
@@ -606,7 +680,15 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         ttsManager.start();
       }
     }
-  }, [currentConceptIndex, immersiveNotebook, session, concepts, focusOnActiveConcept, ttsEnabled, ttsRate]);
+  }, [
+    currentConceptIndex,
+    immersiveNotebook,
+    session,
+    concepts,
+    focusOnActiveConcept,
+    ttsEnabled,
+    ttsRate,
+  ]);
 
   // Reduced-motion unlock: TTS narration is skipped under prefers-reduced-motion
   // (see effect above), and the only other code path that reveals a concept's
@@ -619,16 +701,18 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   // preserving the intended "reveal after narration" pacing).
   useEffect(() => {
     if (!immersiveNotebook || !session || !prefersReducedMotion.current) return;
-    const currentConcept = concepts.find(c => c.data.index === currentConceptIndex);
+    const currentConcept = concepts.find((c) => c.data.index === currentConceptIndex);
     if (!currentConcept) return;
     const quizIds = session.nodes
-      .filter(n => n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === currentConcept.id)
-      .map(n => n.id);
+      .filter(
+        (n) => n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === currentConcept.id,
+      )
+      .map((n) => n.id);
     if (quizIds.length === 0) return;
-    setRevealedQuizIds(prev => {
-      if (quizIds.every(id => prev.has(id))) return prev;
+    setRevealedQuizIds((prev) => {
+      if (quizIds.every((id) => prev.has(id))) return prev;
       const next = new Set(prev);
-      quizIds.forEach(id => next.add(id));
+      quizIds.forEach((id) => next.add(id));
       return next;
     });
     focusOnActiveConcept(currentConcept.id, true);
@@ -716,12 +800,14 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       const fireFinalFit = prev === 'playing' && (state === 'idle' || state === 'stopped');
       prev = state;
       if (!fireFinalFit || !immersiveNotebook || !session) return;
-      const active = concepts.find(c => c.data.index === currentConceptIndex);
+      const active = concepts.find((c) => c.data.index === currentConceptIndex);
       if (!active) return;
       liveFitZoomRef.current = null;
       liveFitEnabledRef.current = useNotebookStore.getState().notebookMode
-        ? !(new URLSearchParams(window.location.search).get('nbFit') === '0' ||
-           localStorage.getItem('nbFit') === '0')
+        ? !(
+            new URLSearchParams(window.location.search).get('nbFit') === '0' ||
+            localStorage.getItem('nbFit') === '0'
+          )
         : true;
       focusOnActiveConcept(active.id, true);
     });
@@ -747,7 +833,10 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     const handler = (e: KeyboardEvent) => {
       if (activeQuiz || summaryQuiz) return;
       const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      if (
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+      ) {
         return;
       }
       const vp = reactFlow.getViewport();
@@ -755,23 +844,33 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       let dx = 0;
       let dy = 0;
       switch (e.key) {
-        case 'ArrowUp':    dy =  STEP; break;
-        case 'ArrowDown':  dy = -STEP; break;
-        case 'ArrowLeft':  dx =  STEP; break;
-        case 'ArrowRight': dx = -STEP; break;
-        case 'PageDown':   dy = -window.innerHeight * 0.5; break;
-        case 'PageUp':     dy =  window.innerHeight * 0.5; break;
+        case 'ArrowUp':
+          dy = STEP;
+          break;
+        case 'ArrowDown':
+          dy = -STEP;
+          break;
+        case 'ArrowLeft':
+          dx = STEP;
+          break;
+        case 'ArrowRight':
+          dx = -STEP;
+          break;
+        case 'PageDown':
+          dy = -window.innerHeight * 0.5;
+          break;
+        case 'PageUp':
+          dy = window.innerHeight * 0.5;
+          break;
         case ' ':
           if (e.shiftKey) dy = window.innerHeight * 0.5;
           else dy = -window.innerHeight * 0.5;
           break;
-        default: return;
+        default:
+          return;
       }
       e.preventDefault();
-      reactFlow.setViewport(
-        { x: vp.x + dx, y: vp.y + dy, zoom: vp.zoom },
-        { duration: 150 },
-      );
+      reactFlow.setViewport({ x: vp.x + dx, y: vp.y + dy, zoom: vp.zoom }, { duration: 150 });
     };
     const container = containerRef.current;
     container?.addEventListener('keydown', handler);
@@ -797,11 +896,19 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       try {
         const raw = localStorage.getItem(nbPosKey);
         if (raw) {
-          const pos = JSON.parse(raw) as { conceptIndex?: number; viewport?: { x: number; y: number; zoom: number }; revealedQuizIds?: string[] };
-          if (pos.revealedQuizIds && Array.isArray(pos.revealedQuizIds) && pos.revealedQuizIds.length > 0) {
+          const pos = JSON.parse(raw) as {
+            conceptIndex?: number;
+            viewport?: { x: number; y: number; zoom: number };
+            revealedQuizIds?: string[];
+          };
+          if (
+            pos.revealedQuizIds &&
+            Array.isArray(pos.revealedQuizIds) &&
+            pos.revealedQuizIds.length > 0
+          ) {
             setRevealedQuizIds(new Set(pos.revealedQuizIds));
           }
-          const target = concepts.find(c => c.data.index === (pos.conceptIndex ?? 0));
+          const target = concepts.find((c) => c.data.index === (pos.conceptIndex ?? 0));
           if (target) {
             // Defer viewport apply until after the initial mount/fit settles.
             if (pos.viewport) {
@@ -817,7 +924,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     }
 
     if (!restored) {
-      const firstConcept = concepts.find(c => c.data.index === 0);
+      const firstConcept = concepts.find((c) => c.data.index === 0);
       if (firstConcept) focusOnActiveConcept(firstConcept.id);
     }
   }, [immersiveNotebook, session, concepts, focusOnActiveConcept, nbPosKey, reactFlow]);
@@ -870,10 +977,13 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     }
   }, [session, updateCurrent]);
 
-  const handleUpdateScores = useCallback((scores: Record<string, { best: number; attempts: number }>) => {
-    if (!session) return;
-    updateCurrent({ scores });
-  }, [session, updateCurrent]);
+  const handleUpdateScores = useCallback(
+    (scores: Record<string, { best: number; attempts: number }>) => {
+      if (!session) return;
+      updateCurrent({ scores });
+    },
+    [session, updateCurrent],
+  );
 
   const handleKbEscape = useCallback(() => {
     if (activeQuiz) setActiveQuiz(null);
@@ -882,7 +992,9 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   }, [activeQuiz, summaryQuiz, notebookMode, toggleNotebookMode]);
 
   const handleKbHelp = useCallback(() => {
-    useToastStore.getState().add('Shortcuts: N = Add note · ? = Show this · Esc = Close quiz / exit Notebook');
+    useToastStore
+      .getState()
+      .add('Shortcuts: N = Add note · ? = Show this · Esc = Close quiz / exit Notebook');
   }, []);
 
   // Global keyboard shortcuts: N = add note, ? = help, Escape = close quiz
@@ -914,7 +1026,9 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const showProgress = isGenerating && progress && progress.stage !== 'done';
 
   if (isMobile && session) {
-    return <MobileFocusView nodes={visibleData.nodes} progress={progress} isGenerating={isGenerating} />;
+    return (
+      <MobileFocusView nodes={visibleData.nodes} progress={progress} isGenerating={isGenerating} />
+    );
   }
 
   return (
@@ -924,246 +1038,335 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         <CanvasErrorFallback error={error} onReset={reset} onHome={onHome ?? (() => {})} />
       )}
     >
-    <div ref={containerRef} className={styles.container} data-notebook={notebookMode ? 'true' : undefined} data-generating={isGenerating ? 'true' : undefined} tabIndex={immersiveNotebook ? 0 : undefined}>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        fitView={!immersiveNotebook}
-        minZoom={0.3}
-        maxZoom={2}
-        panOnDrag={immersiveNotebook ? [1, 2] : true}
-        selectionOnDrag={!immersiveNotebook}
-        panOnScroll={true}
-        nodesConnectable={false}
-        nodesDraggable={!immersiveNotebook}
-        onNodeClick={handleNodeClick}
-        proOptions={{ hideAttribution: true }}
+      <div
+        ref={containerRef}
+        className={styles.container}
+        data-notebook={notebookMode ? 'true' : undefined}
+        data-generating={isGenerating ? 'true' : undefined}
+        tabIndex={immersiveNotebook ? 0 : undefined}
       >
-        {!notebookMode && <Background variant={BackgroundVariant.Dots} gap={24} size={1.5} color="var(--border-strong)" style={{ opacity: 0.6 }} />}
-        {!notebookMode && <Controls showInteractive={false} />}
-        {!notebookMode && (
-          <MiniMap
-            nodeColor="var(--accent)"
-            maskColor="rgba(0,0,0,0.1)"
-            style={{ background: 'var(--bg-elevated)', pointerEvents: 'none' }}
-          />
-        )}
-      </ReactFlow>
-
-      <a href="https://hasit.in" target="_blank" rel="noopener noreferrer" style={{
-        position: 'absolute', bottom: 8, right: 12, zIndex: 10,
-        fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-ui)',
-        opacity: 0.5, textDecoration: 'none',
-      }}>
-        hasit.in
-      </a>
-
-      {showProgress && (
-        <div className={styles.progressBadge}>
-          <span className={styles.progressDot} aria-hidden />
-          {progress.label}
-        </div>
-      )}
-
-      {!notebookMode && (
-      <div className={styles.actionsRow}>
-          <>
-            <div className={styles.exportWrapper} ref={exportRef}>
-              <button className={styles.actionBtn} onClick={() => setShowExport(v => !v)} title="Export">
-                <Download size={14} />
-                <span>Export</span>
-                <ChevronDown size={12} />
-              </button>
-              {showExport && (
-                <div className={styles.exportDropdown}>
-                  <button onClick={handleExportJson}>JSON</button>
-                  <button onClick={handleExportMarkdown}>Markdown</button>
-                  <button onClick={handleExportPng}>PNG</button>
-                </div>
-              )}
-            </div>
-
-            <button className={styles.actionBtn} onClick={handleAddNote} title="Add note">
-              <Plus size={14} />
-              <span>Add note</span>
-            </button>
-
-            <button className={styles.actionBtn} onClick={toggleNotebookMode} title="Notebook view">
-              <BookOpen size={14} />
-            </button>
-          </>
-      </div>
-      )}
-
-
-
-      {notebookMode && captionVisible && caption && (
-        <div className="notebookCaption" role="status" aria-live="polite">
-          {caption}
-        </div>
-      )}
-
-      {notebookMode && showOrientationCue && (
-        <div className="notebookOrientation" role="status" aria-live="polite">
-          <div className="notebookOrientationCopy">
-            <span className="notebookOrientationLabel">Start here</span>
-            <span className="notebookOrientationText">
-              This lesson is centered on the current concept. Let the narration guide you, then open the quiz when you’re ready.
-            </span>
-          </div>
-          <button className="notebookOrientationClose" onClick={dismissOrientationCue} type="button">
-            Got it
-          </button>
-        </div>
-      )}
-
-      {notebookMode && showLearningCue && nextAction && (
-        <div className="notebookLearningCue" role="status" aria-live="polite">
-          <div className="notebookLearningCueCopy">
-            <span className="notebookLearningCueText">
-              {nextAction.kind === 'review'
-                ? 'A quick review is ready'
-                : nextAction.kind === 'continue'
-                  ? `Continue with ${conceptTitles.get(nextAction.conceptId) ?? 'the current concept'}`
-                  : nextAction.kind === 'start'
-                    ? `Begin with ${conceptTitles.get(nextAction.conceptId) ?? 'the first concept'}`
-                    : 'You have covered this lesson'}
-            </span>
-          </div>
-          {nextAction.kind !== 'complete' && (
-            <button className="notebookLearningCueAction" onClick={handleCueAction} type="button">
-              {nextAction.kind === 'review' ? 'Review now'
-                : nextAction.kind === 'continue' ? 'Continue'
-                : 'Start lesson'}
-            </button>
-          )}
-          <button className="notebookLearningCueClose" onClick={dismissLearningCue} type="button" aria-label="Dismiss">
-            ✕
-          </button>
-        </div>
-      )}
-
-      {notebookMode && (
-        <>
-          <div className="notebookModePill" title="You're in Notebook view. Press Esc or the X to switch to the canvas graph.">
-            <BookOpen size={12} />
-            <span>Notebook</span>
-          </div>
-          {concepts.length > 0 && (
-            <div className="notebookConceptProgress">
-              Concept {currentConceptIndex + 1} of {concepts.length}
-            </div>
-          )}
-          <div className="notebookControls">
-            <button onClick={toggleNotebookMode} title="Exit Notebook">
-              <X size={14} />
-            </button>
-            <div className="notebookDivider" />
-            <button onClick={() => setShowOutline(v => !v)} title="Table of contents">
-            <List size={14} />
-          </button>
-          <button
-            onClick={() => setTtsEnabled(!ttsEnabled)}
-            title={ttsEnabled ? 'Mute narration' : 'Unmute narration'}
-            aria-pressed={!ttsEnabled}
-          >
-            {ttsEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
-          </button>
-          <button onClick={() => ttsManager.skip()} title="Skip segment" disabled={!ttsPlaying && !ttsPaused}>
-            <SkipForward size={14} />
-          </button>
-          <button onClick={handlePlayPause} title={ttsPaused ? 'Resume' : 'Play/Pause'}>
-            {ttsPaused ? <Play size={14} /> : ttsPlaying ? <Pause size={14} /> : <Play size={14} />}
-          </button>
-          <button onClick={handleStopTts} title="Stop" disabled={!ttsPlaying && !ttsPaused}>
-            <Square size={14} />
-          </button>
-          <span className="notebookDivider" />
-          <select
-            className="notebookRate"
-            value={ttsRate}
-            onChange={(e) => setTtsRate(Number(e.target.value))}
-            title="Narration speed"
-            aria-label="Narration speed"
-          >
-            <option value={0.75}>0.75×</option>
-            <option value={1}>1×</option>
-            <option value={1.25}>1.25×</option>
-            <option value={1.5}>1.5×</option>
-            <option value={2}>2×</option>
-          </select>
-          <span className="progressLabel" title={ttsManager.speechSynthesisAvailable ? undefined : 'Voice narration unavailable in this browser — showing text'}>
-            {ttsManager.speechSynthesisAvailable
-              ? (totalSegments > 0 ? `${segmentIndex + 1} / ${totalSegments}` : 'Queued')
-              : (totalSegments > 0 ? `Reading ${segmentIndex + 1} / ${totalSegments}` : 'Reading')}
-          </span>
-        </div>
-        </>
-      )}
-
-      {notebookMode && showOutline && session && (
-        <div
-          className="notebookOutlineOverlay"
-          onClick={() => setShowOutline(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Table of contents"
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView={!immersiveNotebook}
+          minZoom={0.3}
+          maxZoom={2}
+          panOnDrag={immersiveNotebook ? [1, 2] : true}
+          selectionOnDrag={!immersiveNotebook}
+          panOnScroll={true}
+          nodesConnectable={false}
+          nodesDraggable={!immersiveNotebook}
+          onNodeClick={handleNodeClick}
+          proOptions={{ hideAttribution: true }}
         >
-          <div className="notebookOutlinePanel" ref={outlineRef} onClick={e => e.stopPropagation()}>
-            <div className="notebookOutlineHeader">
-              <span className="notebookOutlineTitle">Contents</span>
-              <button className="notebookOutlineClose" onClick={() => setShowOutline(false)} aria-label="Close contents">✕</button>
+          {!notebookMode && (
+            <Background
+              variant={BackgroundVariant.Dots}
+              gap={24}
+              size={1.5}
+              color="var(--border-strong)"
+              style={{ opacity: 0.6 }}
+            />
+          )}
+          {!notebookMode && <Controls showInteractive={false} />}
+          {!notebookMode && (
+            <MiniMap
+              nodeColor="var(--accent)"
+              maskColor="rgba(0,0,0,0.1)"
+              style={{ background: 'var(--bg-elevated)', pointerEvents: 'none' }}
+            />
+          )}
+        </ReactFlow>
+
+        <a
+          href="https://hasit.in"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            position: 'absolute',
+            bottom: 8,
+            right: 12,
+            zIndex: 10,
+            fontSize: 11,
+            color: 'var(--text-secondary)',
+            fontFamily: 'var(--font-ui)',
+            opacity: 0.5,
+            textDecoration: 'none',
+          }}
+        >
+          hasit.in
+        </a>
+
+        {showProgress && (
+          <div className={styles.progressBadge}>
+            <span className={styles.progressDot} aria-hidden />
+            {progress.label}
+          </div>
+        )}
+
+        {!notebookMode && (
+          <div className={styles.actionsRow}>
+            <>
+              <div className={styles.exportWrapper} ref={exportRef}>
+                <button
+                  className={styles.actionBtn}
+                  onClick={() => setShowExport((v) => !v)}
+                  title="Export"
+                >
+                  <Download size={14} />
+                  <span>Export</span>
+                  <ChevronDown size={12} />
+                </button>
+                {showExport && (
+                  <div className={styles.exportDropdown}>
+                    <button onClick={handleExportJson}>JSON</button>
+                    <button onClick={handleExportMarkdown}>Markdown</button>
+                    <button onClick={handleExportPng}>PNG</button>
+                  </div>
+                )}
+              </div>
+
+              <button className={styles.actionBtn} onClick={handleAddNote} title="Add note">
+                <Plus size={14} />
+                <span>Add note</span>
+              </button>
+
+              <button
+                className={styles.actionBtn}
+                onClick={toggleNotebookMode}
+                title="Notebook view"
+              >
+                <BookOpen size={14} />
+              </button>
+            </>
+          </div>
+        )}
+
+        {notebookMode && captionVisible && caption && (
+          <div className="notebookCaption" role="status" aria-live="polite">
+            {caption}
+          </div>
+        )}
+
+        {notebookMode && showOrientationCue && (
+          <div className="notebookOrientation" role="status" aria-live="polite">
+            <div className="notebookOrientationCopy">
+              <span className="notebookOrientationLabel">Start here</span>
+              <span className="notebookOrientationText">
+                This lesson is centered on the current concept. Let the narration guide you, then
+                open the quiz when you’re ready.
+              </span>
             </div>
-            <div className="notebookOutlineList">
-              {visibleData.nodes.map((n) => {
-                const kind = n.data.kind;
-                const kindLabel = kind.charAt(0).toUpperCase() + kind.slice(1);
-                const title =
-                  kind === 'concept' ? (n.data as ConceptData).title
-                  : kind === 'summary' ? `${(n.data as SummaryData).recap.length} recap points`
-                  : kind === 'quiz' ? (n.data as QuizData).prompt
-                  : (n.data as NoteData).text.slice(0, 40);
-                return (
-                  <button
-                    key={n.id}
-                    className="notebookOutlineItem"
-                    onClick={() => jumpToNode(n.id)}
-                  >
-                    <span className="notebookOutlineKind">{kindLabel}</span>
-                    <span className="notebookOutlineItemTitle">{title}</span>
-                  </button>
-                );
-              })}
+            <button
+              className="notebookOrientationClose"
+              onClick={dismissOrientationCue}
+              type="button"
+            >
+              Got it
+            </button>
+          </div>
+        )}
+
+        {notebookMode && showLearningCue && nextAction && (
+          <div className="notebookLearningCue" role="status" aria-live="polite">
+            <div className="notebookLearningCueCopy">
+              <span className="notebookLearningCueText">
+                {nextAction.kind === 'review'
+                  ? 'A quick review is ready'
+                  : nextAction.kind === 'continue'
+                    ? `Continue with ${conceptTitles.get(nextAction.conceptId) ?? 'the current concept'}`
+                    : nextAction.kind === 'start'
+                      ? `Begin with ${conceptTitles.get(nextAction.conceptId) ?? 'the first concept'}`
+                      : 'You have covered this lesson'}
+              </span>
+            </div>
+            {nextAction.kind !== 'complete' && (
+              <button className="notebookLearningCueAction" onClick={handleCueAction} type="button">
+                {nextAction.kind === 'review'
+                  ? 'Review now'
+                  : nextAction.kind === 'continue'
+                    ? 'Continue'
+                    : 'Start lesson'}
+              </button>
+            )}
+            <button
+              className="notebookLearningCueClose"
+              onClick={dismissLearningCue}
+              type="button"
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {notebookMode && (
+          <>
+            <div
+              className="notebookModePill"
+              title="You're in Notebook view. Press Esc or the X to switch to the canvas graph."
+            >
+              <BookOpen size={12} />
+              <span>Notebook</span>
+            </div>
+            {concepts.length > 0 && (
+              <div className="notebookConceptProgress">
+                Concept {currentConceptIndex + 1} of {concepts.length}
+              </div>
+            )}
+            <div className="notebookControls">
+              <button onClick={toggleNotebookMode} title="Exit Notebook">
+                <X size={14} />
+              </button>
+              <div className="notebookDivider" />
+              <button onClick={() => setShowOutline((v) => !v)} title="Table of contents">
+                <List size={14} />
+              </button>
+              <button
+                onClick={() => setTtsEnabled(!ttsEnabled)}
+                title={ttsEnabled ? 'Mute narration' : 'Unmute narration'}
+                aria-pressed={!ttsEnabled}
+              >
+                {ttsEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+              </button>
+              <button
+                onClick={() => ttsManager.skip()}
+                title="Skip segment"
+                disabled={!ttsPlaying && !ttsPaused}
+              >
+                <SkipForward size={14} />
+              </button>
+              <button onClick={handlePlayPause} title={ttsPaused ? 'Resume' : 'Play/Pause'}>
+                {ttsPaused ? (
+                  <Play size={14} />
+                ) : ttsPlaying ? (
+                  <Pause size={14} />
+                ) : (
+                  <Play size={14} />
+                )}
+              </button>
+              <button onClick={handleStopTts} title="Stop" disabled={!ttsPlaying && !ttsPaused}>
+                <Square size={14} />
+              </button>
+              <span className="notebookDivider" />
+              <select
+                className="notebookRate"
+                value={ttsRate}
+                onChange={(e) => setTtsRate(Number(e.target.value))}
+                title="Narration speed"
+                aria-label="Narration speed"
+              >
+                <option value={0.75}>0.75×</option>
+                <option value={1}>1×</option>
+                <option value={1.25}>1.25×</option>
+                <option value={1.5}>1.5×</option>
+                <option value={2}>2×</option>
+              </select>
+              <span
+                className="progressLabel"
+                title={
+                  ttsManager.speechSynthesisAvailable
+                    ? undefined
+                    : 'Voice narration unavailable in this browser — showing text'
+                }
+              >
+                {ttsManager.speechSynthesisAvailable
+                  ? totalSegments > 0
+                    ? `${segmentIndex + 1} / ${totalSegments}`
+                    : 'Queued'
+                  : totalSegments > 0
+                    ? `Reading ${segmentIndex + 1} / ${totalSegments}`
+                    : 'Reading'}
+              </span>
+            </div>
+          </>
+        )}
+
+        {notebookMode && showOutline && session && (
+          <div
+            className="notebookOutlineOverlay"
+            onClick={() => setShowOutline(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Table of contents"
+          >
+            <div
+              className="notebookOutlinePanel"
+              ref={outlineRef}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="notebookOutlineHeader">
+                <span className="notebookOutlineTitle">Contents</span>
+                <button
+                  className="notebookOutlineClose"
+                  onClick={() => setShowOutline(false)}
+                  aria-label="Close contents"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="notebookOutlineList">
+                {visibleData.nodes.map((n) => {
+                  const kind = n.data.kind;
+                  const kindLabel = kind.charAt(0).toUpperCase() + kind.slice(1);
+                  const title =
+                    kind === 'concept'
+                      ? (n.data as ConceptData).title
+                      : kind === 'summary'
+                        ? `${(n.data as SummaryData).recap.length} recap points`
+                        : kind === 'quiz'
+                          ? (n.data as QuizData).prompt
+                          : (n.data as NoteData).text.slice(0, 40);
+                  return (
+                    <button
+                      key={n.id}
+                      className="notebookOutlineItem"
+                      onClick={() => jumpToNode(n.id)}
+                    >
+                      <span className="notebookOutlineKind">{kindLabel}</span>
+                      <span className="notebookOutlineItemTitle">{title}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {activeQuiz && (
-        <ErrorBoundary name="QuizInteraction" fallback={<QuizErrorFallback onClose={handleCloseQuiz} />}>
-          <QuizInteraction
-            quiz={activeQuiz.quiz}
-            quizId={activeQuiz.quizId}
-            conceptTitle={activeQuiz.conceptTitle}
-            onClose={handleCloseQuiz}
-          />
-        </ErrorBoundary>
-      )}
+        {activeQuiz && (
+          <ErrorBoundary
+            name="QuizInteraction"
+            fallback={<QuizErrorFallback onClose={handleCloseQuiz} />}
+          >
+            <QuizInteraction
+              quiz={activeQuiz.quiz}
+              quizId={activeQuiz.quizId}
+              conceptTitle={activeQuiz.conceptTitle}
+              onClose={handleCloseQuiz}
+            />
+          </ErrorBoundary>
+        )}
 
-      {summaryQuiz && session && (
-        <ErrorBoundary name="SummaryQuiz" fallback={<QuizErrorFallback onClose={handleCloseSummaryQuiz} />}>
-          <SummaryQuizInteraction
-            quizData={(session.nodes.find(n => n.id === SUMMARY_NODE_ID)?.data as SummaryData)?.finalQuiz ?? []}
-            onClose={handleCloseSummaryQuiz}
-            onRetake={handleRetakeSummary}
-            initialScores={session.scores}
-            onUpdateScores={handleUpdateScores}
-          />
-        </ErrorBoundary>
-      )}
-    </div>
+        {summaryQuiz && session && (
+          <ErrorBoundary
+            name="SummaryQuiz"
+            fallback={<QuizErrorFallback onClose={handleCloseSummaryQuiz} />}
+          >
+            <SummaryQuizInteraction
+              quizData={
+                (session.nodes.find((n) => n.id === SUMMARY_NODE_ID)?.data as SummaryData)
+                  ?.finalQuiz ?? []
+              }
+              onClose={handleCloseSummaryQuiz}
+              onRetake={handleRetakeSummary}
+              initialScores={session.scores}
+              onUpdateScores={handleUpdateScores}
+            />
+          </ErrorBoundary>
+        )}
+      </div>
     </ErrorBoundary>
   );
 }

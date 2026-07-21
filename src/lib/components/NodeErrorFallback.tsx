@@ -28,7 +28,10 @@ export function NodeErrorFallback({ nodeId, type, onDismiss }: NodeErrorFallback
       <div style={{ fontSize: 10, opacity: 0.6, marginTop: 2 }}>id: {nodeId}</div>
       {onDismiss && (
         <button
-          onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDismiss();
+          }}
           style={{
             marginTop: 6,
             padding: '2px 8px',

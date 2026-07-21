@@ -1,4 +1,12 @@
-import { SUMMARY_NODE_ID, type Persona, type CanvasNode, type CanvasEdge, type ConceptData, type QuizData, type SummaryData } from '@/shared/types';
+import {
+  SUMMARY_NODE_ID,
+  type Persona,
+  type CanvasNode,
+  type CanvasEdge,
+  type ConceptData,
+  type QuizData,
+  type SummaryData,
+} from '@/shared/types';
 import { executePromptTask } from '@/lib/llm/promptTask';
 import { contentTask } from '@/lib/tasks/contentTask';
 import { summaryTask } from '@/lib/tasks/summaryTask';
@@ -47,7 +55,10 @@ export function quizItemToQuizData(item: QuizItem, conceptId: string): QuizData 
 export function createMutex() {
   let p: Promise<unknown> = Promise.resolve();
   return <T>(fn: () => Promise<T>): Promise<T> =>
-    (p = p.then(() => fn(), () => fn())) as Promise<T>;
+    (p = p.then(
+      () => fn(),
+      () => fn(),
+    )) as Promise<T>;
 }
 
 export interface ConceptInfo {
@@ -105,12 +116,23 @@ export async function processOneConcept(
   debugLog('log', 'pipeline', 'concept start id=%s title=%s', concept.id, concept.title);
 
   try {
-    const content = await executePromptTask(contentTask, {
-      persona, signal,
-      context: { topic },
-      onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
-      onParseRetry: (raw) => console.warn(`[pipeline] ParseError for concept ${concept.id}, retrying. Raw:\n${raw.slice(0, 500)}`),
-    }, concept);
+    const content = await executePromptTask(
+      contentTask,
+      {
+        persona,
+        signal,
+        context: { topic },
+        onRetry: (info) =>
+          useToastStore
+            .getState()
+            .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
+        onParseRetry: (raw) =>
+          console.warn(
+            `[pipeline] ParseError for concept ${concept.id}, retrying. Raw:\n${raw.slice(0, 500)}`,
+          ),
+      },
+      concept,
+    );
 
     generatedConcepts.push({
       id: concept.id,
@@ -120,9 +142,14 @@ export async function processOneConcept(
     });
 
     const n = content.quizzes.length;
-    const quizHeights = content.quizzes.map(q => estimateQuizHeight(q.prompt));
-    const totalColumnHeight = n > 0 ? quizHeights.reduce((a, b) => a + b + GAP_ROW, 0) - GAP_ROW : 0;
-    const conceptY = n > 0 ? START_Y + Math.floor((totalColumnHeight - estimateConceptHeight(content.detail.explanation)) / 2) : START_Y;
+    const quizHeights = content.quizzes.map((q) => estimateQuizHeight(q.prompt));
+    const totalColumnHeight =
+      n > 0 ? quizHeights.reduce((a, b) => a + b + GAP_ROW, 0) - GAP_ROW : 0;
+    const conceptY =
+      n > 0
+        ? START_Y +
+          Math.floor((totalColumnHeight - estimateConceptHeight(content.detail.explanation)) / 2)
+        : START_Y;
 
     const nodeIndex = nodeIndexById.get(concept.id) ?? -1;
     if (nodeIndex !== -1) {
@@ -161,12 +188,30 @@ export async function processOneConcept(
 
     persist();
     const conceptElapsed = Math.round(performance.now() - conceptStart);
-    debugLog('log', 'pipeline', 'concept done id=%s quizzes=%d elapsed=%dms', concept.id, content.quizzes.length, conceptElapsed);
+    debugLog(
+      'log',
+      'pipeline',
+      'concept done id=%s quizzes=%d elapsed=%dms',
+      concept.id,
+      content.quizzes.length,
+      conceptElapsed,
+    );
     return currentTailId;
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err;
-    debugLog('error', 'pipeline', 'concept FAIL id=%s title=%s err=%s', concept.id, concept.title, err instanceof Error ? err.message : String(err));
-    onNotify('error', `Failed to load ${concept.title}`, err instanceof Error ? err.message : 'Unknown error');
+    debugLog(
+      'error',
+      'pipeline',
+      'concept FAIL id=%s title=%s err=%s',
+      concept.id,
+      concept.title,
+      err instanceof Error ? err.message : String(err),
+    );
+    onNotify(
+      'error',
+      `Failed to load ${concept.title}`,
+      err instanceof Error ? err.message : 'Unknown error',
+    );
     return null;
   }
 }
@@ -228,8 +273,16 @@ export async function runContentPhase(
 
   await runWithConcurrency(concepts, Math.min(CONCURRENCY, total), async (concept, i) => {
     const lastNodeId = await processOneConcept(
-      nodes, edges, generatedConcepts, concept, i, topic,
-      persona, signal, persist, onNotify,
+      nodes,
+      edges,
+      generatedConcepts,
+      concept,
+      i,
+      topic,
+      persona,
+      signal,
+      persist,
+      onNotify,
     );
     conceptLastNodeIds[i] = lastNodeId;
     completed++;
@@ -272,15 +325,23 @@ export async function pushSummary(
 
   onNotify('summary', 'Creating summary & final quiz\u2026');
   try {
-    const parsed = await executePromptTask(summaryTask, {
-      persona, signal,
-      context: { topic },
-      onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
-    }, generatedConcepts);
+    const parsed = await executePromptTask(
+      summaryTask,
+      {
+        persona,
+        signal,
+        context: { topic },
+        onRetry: (info) =>
+          useToastStore
+            .getState()
+            .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
+      },
+      generatedConcepts,
+    );
     const summaryData: SummaryData = {
       kind: 'summary',
       recap: parsed.recap,
-      finalQuiz: parsed.finalQuiz.map(item => quizItemToQuizData(item, SUMMARY_NODE_ID)),
+      finalQuiz: parsed.finalQuiz.map((item) => quizItemToQuizData(item, SUMMARY_NODE_ID)),
     };
 
     const lastX = 100 + conceptsLength * PAIR_WIDTH;
@@ -291,7 +352,7 @@ export async function pushSummary(
       data: summaryData,
     });
 
-    const lastChainTail = [...conceptLastNodeIds].reverse().find(id => id !== null);
+    const lastChainTail = [...conceptLastNodeIds].reverse().find((id) => id !== null);
     if (lastChainTail) {
       edges.push({
         id: 'edge-summary',
@@ -303,8 +364,17 @@ export async function pushSummary(
 
     await persist();
   } catch (err) {
-    debugLog('warn', 'pipeline', 'summary FAIL (non-fatal) err=%s', err instanceof Error ? err.message : String(err));
-    onNotify('error', 'Failed to create summary', err instanceof Error ? err.message : 'Unknown error');
+    debugLog(
+      'warn',
+      'pipeline',
+      'summary FAIL (non-fatal) err=%s',
+      err instanceof Error ? err.message : String(err),
+    );
+    onNotify(
+      'error',
+      'Failed to create summary',
+      err instanceof Error ? err.message : 'Unknown error',
+    );
   }
 }
 
@@ -321,7 +391,7 @@ export async function runPipeline(
     onProgress?.({ step, label, error });
   };
 
-  const topic = outlineTitle || concepts.map(c => c.title).join(', ');
+  const topic = outlineTitle || concepts.map((c) => c.title).join(', ');
 
   const { updateCurrent } = useSessionStore.getState();
   const withMutex = createMutex();
@@ -332,9 +402,10 @@ export async function runPipeline(
   // Bind the target session id at pipeline start so a concurrent session
   // switch (currentId change) can never redirect a pipeline write to the
   // wrong session. Falls back to the ambient currentId inside updateCurrent.
-  const persist = () => withMutex(() =>
-    updateCurrent({ nodes: [...nodes], edges: [...edges], updatedAt: Date.now() }, sessionId)
-  );
+  const persist = () =>
+    withMutex(() =>
+      updateCurrent({ nodes: [...nodes], edges: [...edges], updatedAt: Date.now() }, sessionId),
+    );
 
   const generatedConcepts: ConceptInfo[] = [];
   const conceptLastNodeIds: (string | null)[] = [];
@@ -345,11 +416,24 @@ export async function runPipeline(
   debugLog('log', 'pipeline', 'phase 0: %d concept shells pushed', concepts.length);
 
   // --- Phase 1: Content generation ---
-  debugLog('log', 'pipeline', 'phase 1: generating %d concepts (concurrency=%s)', concepts.length, CONCURRENCY === Infinity ? 'Infinity' : String(CONCURRENCY));
+  debugLog(
+    'log',
+    'pipeline',
+    'phase 1: generating %d concepts (concurrency=%s)',
+    concepts.length,
+    CONCURRENCY === Infinity ? 'Infinity' : String(CONCURRENCY),
+  );
   await runContentPhase(
-    nodes, edges, generatedConcepts, conceptLastNodeIds,
-    concepts, topic, persona,
-    signal, persist, notify,
+    nodes,
+    edges,
+    generatedConcepts,
+    conceptLastNodeIds,
+    concepts,
+    topic,
+    persona,
+    signal,
+    persist,
+    notify,
   );
 
   // --- Phase 2: Inter-concept chain edges ---
@@ -360,9 +444,16 @@ export async function runPipeline(
   // --- Phase 3: Summary ---
   debugLog('log', 'pipeline', 'phase 3: summary start');
   await pushSummary(
-    nodes, edges, generatedConcepts, conceptLastNodeIds,
-    concepts.length, topic, persona,
-    signal, persist, notify,
+    nodes,
+    edges,
+    generatedConcepts,
+    conceptLastNodeIds,
+    concepts.length,
+    topic,
+    persona,
+    signal,
+    persist,
+    notify,
   );
 
   notify('done', 'Canvas ready!');

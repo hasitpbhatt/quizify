@@ -46,7 +46,7 @@ export function Toolbar({ onNewSession }: ToolbarProps) {
   // Reset focus index when dropdown opens
   useEffect(() => {
     if (open) {
-      const idx = sessions.findIndex(s => s.id === currentId);
+      const idx = sessions.findIndex((s) => s.id === currentId);
       setFocusIndex(idx >= 0 ? idx : 0);
     } else {
       setFocusIndex(-1);
@@ -61,46 +61,54 @@ export function Toolbar({ onNewSession }: ToolbarProps) {
     target?.scrollIntoView?.({ block: 'nearest' });
   }, [focusIndex]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!open) {
-      if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        setOpen(true);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!open) {
+        if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setOpen(true);
+        }
+        return;
       }
-      return;
-    }
 
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault();
-        setFocusIndex(prev => Math.min(prev + 1, sessions.length - 1));
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setFocusIndex(prev => Math.max(prev - 1, 0));
-        break;
-      case 'Enter':
-      case ' ':
-        e.preventDefault();
-        if (focusIndex >= 0 && focusIndex < sessions.length) {
-          select(sessions[focusIndex].id);
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setFocusIndex((prev) => Math.min(prev + 1, sessions.length - 1));
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setFocusIndex((prev) => Math.max(prev - 1, 0));
+          break;
+        case 'Enter':
+        case ' ':
+          e.preventDefault();
+          if (focusIndex >= 0 && focusIndex < sessions.length) {
+            select(sessions[focusIndex].id);
+            setOpen(false);
+            setConfirmingDelete(null);
+          }
+          break;
+        case 'Escape':
+          e.preventDefault();
           setOpen(false);
           setConfirmingDelete(null);
-        }
-        break;
-      case 'Escape':
-        e.preventDefault();
-        setOpen(false);
-        setConfirmingDelete(null);
-        break;
-    }
-  }, [open, focusIndex, sessions, select]);
+          break;
+      }
+    },
+    [open, focusIndex, sessions, select],
+  );
 
   const current = sessions.find((s) => s.id === currentId);
 
   const formatDate = (ts: number) => {
     const d = new Date(ts);
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   const dropdownItemClass = (sId: string, i: number) => {
@@ -108,7 +116,9 @@ export function Toolbar({ onNewSession }: ToolbarProps) {
       styles.dropdownItem,
       sId === currentId ? styles.dropdownItemActive : '',
       i === focusIndex ? styles.dropdownItemFocused : '',
-    ].filter(Boolean).join(' ');
+    ]
+      .filter(Boolean)
+      .join(' ');
   };
 
   return (
@@ -178,7 +188,11 @@ export function Toolbar({ onNewSession }: ToolbarProps) {
                       setConfirmingDelete(s.id);
                     }
                   }}
-                  aria-label={confirmingDelete === s.id ? 'Confirm delete ' + s.name : 'Delete session ' + s.name}
+                  aria-label={
+                    confirmingDelete === s.id
+                      ? 'Confirm delete ' + s.name
+                      : 'Delete session ' + s.name
+                  }
                   type="button"
                 >
                   {confirmingDelete === s.id ? 'Confirm?' : <X size={14} />}

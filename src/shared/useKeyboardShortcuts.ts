@@ -31,7 +31,8 @@ export function useKeyboardShortcuts(opts: {
         target.tagName === 'TEXTAREA' ||
         target.tagName === 'SELECT' ||
         target.isContentEditable
-      ) return;
+      )
+        return;
 
       if (e.key === 'n' || e.key === 'N') {
         e.preventDefault();

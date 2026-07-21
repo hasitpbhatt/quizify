@@ -11,13 +11,18 @@ export function TrueFalse({ disabled, onSubmit }: Props) {
 
   return (
     <div className={styles.row} role="radiogroup" aria-label="True or False">
-      {['true', 'false'].map(val => (
+      {['true', 'false'].map((val) => (
         <button
           key={val}
           role="radio"
           aria-checked={selected === val}
-          className={[styles.btn, selected === val ? styles.btnSelected : ''].filter(Boolean).join(' ')}
-          onClick={() => { setSelected(val); onSubmit(val); }}
+          className={[styles.btn, selected === val ? styles.btnSelected : '']
+            .filter(Boolean)
+            .join(' ')}
+          onClick={() => {
+            setSelected(val);
+            onSubmit(val);
+          }}
           disabled={disabled}
         >
           {val === 'true' ? 'True' : 'False'}

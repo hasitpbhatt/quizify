@@ -19,10 +19,18 @@ interface SettingsState {
 }
 
 function loadString(key: string, fallback = ''): string {
-  try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; }
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
 }
 function saveString(key: string, value: string) {
-  try { localStorage.setItem(key, value); } catch { /* quota exceeded */ }
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* quota exceeded */
+  }
 }
 function loadBool(key: string, fallback: boolean): boolean {
   const v = loadString(key);
@@ -42,10 +50,23 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   ttsEnabled: loadBool('quizify:ttsEnabled', true),
   ttsRate: loadNumber('quizify:ttsRate', 1),
 
-  setPersona: (persona) => { saveString('quizify:persona', persona); set({ persona }); },
-  setTheme: (theme) => { saveString('quizify:theme', theme); setThemeOnDocument(theme); set({ theme }); },
-  setTtsEnabled: (on) => { saveString('quizify:ttsEnabled', String(on)); set({ ttsEnabled: on }); },
-  setTtsRate: (rate) => { saveString('quizify:ttsRate', String(rate)); set({ ttsRate: rate }); },
+  setPersona: (persona) => {
+    saveString('quizify:persona', persona);
+    set({ persona });
+  },
+  setTheme: (theme) => {
+    saveString('quizify:theme', theme);
+    setThemeOnDocument(theme);
+    set({ theme });
+  },
+  setTtsEnabled: (on) => {
+    saveString('quizify:ttsEnabled', String(on));
+    set({ ttsEnabled: on });
+  },
+  setTtsRate: (rate) => {
+    saveString('quizify:ttsRate', String(rate));
+    set({ ttsRate: rate });
+  },
 
   hasPersona: () => get().persona !== null,
 }));

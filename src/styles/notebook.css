@@ -3,65 +3,79 @@
    Applied when <body data-notebook="true">
    ============================================================ */
 
-[data-notebook="true"] {
+[data-notebook='true'] {
   --ink-color: #1a365d; /* deep navy blue ink for light theme */
   animation: none !important;
 }
 
-[data-theme='dark'][data-notebook="true"],
-[data-theme='dark'] [data-notebook="true"] {
+[data-theme='dark'][data-notebook='true'],
+[data-theme='dark'] [data-notebook='true'] {
   --ink-color: #a3c4f3; /* light gel pen blue for dark theme */
 }
 
 /* --- Ruled-line background (like a physical notebook) --- */
-[data-notebook="true"] .react-flow__pane {
-  background-color: #FAF8F5 !important;
+[data-notebook='true'] .react-flow__pane {
+  background-color: #faf8f5 !important;
   background-image:
     /* Red margin line */
-    linear-gradient(90deg, transparent 79px, rgba(239, 68, 68, 0.2) 79px, rgba(239, 68, 68, 0.2) 80px, transparent 80px),
+    linear-gradient(
+      90deg,
+      transparent 79px,
+      rgba(239, 68, 68, 0.2) 79px,
+      rgba(239, 68, 68, 0.2) 80px,
+      transparent 80px
+    ),
     /* Ruled lines */
     repeating-linear-gradient(
-      transparent,
-      transparent 27px,
-      rgba(84, 87, 232, 0.08) 27px,
-      rgba(84, 87, 232, 0.08) 28px
-    ) !important;
-  background-size: 100% 100%, 100% 28px;
+        transparent,
+        transparent 27px,
+        rgba(84, 87, 232, 0.08) 27px,
+        rgba(84, 87, 232, 0.08) 28px
+      ) !important;
+  background-size:
+    100% 100%,
+    100% 28px;
 }
 
-[data-theme='dark'] [data-notebook="true"] .react-flow__pane {
-  background-color: #12110E !important;
+[data-theme='dark'] [data-notebook='true'] .react-flow__pane {
+  background-color: #12110e !important;
   background-image:
     /* Soft pinkish margin line for dark theme */
-    linear-gradient(90deg, transparent 79px, rgba(239, 68, 68, 0.15) 79px, rgba(239, 68, 68, 0.15) 81px, transparent 81px),
+    linear-gradient(
+      90deg,
+      transparent 79px,
+      rgba(239, 68, 68, 0.15) 79px,
+      rgba(239, 68, 68, 0.15) 81px,
+      transparent 81px
+    ),
     /* Light blue ruled lines for dark theme */
     repeating-linear-gradient(
-      transparent,
-      transparent 27px,
-      rgba(163, 196, 243, 0.06) 27px,
-      rgba(163, 196, 243, 0.06) 28px
-    ) !important;
+        transparent,
+        transparent 27px,
+        rgba(163, 196, 243, 0.06) 27px,
+        rgba(163, 196, 243, 0.06) 28px
+      ) !important;
 }
 
 /* --- Adjust widths of the outer node wrappers so React Flow layouts correctly --- */
-[data-notebook="true"] .react-flow__node-concept {
+[data-notebook='true'] .react-flow__node-concept {
   width: 420px !important;
 }
-[data-notebook="true"] .react-flow__node-quiz {
+[data-notebook='true'] .react-flow__node-quiz {
   width: 380px !important;
   z-index: 10 !important;
   pointer-events: all !important;
 }
-[data-notebook="true"] .react-flow__node-summary {
+[data-notebook='true'] .react-flow__node-summary {
   width: 480px !important;
 }
-[data-notebook="true"] .react-flow__node-note {
+[data-notebook='true'] .react-flow__node-note {
   width: 380px !important;
 }
 
 /* --- Strip card styling but maintain layout width --- */
-[data-notebook="true"] .react-flow__node-concept > div,
-[data-notebook="true"] .react-flow__node-summary > div {
+[data-notebook='true'] .react-flow__node-concept > div,
+[data-notebook='true'] .react-flow__node-summary > div {
   background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -79,15 +93,15 @@
   transform: rotate(-0.2deg);
 }
 
-[data-notebook="true"] .react-flow__node-concept > div:hover,
-[data-notebook="true"] .react-flow__node-summary > div:hover {
+[data-notebook='true'] .react-flow__node-concept > div:hover,
+[data-notebook='true'] .react-flow__node-summary > div:hover {
   transform: rotate(-0.2deg) !important;
   box-shadow: none !important;
   border-color: transparent !important;
 }
 
 /* --- Style quiz nodes differently so they feel like distinct interactive cards --- */
-[data-notebook="true"] .react-flow__node-quiz > div {
+[data-notebook='true'] .react-flow__node-quiz > div {
   background: var(--bg-glass) !important;
   backdrop-filter: saturate(140%) blur(12px) !important;
   -webkit-backdrop-filter: saturate(140%) blur(12px) !important;
@@ -102,33 +116,33 @@
   transition: none !important;
 }
 
-[data-notebook="true"] .react-flow__node-quiz > div:hover {
+[data-notebook='true'] .react-flow__node-quiz > div:hover {
   transform: rotate(0.5deg) !important;
   box-shadow: var(--shadow-md) !important;
   border-color: var(--accent) !important;
 }
 
 /* --- Quiz state visual feedback --- */
-[data-notebook="true"] .react-flow__node-quiz[data-state="correct"] > div,
-[data-notebook="true"] .react-flow__node-quiz[data-state="mastered"] > div {
+[data-notebook='true'] .react-flow__node-quiz[data-state='correct'] > div,
+[data-notebook='true'] .react-flow__node-quiz[data-state='mastered'] > div {
   border-color: rgba(34, 197, 94, 0.5) !important;
   border-style: solid !important;
   background: rgba(34, 197, 94, 0.04) !important;
 }
 
-[data-notebook="true"] .react-flow__node-quiz[data-state="incorrect"] > div {
+[data-notebook='true'] .react-flow__node-quiz[data-state='incorrect'] > div {
   border-color: rgba(239, 68, 68, 0.5) !important;
   border-style: solid !important;
   background: rgba(239, 68, 68, 0.04) !important;
 }
 
-[data-notebook="true"] .react-flow__node-quiz[data-state="partial"] > div {
+[data-notebook='true'] .react-flow__node-quiz[data-state='partial'] > div {
   border-color: rgba(234, 179, 8, 0.5) !important;
   border-style: solid !important;
 }
 
 /* --- Restore NoteNode sticky note container styling --- */
-[data-notebook="true"] .react-flow__node-note > div {
+[data-notebook='true'] .react-flow__node-note > div {
   background: var(--note-bg) !important;
   border: none !important;
   border-radius: var(--radius-sm) !important;
@@ -143,24 +157,24 @@
   transition: none !important;
 }
 
-[data-notebook="true"] .react-flow__node-note > div:hover {
+[data-notebook='true'] .react-flow__node-note > div:hover {
   transform: rotate(-1.5deg) !important;
 }
 
 /* Notebook text should never animate its position when the pointer crosses it. */
-[data-notebook="true"] .pulseHighlight {
+[data-notebook='true'] .pulseHighlight {
   animation: none !important;
 }
 
-[data-notebook="true"] .react-flow__node-note [class*="text"],
-[data-notebook="true"] .react-flow__node-note textarea {
+[data-notebook='true'] .react-flow__node-note [class*='text'],
+[data-notebook='true'] .react-flow__node-note textarea {
   font-family: var(--font-canvas), 'Caveat', cursive !important;
   color: var(--note-text) !important;
 }
 
 /* --- Title / header styling for notebook mode --- */
-[data-notebook="true"] [class*="title"],
-[data-notebook="true"] [class*="header"] {
+[data-notebook='true'] [class*='title'],
+[data-notebook='true'] [class*='header'] {
   font-family: var(--font-canvas), 'Caveat', cursive !important;
   font-size: 1.8rem !important;
   font-weight: 700 !important;
@@ -170,8 +184,8 @@
 }
 
 /* --- Explanation / body text --- */
-[data-notebook="true"] [class*="explanation"],
-[data-notebook="true"] [class*="recapItem"] {
+[data-notebook='true'] [class*='explanation'],
+[data-notebook='true'] [class*='recapItem'] {
   font-family: Georgia, 'Times New Roman', serif !important;
   font-size: 1.4rem !important;
   font-weight: 500 !important;
@@ -181,7 +195,7 @@
 }
 
 /* --- Quiz card styling in notebook mode --- */
-[data-notebook="true"] [class*="footer"] {
+[data-notebook='true'] [class*='footer'] {
   display: flex !important;
   align-items: center;
   gap: var(--space-3);
@@ -190,31 +204,31 @@
   color: var(--ink-color) !important;
 }
 
-[data-notebook="true"] [class*="footer"] span {
+[data-notebook='true'] [class*='footer'] span {
   font-size: 1.15rem !important;
   color: var(--ink-color) !important;
 }
 
-[data-notebook="true"] [class*="quizBadge"] {
+[data-notebook='true'] [class*='quizBadge'] {
   display: inline !important;
   font-size: 1.1rem !important;
   padding: 2px 8px;
   border-radius: var(--radius-pill);
 }
 
-[data-notebook="true"] [class*="badge"] {
+[data-notebook='true'] [class*='badge'] {
   font-size: 1.1rem !important;
 }
 
-[data-notebook="true"] [class*="playButton"],
-[data-notebook="true"] [class*="quizCount"],
-[data-notebook="true"] [class*="launchBtn"],
-[data-notebook="true"] [class*="results"] {
+[data-notebook='true'] [class*='playButton'],
+[data-notebook='true'] [class*='quizCount'],
+[data-notebook='true'] [class*='launchBtn'],
+[data-notebook='true'] [class*='results'] {
   display: none !important;
 }
 
 /* --- Quiz format text styling --- */
-[data-notebook="true"] [class*="format"] {
+[data-notebook='true'] [class*='format'] {
   font-family: var(--font-canvas), 'Caveat', cursive !important;
   font-size: 1.1rem !important;
   font-weight: 700 !important;
@@ -223,34 +237,34 @@
 }
 
 /* --- Paragraph-aware rendering for typing-revealed prose --- */
-[data-notebook="true"] [class*="explanationPara"] {
+[data-notebook='true'] [class*='explanationPara'] {
   margin: 0;
   font-family: Georgia, 'Times New Roman', serif !important;
   font-size: 1.4rem !important;
   color: var(--ink-color) !important;
   line-height: 1.7 !important;
 }
-[data-notebook="true"] [class*="promptPara"] {
+[data-notebook='true'] [class*='promptPara'] {
   margin: 0;
   font-family: var(--font-canvas), 'Caveat', cursive !important;
   color: var(--ink-color) !important;
   line-height: 1.6 !important;
 }
-[data-notebook="true"] [class*="explanationPara"] + [class*="explanationPara"],
-[data-notebook="true"] [class*="promptPara"] + [class*="promptPara"] {
+[data-notebook='true'] [class*='explanationPara'] + [class*='explanationPara'],
+[data-notebook='true'] [class*='promptPara'] + [class*='promptPara'] {
   margin-top: var(--space-3);
 }
 
 /* --- Focus ring on the canvas container for keyboard navigation --- */
-[data-notebook="true"] .react-flow:focus-visible,
-[data-notebook="true"] [tabindex]:focus-visible {
+[data-notebook='true'] .react-flow:focus-visible,
+[data-notebook='true'] [tabindex]:focus-visible {
   outline: 2px solid var(--accent-subtle) !important;
   outline-offset: -2px;
 }
 
 /* --- Quiz prompt looks like inline text in notebook mode --- */
-[data-notebook="true"] [class*="quizPrompt"],
-[data-notebook="true"] [class*="prompt"] {
+[data-notebook='true'] [class*='quizPrompt'],
+[data-notebook='true'] [class*='prompt'] {
   font-family: var(--font-canvas), 'Caveat', cursive !important;
   font-size: 1.3rem !important;
   color: var(--ink-color) !important;
@@ -262,29 +276,29 @@
 }
 
 /* --- Make quiz nodes obviously clickable in notebook mode --- */
-[data-notebook="true"] [data-node-type="quiz"] {
+[data-notebook='true'] [data-node-type='quiz'] {
   cursor: pointer !important;
   pointer-events: all !important;
 }
 
 /* --- Handles (the React Flow connection dots) — hide in notebook --- */
-[data-notebook="true"] .react-flow__handle {
+[data-notebook='true'] .react-flow__handle {
   display: none !important;
 }
 
 /* --- React Flow controls — hide in notebook (zoom/pan not useful) --- */
-[data-notebook="true"] .react-flow__controls {
+[data-notebook='true'] .react-flow__controls {
   opacity: 0.2;
   pointer-events: none;
 }
 
 /* --- Minimap — hide in notebook --- */
-[data-notebook="true"] .react-flow__minimap {
+[data-notebook='true'] .react-flow__minimap {
   display: none !important;
 }
 
 /* --- Typing cursor animation --- */
-[data-notebook="true"] [data-typing="true"]::after {
+[data-notebook='true'] [data-typing='true']::after {
   content: '|';
   animation: notebookBlink 0.6s step-end infinite;
   color: var(--accent);
@@ -296,7 +310,9 @@
 }
 
 @keyframes notebookBlink {
-  50% { opacity: 0; }
+  50% {
+    opacity: 0;
+  }
 }
 
 /* --- Floating TTS controls bar --- */
@@ -524,21 +540,26 @@
 }
 
 /* --- Exclude functional UI elements from handwritten cursive style --- */
-[data-notebook="true"] button,
-[data-notebook="true"] [class*="Btn"],
-[data-notebook="true"] [class*="button"],
-[data-notebook="true"] [class*="Button"],
-[data-notebook="true"] [class*="badge"],
-[data-notebook="true"] [class*="Badge"],
-[data-notebook="true"] [class*="results"],
-[data-notebook="true"] [class*="quizCount"],
-[data-notebook="true"] [class*="quizBadge"],
-[data-notebook="true"] [class*="footer"],
+[data-notebook='true'] button,
+[data-notebook='true'] [class*='Btn'],
+[data-notebook='true'] [class*='button'],
+[data-notebook='true'] [class*='Button'],
+[data-notebook='true'] [class*='badge'],
+[data-notebook='true'] [class*='Badge'],
+[data-notebook='true'] [class*='results'],
+[data-notebook='true'] [class*='quizCount'],
+[data-notebook='true'] [class*='quizBadge'],
+[data-notebook='true'] [class*='footer'],
 .notebookControls,
 .notebookControls button,
 .notebookControls span,
 .notebookControls div {
-  font-family: var(--font-ui), -apple-system, BlinkMacSystemFont, system-ui, sans-serif !important;
+  font-family:
+    var(--font-ui),
+    -apple-system,
+    BlinkMacSystemFont,
+    system-ui,
+    sans-serif !important;
 }
 /* --- First-open orientation cue --- */
 .notebookOrientation {
@@ -559,8 +580,8 @@
   backdrop-filter: blur(10px);
 }
 
-[data-theme='dark'] [data-notebook="true"] .notebookOrientation,
-[data-theme='dark'][data-notebook="true"] .notebookOrientation {
+[data-theme='dark'] [data-notebook='true'] .notebookOrientation,
+[data-theme='dark'][data-notebook='true'] .notebookOrientation {
   border-color: rgba(210, 180, 120, 0.22);
   background: linear-gradient(180deg, rgba(30, 27, 20, 0.96), rgba(23, 20, 15, 0.92));
   color: rgba(245, 233, 205, 0.96);
@@ -598,11 +619,14 @@
   font: inherit;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease;
 }
 
-[data-theme='dark'] [data-notebook="true"] .notebookOrientationClose,
-[data-theme='dark'][data-notebook="true"] .notebookOrientationClose {
+[data-theme='dark'] [data-notebook='true'] .notebookOrientationClose,
+[data-theme='dark'][data-notebook='true'] .notebookOrientationClose {
   border-color: rgba(210, 180, 120, 0.24);
   background: rgba(255, 255, 255, 0.06);
 }
@@ -618,13 +642,13 @@
 }
 
 /* --- Pencil-writing treatment for active notebook text --- */
-[data-notebook="true"] [data-typing="true"] {
+[data-notebook='true'] [data-typing='true'] {
   position: relative;
   display: inline-block;
   padding-right: 1.05em;
 }
 
-[data-notebook="true"] [data-typing="true"]::before {
+[data-notebook='true'] [data-typing='true']::before {
   content: '';
   position: absolute;
   right: 0.25em;
@@ -639,7 +663,7 @@
   pointer-events: none;
 }
 
-[data-notebook="true"] [data-typing="true"]::after {
+[data-notebook='true'] [data-typing='true']::after {
   content: '';
   position: absolute;
   right: -0.03em;
@@ -647,7 +671,12 @@
   width: 0.38em;
   height: 0.38em;
   border-radius: 50% 50% 50% 18%;
-  background: linear-gradient(135deg, rgba(180, 133, 49, 0.98) 0%, rgba(145, 102, 31, 0.98) 70%, rgba(76, 52, 16, 0.98) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(180, 133, 49, 0.98) 0%,
+    rgba(145, 102, 31, 0.98) 70%,
+    rgba(76, 52, 16, 0.98) 100%
+  );
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16);
   transform: rotate(34deg) translateY(0);
   transform-origin: center center;
@@ -655,14 +684,19 @@
   pointer-events: none;
 }
 
-[data-theme='dark'] [data-notebook="true"] [data-typing="true"]::before,
-[data-theme='dark'][data-notebook="true"] [data-typing="true"]::before {
+[data-theme='dark'] [data-notebook='true'] [data-typing='true']::before,
+[data-theme='dark'][data-notebook='true'] [data-typing='true']::before {
   background: linear-gradient(90deg, rgba(214, 178, 108, 0.08), rgba(214, 178, 108, 0.72));
 }
 
-[data-theme='dark'] [data-notebook="true"] [data-typing="true"]::after,
-[data-theme='dark'][data-notebook="true"] [data-typing="true"]::after {
-  background: linear-gradient(135deg, rgba(233, 203, 136, 0.98) 0%, rgba(192, 154, 82, 0.98) 70%, rgba(100, 76, 28, 0.98) 100%);
+[data-theme='dark'] [data-notebook='true'] [data-typing='true']::after,
+[data-theme='dark'][data-notebook='true'] [data-typing='true']::after {
+  background: linear-gradient(
+    135deg,
+    rgba(233, 203, 136, 0.98) 0%,
+    rgba(192, 154, 82, 0.98) 70%,
+    rgba(100, 76, 28, 0.98) 100%
+  );
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
@@ -698,17 +732,17 @@
 }
 
 /* Final polish: keep the graphite feeling soft and avoid distracting motion. */
-[data-notebook="true"] [data-typing="true"] {
+[data-notebook='true'] [data-typing='true'] {
   text-shadow: 0 0 0.02px rgba(84, 58, 18, 0.72);
 }
 
-[data-theme='dark'] [data-notebook="true"] [data-typing="true"] {
+[data-theme='dark'] [data-notebook='true'] [data-typing='true'] {
   text-shadow: 0 0 0.02px rgba(238, 214, 160, 0.66);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-notebook="true"] [data-typing="true"]::before,
-  [data-notebook="true"] [data-typing="true"]::after {
+  [data-notebook='true'] [data-typing='true']::before,
+  [data-notebook='true'] [data-typing='true']::after {
     animation: none;
   }
 }
@@ -734,7 +768,7 @@
 }
 
 [data-theme='dark'] .notebookLearningCue,
-[data-theme='dark'] [data-notebook="true"] .notebookLearningCue {
+[data-theme='dark'] [data-notebook='true'] .notebookLearningCue {
   border-color: rgba(130, 140, 240, 0.22);
   background: linear-gradient(180deg, rgba(20, 28, 50, 0.96), rgba(15, 22, 42, 0.92));
   color: rgba(210, 218, 255, 0.96);
@@ -777,7 +811,10 @@
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
-  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease;
 }
 
 .notebookLearningCueAction:hover {
@@ -805,7 +842,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: opacity 160ms ease, background 160ms ease;
+  transition:
+    opacity 160ms ease,
+    background 160ms ease;
 }
 
 .notebookLearningCueClose:hover {

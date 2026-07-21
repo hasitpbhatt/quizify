@@ -20,7 +20,7 @@ const STAGES: StageDef[] = [
 ];
 
 function stageIndex(stage: JourneyStage): number {
-  const i = STAGES.findIndex(s => s.stage === stage);
+  const i = STAGES.findIndex((s) => s.stage === stage);
   return i === -1 ? 0 : i;
 }
 
@@ -47,10 +47,15 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
   }, []);
 
   function getState(i: number): JourneyState {
-    return progress.stage === 'error' && i <= activeIndex ? 'error' :
-      i < activeIndex ? 'done' :
-      i === activeIndex ? (progress.stage === 'done' ? 'done' : 'active') :
-      'pending';
+    return progress.stage === 'error' && i <= activeIndex
+      ? 'error'
+      : i < activeIndex
+        ? 'done'
+        : i === activeIndex
+          ? progress.stage === 'done'
+            ? 'done'
+            : 'active'
+          : 'pending';
   }
 
   if (previewData && !error) {
@@ -64,7 +69,9 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
               <span className={styles.orbRing2} />
             </div>
             <h1 className={styles.title}>Content Preview</h1>
-            <p className={styles.subtitle}>We fetched the content successfully. Does this look correct?</p>
+            <p className={styles.subtitle}>
+              We fetched the content successfully. Does this look correct?
+            </p>
           </div>
 
           <div className={styles.previewBox}>
@@ -73,10 +80,18 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
           </div>
 
           <div className={styles.previewFooter}>
-            <button className={styles.previewCancelBtn} onClick={previewData.onCancel} type="button">
+            <button
+              className={styles.previewCancelBtn}
+              onClick={previewData.onCancel}
+              type="button"
+            >
               Cancel
             </button>
-            <button className={styles.previewConfirmBtn} onClick={previewData.onConfirm} type="button">
+            <button
+              className={styles.previewConfirmBtn}
+              onClick={previewData.onConfirm}
+              type="button"
+            >
               Looks good, continue!
             </button>
           </div>
@@ -94,7 +109,10 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
             {STAGES.map((s, i) => {
               const state = getState(i);
               return (
-                <div key={s.stage} className={`${styles.compactStage} ${styles[`compactStage-${state}`] ?? ''}`}>
+                <div
+                  key={s.stage}
+                  className={`${styles.compactStage} ${styles[`compactStage-${state}`] ?? ''}`}
+                >
                   <span className={styles.compactDot}>
                     {state === 'done' && <span className={styles.compactDotDone} />}
                     {state === 'active' && <span className={styles.compactDotActive} />}
@@ -184,7 +202,14 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
 function Checkmark() {
   return (
     <svg viewBox="0 0 16 16" className={styles.check} aria-hidden>
-      <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M3.5 8.5l3 3 6-7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

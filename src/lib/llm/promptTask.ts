@@ -49,7 +49,15 @@ export async function executePromptTask<T>(
     try {
       return task.parse(res.content);
     } catch (err) {
-      debugLog('warn', 'task', 'task %s parse fail attempt %d raw_len=%d snippet=%.200s', task.id, attempt + 1, res.content.length, res.content);
+      debugLog(
+        'warn',
+        'task',
+        'task %s parse fail attempt %d raw_len=%d snippet=%.200s',
+        task.id,
+        attempt + 1,
+        res.content.length,
+        res.content,
+      );
       opts.onParseRetry?.(res.content, err);
       if (attempt === 0) {
         messages.push({

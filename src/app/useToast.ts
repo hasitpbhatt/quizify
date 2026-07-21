@@ -26,7 +26,10 @@ export function useToast() {
 
   const remove = useCallback((id: string) => {
     const timer = timers.get(id);
-    if (timer) { clearTimeout(timer); timers.delete(id); }
+    if (timer) {
+      clearTimeout(timer);
+      timers.delete(id);
+    }
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 

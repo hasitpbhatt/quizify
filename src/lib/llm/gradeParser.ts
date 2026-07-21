@@ -12,11 +12,15 @@ export function parseGradeResponse(raw: string): GradeResult {
 
   const match = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (match) {
-    try { parsed = JSON.parse(match[1]); } catch {}
+    try {
+      parsed = JSON.parse(match[1]);
+    } catch {}
   }
 
   if (!parsed) {
-    try { parsed = JSON.parse(raw); } catch {}
+    try {
+      parsed = JSON.parse(raw);
+    } catch {}
   }
 
   if (!parsed) {

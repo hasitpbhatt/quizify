@@ -3,14 +3,10 @@ export type Persona = 'curious' | 'student' | 'professional' | 'expert';
 export type Theme = 'light' | 'dark' | 'auto';
 
 export type QuizFormat =
-  | 'multipleChoice'
-  | 'trueFalse'
-  | 'shortAnswer'
-  | 'freeText'
-  | 'fillBlank'
-  | 'ordering';
+  'multipleChoice' | 'trueFalse' | 'shortAnswer' | 'freeText' | 'fillBlank' | 'ordering';
 
-export type QuizState = 'untested' | 'inProgress' | 'correct' | 'partial' | 'incorrect' | 'mastered';
+export type QuizState =
+  'untested' | 'inProgress' | 'correct' | 'partial' | 'incorrect' | 'mastered';
 
 export type NodeKind = 'concept' | 'quiz' | 'note' | 'summary';
 

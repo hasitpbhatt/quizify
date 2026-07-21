@@ -23,9 +23,7 @@ export function getCallsPerMinute(): number {
 
 export function logPerf(label: string, elapsedMs?: number): void {
   if (!isDev) return;
-  const msg = elapsedMs !== undefined
-    ? `[perf] ${label}: ${elapsedMs}ms`
-    : `[perf] ${label}`;
+  const msg = elapsedMs !== undefined ? `[perf] ${label}: ${elapsedMs}ms` : `[perf] ${label}`;
   console.log(msg);
 }
 

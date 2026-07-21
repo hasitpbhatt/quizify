@@ -34,7 +34,7 @@ function QuizNodeInner(props: NodeProps) {
   const data = toQuizData(props.data);
   const formatLabel = data.format
     .replace(/([A-Z])/g, ' $1')
-    .replace(/^./, s => s.toUpperCase())
+    .replace(/^./, (s) => s.toUpperCase())
     .trim();
 
   const bc = badgeColors[data.state] ?? badgeColors.untested;
@@ -45,9 +45,8 @@ function QuizNodeInner(props: NodeProps) {
   const skipTyping = props.data.skipTyping === true;
   const { revealed, skipAnimation } = useTypingAnimation(props.id, data.prompt, skipTyping, 80);
   const promptText = notebookMode ? data.prompt.slice(0, revealed) : data.prompt;
-  const promptParagraphs = notebookMode && promptText.length > 0
-    ? promptText.split(/\n+/)
-    : [data.prompt];
+  const promptParagraphs =
+    notebookMode && promptText.length > 0 ? promptText.split(/\n+/) : [data.prompt];
   const isAnimating = notebookMode && !skipTyping && revealed < data.prompt.length;
 
   // Replay animation when state changes to correct/mastered/incorrect
@@ -69,7 +68,15 @@ function QuizNodeInner(props: NodeProps) {
   }, [data.state]);
 
   return (
-    <div ref={nodeRef} className={styles.node} data-node-type="quiz" data-state={data.state} onClick={() => { if (isAnimating) skipAnimation(); }}>
+    <div
+      ref={nodeRef}
+      className={styles.node}
+      data-node-type="quiz"
+      data-state={data.state}
+      onClick={() => {
+        if (isAnimating) skipAnimation();
+      }}
+    >
       <Handle type="target" position={Position.Left} />
       <div className={styles.format}>
         <span
@@ -80,29 +87,26 @@ function QuizNodeInner(props: NodeProps) {
         {formatLabel}
       </div>
       <div className={styles.prompt}>
-        {notebookMode ? (
-          promptParagraphs.map((p, i) => (
-            <p
-              key={i}
-              className={styles.promptPara}
-              data-typing={isAnimating && i === promptParagraphs.length - 1 ? 'true' : undefined}
-            >
-              {p}
-            </p>
-          ))
-        ) : (
-          data.prompt
-        )}
+        {notebookMode
+          ? promptParagraphs.map((p, i) => (
+              <p
+                key={i}
+                className={styles.promptPara}
+                data-typing={isAnimating && i === promptParagraphs.length - 1 ? 'true' : undefined}
+              >
+                {p}
+              </p>
+            ))
+          : data.prompt}
       </div>
       <div className={styles.footer}>
-        <span
-          className={styles.badge}
-          style={{ background: bc.bg, color: bc.text }}
-        >
+        <span className={styles.badge} style={{ background: bc.bg, color: bc.text }}>
           {data.state}
         </span>
         <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
-          {data.attempts.length > 0 ? `${data.attempts.length} attempt${data.attempts.length > 1 ? 's' : ''}` : 'click to answer'}
+          {data.attempts.length > 0
+            ? `${data.attempts.length} attempt${data.attempts.length > 1 ? 's' : ''}`
+            : 'click to answer'}
         </span>
       </div>
       <Handle type="source" position={Position.Right} />

@@ -2,7 +2,9 @@
 @import './reset.css';
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Page transition: fade + slight slide up */

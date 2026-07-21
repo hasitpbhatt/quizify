@@ -25,14 +25,15 @@ function injectStyle() {
 }
 
 function WigglyEdgeComponent(props: EdgeProps) {
-  const {
-    sourceX, sourceY, targetX, targetY,
-    sourcePosition, targetPosition, selected,
-  } = props;
+  const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected } = props;
 
   const [path] = getSmoothStepPath({
-    sourceX, sourceY, sourcePosition,
-    targetX, targetY, targetPosition,
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
   });
 
   const gRef = useRef<SVGGElement>(null);
@@ -57,7 +58,13 @@ function WigglyEdgeComponent(props: EdgeProps) {
 
   return (
     <>
-      <path d={path} fill="none" stroke="transparent" strokeWidth={20} style={{ cursor: 'pointer' }} />
+      <path
+        d={path}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={20}
+        style={{ cursor: 'pointer' }}
+      />
       <g ref={gRef} />
       {/* Subtle animated dash overlay for "alive" feeling */}
       <path
@@ -75,4 +82,3 @@ function WigglyEdgeComponent(props: EdgeProps) {
 }
 
 export const WigglyEdge = memo(WigglyEdgeComponent);
-

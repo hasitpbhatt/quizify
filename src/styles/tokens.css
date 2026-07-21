@@ -1,27 +1,27 @@
 :root {
   /* neutrals — warm paper-gray (light theme) */
-  --bg-canvas: #F5F4F0;
-  --bg-elevated: #FFFFFF;
-  --bg-subtle: #EEEDE8;
+  --bg-canvas: #f5f4f0;
+  --bg-elevated: #ffffff;
+  --bg-subtle: #eeede8;
   --bg-glass: rgba(255, 255, 255, 0.82);
-  --border: #E2DFD6;
-  --border-strong: #C9C4B6;
+  --border: #e2dfd6;
+  --border-strong: #c9c4b6;
   --border-hairline: rgba(0, 0, 0, 0.06);
 
-  --text-primary: #15140F;
+  --text-primary: #15140f;
   --text-secondary: #595650;
-  --text-tertiary: #8E8B82;
+  --text-tertiary: #8e8b82;
 
   /* Slightly warmer/less-saturated accent for light mode — better contrast on white */
-  --accent: #4F52D4;
-  --accent-hover: #4245C2;
-  --accent-pressed: #3538AB;
-  --accent-subtle: rgba(79, 82, 212, 0.10);
+  --accent: #4f52d4;
+  --accent-hover: #4245c2;
+  --accent-pressed: #3538ab;
+  --accent-subtle: rgba(79, 82, 212, 0.1);
   --accent-glass: rgba(79, 82, 212, 0.14);
 
-  --success: #2E9E5B;
-  --warning: #D9A441;
-  --danger: #D14B4B;
+  --success: #2e9e5b;
+  --warning: #d9a441;
+  --danger: #d14b4b;
 
   /* spacing */
   --space-0: 0px;
@@ -49,12 +49,13 @@
   --shadow-xs: 0 0.5px 1px rgba(0, 0, 0, 0.07);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.05), 0 8px 20px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.05), 0 16px 40px rgba(0, 0, 0, 0.10);
+  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.05), 0 16px 40px rgba(0, 0, 0, 0.1);
   --shadow-focus: 0 0 0 3px var(--accent-subtle);
-  --shadow-card: 0 0 0 1px var(--border-hairline), 0 2px 4px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
+  --shadow-card:
+    0 0 0 1px var(--border-hairline), 0 2px 4px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
 
-  --note-bg: #FDE96A;
-  --note-text: #1A1A2E;
+  --note-bg: #fde96a;
+  --note-text: #1a1a2e;
   --note-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.08);
 
   /* font families */
@@ -91,27 +92,27 @@
 }
 
 [data-theme='dark'] {
-  --bg-canvas: #0E0D0A;
-  --bg-elevated: #1A1814;
+  --bg-canvas: #0e0d0a;
+  --bg-elevated: #1a1814;
   --bg-subtle: #232118;
   --bg-glass: rgba(26, 24, 20, 0.72);
-  --border: #2E2B22;
-  --border-strong: #423D31;
+  --border: #2e2b22;
+  --border-strong: #423d31;
   --border-hairline: rgba(255, 255, 255, 0.06);
 
-  --text-primary: #F0EDE3;
-  --text-secondary: #ABA89E;
-  --text-tertiary: #76726A;
+  --text-primary: #f0ede3;
+  --text-secondary: #aba89e;
+  --text-tertiary: #76726a;
 
-  --accent: #7E80F0;
-  --accent-hover: #9496F4;
-  --accent-pressed: #6A6CEC;
+  --accent: #7e80f0;
+  --accent-hover: #9496f4;
+  --accent-pressed: #6a6cec;
   --accent-subtle: rgba(126, 128, 240, 0.14);
   --accent-glass: rgba(126, 128, 240, 0.18);
 
-  --success: #3DBE73;
-  --warning: #E6BB66;
-  --danger: #E26C6C;
+  --success: #3dbe73;
+  --warning: #e6bb66;
+  --danger: #e26c6c;
 
   --shadow-xs: 0 0.5px 1px rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
@@ -119,8 +120,8 @@
   --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.3), 0 16px 40px rgba(0, 0, 0, 0.4);
   --shadow-card: 0 0 0 1px var(--border-hairline), 0 1px 3px rgba(0, 0, 0, 0.2);
 
-  --note-bg: #4F4A12;
-  --note-text: #E8E2A0;
+  --note-bg: #4f4a12;
+  --note-text: #e8e2a0;
   --note-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
 
   /* React Flow Controls are themed via data-theme, not .react-flow.dark */

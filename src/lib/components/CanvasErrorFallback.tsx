@@ -19,11 +19,28 @@ export function CanvasErrorFallback({ error, onReset, onHome }: CanvasErrorFallb
       }}
     >
       <span style={{ fontSize: 32, marginBottom: 8 }}>&#9888;</span>
-      <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 600 }}>Canvas encountered an error</h2>
-      <p style={{ margin: '0 0 4px', fontSize: 13, color: 'var(--text-secondary, #888)', textAlign: 'center' }}>
+      <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 600 }}>
+        Canvas encountered an error
+      </h2>
+      <p
+        style={{
+          margin: '0 0 4px',
+          fontSize: 13,
+          color: 'var(--text-secondary, #888)',
+          textAlign: 'center',
+        }}
+      >
         Something went wrong while rendering the canvas.
       </p>
-      <p style={{ margin: '0 0 16px', fontSize: 11, color: 'var(--text-tertiary, #aaa)', maxWidth: 400, textAlign: 'center' }}>
+      <p
+        style={{
+          margin: '0 0 16px',
+          fontSize: 11,
+          color: 'var(--text-tertiary, #aaa)',
+          maxWidth: 400,
+          textAlign: 'center',
+        }}
+      >
         {error.message}
       </p>
       <div style={{ display: 'flex', gap: 8 }}>

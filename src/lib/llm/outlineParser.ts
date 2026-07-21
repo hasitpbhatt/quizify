@@ -42,11 +42,15 @@ export function parseOutline(raw: string): OutlineData {
 
   const match = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (match) {
-    try { parsed = JSON.parse(match[1]); } catch {}
+    try {
+      parsed = JSON.parse(match[1]);
+    } catch {}
   }
 
   if (!parsed) {
-    try { parsed = JSON.parse(raw); } catch {}
+    try {
+      parsed = JSON.parse(raw);
+    } catch {}
   }
 
   if (!parsed) {
@@ -109,7 +113,14 @@ export function parseOutline(raw: string): OutlineData {
       throw new ParseError(`Concept ${i}: missing or invalid "quiz"`);
     }
     const quiz = concept.quiz as Record<string, unknown>;
-    const validFormats = ['mcq', 'true-false', 'short-answer', 'fill-blank', 'ordering', 'free-text'];
+    const validFormats = [
+      'mcq',
+      'true-false',
+      'short-answer',
+      'fill-blank',
+      'ordering',
+      'free-text',
+    ];
     if (!validFormats.includes(quiz.format as string)) {
       throw new ParseError(`Concept ${i}: invalid quiz format "${String(quiz.format)}"`);
     }

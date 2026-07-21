@@ -10,7 +10,9 @@
   font-family: var(--font-ui);
   position: relative;
   box-shadow: var(--shadow-md);
-  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .node:hover {
@@ -67,7 +69,9 @@
   font-size: var(--fs-body);
   font-weight: var(--fw-h2);
   cursor: pointer;
-  transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
 }
 
 .launchBtn:hover {
