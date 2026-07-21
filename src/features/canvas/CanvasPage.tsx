@@ -1209,7 +1209,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
               title="You're in Notebook view. Press Esc or the X to switch to the canvas graph."
             >
               <BookOpen size={12} />
-              <span>Notebook</span>
+              <span>Notebook · Esc to exit</span>
             </div>
             {concepts.length > 0 && (
               <div className="notebookConceptProgress">
