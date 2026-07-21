@@ -123,7 +123,17 @@ export function Toolbar({ onNewSession }: ToolbarProps) {
 
   return (
     <div className={styles.toolbar}>
-      <span className={styles.brand}>Quizify</span>
+      <span className={styles.brand}>
+        Quizify
+        <a
+          className={styles.byline}
+          href="https://hasit.in"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          by hasit.in
+        </a>
+      </span>
 
       <div className={styles.spacer} />
 

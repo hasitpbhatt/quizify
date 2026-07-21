@@ -94,6 +94,20 @@ export function WelcomeModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'name' | 'concepts'>('recent');
 
+  const resumeSession = useMemo(() => {
+    const isComplete = (s: Session) => {
+      const quizNodes = s.nodes.filter((n) => n.data?.kind === 'quiz');
+      return quizNodes.length > 0 && quizNodes.every(
+        (n) => (n.data as any)?.state === 'correct' || (n.data as any)?.state === 'mastered',
+      );
+    };
+    const withContent = sessions.filter(
+      (s) => !isComplete(s) && s.nodes.some((n) => n.data?.kind === 'concept'),
+    );
+    withContent.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    return withContent[0] ?? null;
+  }, [sessions]);
+
   const filteredSessions = useMemo(() => {
     let result = [...sessions];
     if (searchQuery.trim()) {
@@ -273,6 +287,44 @@ export function WelcomeModal({
           </p>
         </section>
 
+        {resumeSession && (
+          <section className={styles.resumeSection}>
+            <div className={styles.resumeLabel}>Pick up where you left off</div>
+            <div
+              className={styles.resumeCard}
+              onClick={() => onSelectSession(resumeSession.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelectSession(resumeSession.id);
+                }
+              }}
+            >
+              <div className={styles.resumeBody}>
+                <span className={styles.resumeName}>{resumeSession.name}</span>
+                <span className={styles.resumeMeta}>
+                  {resumeSession.hostname && (
+                    <>
+                      <Globe size={11} />
+                      <span>{resumeSession.hostname}</span>
+                      <span className={styles.sessionDot}>·</span>
+                    </>
+                  )}
+                  {resumeSession.nodes.filter((n) => n.data?.kind === 'concept').length} concepts
+                  {' · '}
+                  {relativeTime(new Date(resumeSession.updatedAt))}
+                </span>
+              </div>
+              <span className={styles.resumeAction}>
+                Resume
+                <ArrowRight size={14} />
+              </span>
+            </div>
+          </section>
+        )}
+
         {sessions.length > 0 && (
           <section className={styles.sessionsSection}>
             <div className={styles.sessionsHeader}>
@@ -354,20 +406,15 @@ export function WelcomeModal({
                             </span>
                           </>
                         )}
-                        {masteryPct !== null && answeredQuizzes.length > 0 && (
+                        {masteryPct !== null && answeredQuizzes.length > 0 && masteryPct > 0 && (
                           <>
                             <span className={styles.sessionDot}>·</span>
                             <span
                               style={{
-                                color:
-                                  masteryPct >= 80
-                                    ? 'var(--success)'
-                                    : masteryPct >= 50
-                                      ? 'var(--warning)'
-                                      : 'var(--text-tertiary)',
+                                color: masteryPct >= 100 ? 'var(--success)' : masteryPct >= 80 ? 'var(--success)' : masteryPct >= 50 ? 'var(--warning)' : 'var(--text-tertiary)',
                               }}
                             >
-                              {masteryPct}% mastered
+                              {masteryPct >= 100 ? 'Completed' : `${masteryPct}% mastered`}
                             </span>
                           </>
                         )}

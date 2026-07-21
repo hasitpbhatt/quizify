@@ -1080,25 +1080,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
           )}
         </ReactFlow>
 
-        <a
-          href="https://hasit.in"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            position: 'absolute',
-            bottom: 8,
-            right: 12,
-            zIndex: 10,
-            fontSize: 11,
-            color: 'var(--text-secondary)',
-            fontFamily: 'var(--font-ui)',
-            opacity: 0.5,
-            textDecoration: 'none',
-          }}
-        >
-          hasit.in
-        </a>
-
         {showProgress && (
           <div className={styles.progressBadge}>
             <span className={styles.progressDot} aria-hidden />
