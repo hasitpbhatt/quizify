@@ -180,7 +180,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const currentId = useSessionStore((s) => s.currentId);
   const session = useSessionStore((s) => {
     const id = s.currentId;
-    return id ? s.sessions.find((ss) => ss.id === id) ?? null : null;
+    return id ? (s.sessions.find((ss) => ss.id === id) ?? null) : null;
   });
   const [activeQuiz, setActiveQuiz] = useState<{
     quizId: string;
