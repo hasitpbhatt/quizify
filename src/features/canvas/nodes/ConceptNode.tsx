@@ -99,7 +99,7 @@ function ConceptNodeInner(props: NodeProps) {
   const titleRevealed = notebookMode ? Math.min(revealed, titleText.length) : titleText.length;
   const explanationRevealed = notebookMode ? Math.max(0, revealed - titlePrefixLength) : explanationText.length;
   const explanationVisible = notebookMode ? explanationText.slice(0, explanationRevealed) : explanationText;
-  const explanationParagraphs = notebookMode ? explanationVisible.split(/\n+/).filter(Boolean) : [];
+  const explanationParagraphs = (notebookMode ? explanationVisible : explanationText).split(/\n+/).filter(Boolean);
 
   const isTitleAnimating = notebookMode && revealed < titleText.length;
   const isExplanationAnimating = notebookMode && revealed >= titleText.length && revealed < textToRead.length;
@@ -123,19 +123,15 @@ function ConceptNodeInner(props: NodeProps) {
         className={styles.explanation}
         data-typing={isExplanationAnimating ? 'true' : undefined}
       >
-        {notebookMode ? (
-          explanationParagraphs.map((p, i) => (
-            <p
-              key={i}
-              className={styles.explanationPara}
-              data-typing={isExplanationAnimating && i === explanationParagraphs.length - 1 ? 'true' : undefined}
-            >
-              {p}
-            </p>
-          ))
-        ) : (
-          explanationText
-        )}
+        {explanationParagraphs.map((p, i) => (
+          <p
+            key={i}
+            className={styles.explanationPara}
+            data-typing={notebookMode && isExplanationAnimating && i === explanationParagraphs.length - 1 ? 'true' : undefined}
+          >
+            {p}
+          </p>
+        ))}
       </div>
       {!notebookMode && (
         <div className={styles.footer}>

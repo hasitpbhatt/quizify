@@ -105,7 +105,12 @@ async function tryEndpoint(
         if (res.status === 429 || res.status >= 500) {
           if (attempt >= maxRetries) {
             if (model === models[models.length - 1]) {
-              throw res.status === 429 ? new RateLimitError() : new NetworkError(`${label} returned ${res.status}`);
+              let detail = '';
+              try {
+                const body = await res.text();
+                try { const e = JSON.parse(body); if (e.error) detail = `: ${String(e.error).slice(0, 300)}`; } catch { if (body && body.length < 300) detail = `: ${body}`; }
+              } catch {}
+              throw res.status === 429 ? new RateLimitError() : new NetworkError(`${label} returned ${res.status}${detail}`);
             }
             break;
           }
@@ -127,7 +132,12 @@ async function tryEndpoint(
         }
 
         if (!res.ok) {
-          if (model === models[models.length - 1]) throw new NetworkError(`${label} returned ${res.status}`);
+          let detail = '';
+          try {
+            const body = await res.text();
+            try { const e = JSON.parse(body); if (e.error) detail = `: ${String(e.error).slice(0, 300)}`; } catch { if (body && body.length < 300) detail = `: ${body}`; }
+          } catch {}
+          if (model === models[models.length - 1]) throw new NetworkError(`${label} returned ${res.status}${detail}`);
           break;
         }
 

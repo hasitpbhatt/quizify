@@ -2,6 +2,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
+import fs from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const BROWSER_HEADERS = {
@@ -13,6 +14,7 @@ function devProxyPlugin(): import('vite').Plugin {
   return {
     name: 'dev-proxy',
     configureServer(server) {
+
       // Register as early as possible so Vite's indexHtmlFallback / static
       // middlewares don't swallow /api/* or /__proxy requests. Returning a
       // post-hook from configureServer would run *after* Vite's internals,
@@ -41,11 +43,21 @@ function devProxyPlugin(): import('vite').Plugin {
           body += chunk;
         }
 
-        const mistralApiKey = process.env.MISTRAL_API_KEY;
+        // Read .env directly — Vite's loadEnv doesn't reliably populate process.env at middleware time.
+        const envPath = path.resolve(process.cwd(), '.env');
+        let mistralApiKey = '';
+        let debugInfo = `cwd=${process.cwd()};envPath=${envPath};exists=${fs.existsSync(envPath)}`;
+        try {
+          const envContent = fs.readFileSync(envPath, 'utf8');
+          debugInfo += `;file_len=${envContent.length}`;
+          const match = envContent.match(/^MISTRAL_API_KEY=(.+)$/m);
+          if (match) { mistralApiKey = match[1].trim(); debugInfo += `;key_found=len_${mistralApiKey.length}`; }
+          else debugInfo += ';key_regex_not_found;content=' + JSON.stringify(envContent);
+        } catch (e: any) { debugInfo += ';err=' + e.message; }
         if (!mistralApiKey) {
           res.statusCode = 502;
           res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: 'Default provider unavailable — set MISTRAL_API_KEY in your .env to use the Default provider in dev.' }));
+          res.end(JSON.stringify({ error: 'Default provider unavailable — set MISTRAL_API_KEY in your .env to use the Default provider in dev.', debug: debugInfo }));
           return;
         }
 
@@ -92,6 +104,23 @@ function devProxyPlugin(): import('vite').Plugin {
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({ error: 'Proxy fetch failed' }));
         }
+      });
+
+      // Debug endpoint to check env loading (POST to avoid Vite SPA fallback)
+      server.middlewares.use('/__debug', async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
+        const envPath = path.resolve(process.cwd(), '.env');
+        let debug = `cwd=${process.cwd()}\nenvPath=${envPath}\nexists=${fs.existsSync(envPath)}`;
+        try {
+          const c = fs.readFileSync(envPath, 'utf8');
+          debug += `\nfile_len=${c.length}\nfile_content=${JSON.stringify(c)}`;
+          const match = c.match(/^MISTRAL_API_KEY=(.+)$/m);
+          debug += `\nmatch=${match ? 'found len=' + match[1].trim().length : 'not found'}`;
+        } catch (e: any) {
+          debug += `\nerror=${e.message}`;
+        }
+        res.setHeader('Content-Type', 'text/plain');
+        res.end(debug);
       });
 
       server.middlewares.use('/__proxy', async (req: IncomingMessage, res: ServerResponse) => {

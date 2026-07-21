@@ -196,7 +196,13 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
           <div className={styles.nodeContent}>
             <div className={styles.kindTag}>{kindLabel}</div>
             {title && <div className={styles.title}>{title}</div>}
-            {revealedBody && <div className={styles.body}>{revealedBody}</div>}
+            {revealedBody && (
+              <div className={styles.body}>
+                {revealedBody.split(/\n+/).filter(Boolean).map((p, i) => (
+                  <p key={i}>{p}</p>
+                ))}
+              </div>
+            )}
             {node.data.kind === 'quiz' && (
               <button className={styles.answerBtn} onClick={openQuiz}>
                 {(node.data as QuizData).attempts.length > 0 ? 'Answer again' : 'Answer quiz'}

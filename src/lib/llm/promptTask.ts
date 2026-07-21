@@ -60,6 +60,7 @@ export async function executePromptTask<T>(
             'no markdown fences, no extra text.',
         });
       } else {
+        debugLog('error', 'task', 'task %s final raw snippet=%.400s', task.id, res.content);
         throw err;
       }
     }
