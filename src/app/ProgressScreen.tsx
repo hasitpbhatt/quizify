@@ -3,24 +3,31 @@ import type { JourneyProgress, JourneyStage, JourneyState } from './App';
 import { SnakeGame } from './SnakeGame';
 import styles from './ProgressScreen.module.css';
 
-interface StageDef {
-  stage: JourneyStage;
+interface DisplayStage {
+  id: string;
   label: string;
   hint: string;
 }
 
-const STAGES: StageDef[] = [
-  { stage: 'fetch', label: 'Reading the source', hint: 'Fetching the article' },
-  { stage: 'outline', label: 'Sketching an outline', hint: 'Picking the key concepts' },
-  { stage: 'detail', label: 'Writing explanations', hint: 'Teaching each concept' },
-  { stage: 'quiz', label: 'Crafting quizzes', hint: 'Turning knowledge into questions' },
-  { stage: 'summary', label: 'Summing it up', hint: 'Recap & final challenge' },
-  { stage: 'build', label: 'Arranging the canvas', hint: 'Laying out your cards' },
-  { stage: 'done', label: 'Ready', hint: 'Almost there…' },
+const DISPLAY_STAGES: DisplayStage[] = [
+  { id: 'reading', label: 'Reading source', hint: 'Fetching and analyzing the article' },
+  { id: 'building', label: 'Building lesson', hint: 'Creating concepts, quizzes, and summary' },
+  { id: 'ready', label: 'Ready', hint: 'Almost there\u2026' },
 ];
 
+const STAGE_MAP: Record<string, string> = {
+  fetch: 'reading',
+  outline: 'building',
+  detail: 'building',
+  quiz: 'building',
+  summary: 'building',
+  build: 'building',
+  done: 'ready',
+};
+
 function stageIndex(stage: JourneyStage): number {
-  const i = STAGES.findIndex((s) => s.stage === stage);
+  const displayId = STAGE_MAP[stage] ?? 'reading';
+  const i = DISPLAY_STAGES.findIndex((s) => s.id === displayId);
   return i === -1 ? 0 : i;
 }
 
@@ -106,11 +113,11 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
       <div className={styles.screen}>
         <div className={styles.card}>
           <div className={styles.compactBar}>
-            {STAGES.map((s, i) => {
+            {DISPLAY_STAGES.map((s, i) => {
               const state = getState(i);
               return (
                 <div
-                  key={s.stage}
+                  key={s.id}
                   className={`${styles.compactStage} ${styles[`compactStage-${state}`] ?? ''}`}
                 >
                   <span className={styles.compactDot}>
@@ -119,7 +126,7 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
                     {state === 'pending' && <span className={styles.compactDotPending} />}
                     {state === 'error' && <span className={styles.compactDotError} />}
                   </span>
-                  <span className={styles.compactLabel}>{s.stage}</span>
+                  <span className={styles.compactLabel}>{s.id}</span>
                 </div>
               );
             })}
@@ -152,13 +159,13 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
         </div>
 
         <ol className={styles.stages} aria-live="polite">
-          {STAGES.map((s, i) => {
+          {DISPLAY_STAGES.map((s, i) => {
             const state = getState(i);
             return (
               <li
-                key={s.stage}
+                key={s.id}
                 className={`${styles.stage} ${styles[`stage-${state}`] ?? ''}`}
-                style={{ transitionDelay: `${i * 40}ms` }}
+                style={{ transitionDelay: `${i * 80}ms` }}
               >
                 <span className={styles.mark}>
                   {state === 'done' && <Checkmark />}

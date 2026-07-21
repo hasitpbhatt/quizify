@@ -270,6 +270,7 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
           quizId={activeQuiz.quizId}
           conceptTitle={activeQuiz.conceptTitle}
           onClose={closeQuiz}
+          notebookMode={notebookMode}
         />
       )}
 
