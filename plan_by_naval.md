@@ -442,4 +442,4 @@ Ship these four before any Phase 4+ work on source trust or scheduling. They are
 - [x] #36 Canvas corner attribution — shipped in c62fa05
 - [x] #37 Default view positioning — shipped, notebook default, copy aligned
 - [x] #38 Debug affordances in prod — guard/remove LatencyPanel, nbFit, isDebugMode
-- [ ] #39 Quiz modal vs inline in notebook — modal in graph, inline in notebook
+- [x] #39 Quiz modal vs inline in notebook — modal in graph, inline in notebook

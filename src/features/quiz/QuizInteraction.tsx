@@ -14,6 +14,7 @@ interface Props {
   quizId: string;
   conceptTitle: string;
   onClose: () => void;
+  notebookMode?: boolean;
 }
 
 const badgeColors: Record<string, string> = {
@@ -84,7 +85,7 @@ function useFocusTrap(
   }, [containerRef, autoFocusSelector]);
 }
 
-export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) {
+export function QuizInteraction({ quiz, quizId, conceptTitle, onClose, notebookMode }: Props) {
   const { submit, submitting, error, attempts, retryInfo } = useQuizAnswer(quiz, quizId);
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
@@ -131,18 +132,19 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
       role="dialog"
       aria-modal="true"
       aria-labelledby={promptId}
-      onClick={(e) => {
+      onClick={notebookMode ? undefined : (e) => {
         if (e.target === overlayRef.current) onClose();
       }}
       style={{
         position: 'fixed',
         inset: 0,
         zIndex: 100,
-        background: 'rgba(0,0,0,0.4)',
+        background: notebookMode ? 'transparent' : 'rgba(0,0,0,0.4)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backdropFilter: 'blur(4px)',
+        backdropFilter: notebookMode ? 'none' : 'blur(4px)',
+        pointerEvents: notebookMode ? 'none' : 'auto',
       }}
     >
       <div
@@ -156,6 +158,7 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
           maxHeight: '80vh',
           overflow: 'auto',
           boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+          pointerEvents: notebookMode ? 'auto' : undefined,
         }}
       >
         <div

@@ -162,6 +162,7 @@ function filterVisibleNodes(
   }
 
   const filteredNodes = nodes.filter((n) => visibleNodeIds.has(n.id));
+  if (notebookMode) return { nodes: filteredNodes, edges: [] };
   const filteredEdges = edges.filter(
     (e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target),
   );
@@ -1326,6 +1327,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
               quizId={activeQuiz.quizId}
               conceptTitle={activeQuiz.conceptTitle}
               onClose={handleCloseQuiz}
+              notebookMode={notebookMode}
             />
           </ErrorBoundary>
         )}
