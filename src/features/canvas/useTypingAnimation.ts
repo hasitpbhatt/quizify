@@ -76,7 +76,7 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
 
       // Give normal speech-boundary events time to arrive, then recover if
       // this browser exposes speechSynthesis without emitting boundaries.
-      fallbackTimeoutRef.current = setTimeout(startFallback, 2600);
+      fallbackTimeoutRef.current = setTimeout(startFallback, 800);
     };
 
     const onProgress = (nid: string, charIndex: number) => {

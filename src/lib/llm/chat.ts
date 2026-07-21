@@ -3,7 +3,17 @@ import { getDefaultModel, getFallbackModel, getApiBase } from './providers';
 import { sleep } from './sleep';
 import { countCall } from '@/lib/perf';
 import { debugLog } from '@/lib/debug';
+import { anySignal, timeoutSignal } from './utils';
 import type { ChatMessage } from '@/shared/types';
+
+async function extractErrorBody(res: Response): Promise<string> {
+  let detail = '';
+  try {
+    const body = await res.text();
+    try { const e = JSON.parse(body); if (e.error) detail = `: ${String(e.error).slice(0, 300)}`; } catch { if (body && body.length < 300) detail = `: ${body}`; }
+  } catch {}
+  return detail;
+}
 
 export interface RetryInfo {
   attempt: number;
@@ -80,7 +90,7 @@ async function tryEndpoint(
       try {
         const perAttemptMs = Math.min(timeoutMs, remaining);
         const ac = new AbortController();
-        const signal = anySignal(userSignal, AbortSignal.timeout(perAttemptMs), ac.signal);
+        const signal = anySignal(userSignal, timeoutSignal(perAttemptMs), ac.signal);
 
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
@@ -105,11 +115,7 @@ async function tryEndpoint(
         if (res.status === 429 || res.status >= 500) {
           if (attempt >= maxRetries) {
             if (model === models[models.length - 1]) {
-              let detail = '';
-              try {
-                const body = await res.text();
-                try { const e = JSON.parse(body); if (e.error) detail = `: ${String(e.error).slice(0, 300)}`; } catch { if (body && body.length < 300) detail = `: ${body}`; }
-              } catch {}
+              const detail = await extractErrorBody(res);
               throw res.status === 429 ? new RateLimitError() : new NetworkError(`${label} returned ${res.status}${detail}`);
             }
             break;
@@ -132,11 +138,7 @@ async function tryEndpoint(
         }
 
         if (!res.ok) {
-          let detail = '';
-          try {
-            const body = await res.text();
-            try { const e = JSON.parse(body); if (e.error) detail = `: ${String(e.error).slice(0, 300)}`; } catch { if (body && body.length < 300) detail = `: ${body}`; }
-          } catch {}
+          const detail = await extractErrorBody(res);
           if (model === models[models.length - 1]) throw new NetworkError(`${label} returned ${res.status}${detail}`);
           break;
         }
@@ -255,16 +257,4 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<
   throw new NetworkError('All endpoints exhausted');
 }
 
-function anySignal(...signals: (AbortSignal | undefined)[]): AbortSignal {
-  const controller = new AbortController();
-  for (const sig of signals) {
-    if (sig) {
-      if (sig.aborted) {
-        controller.abort(sig.reason);
-        return controller.signal;
-      }
-      sig.addEventListener('abort', () => controller.abort(sig.reason), { once: true });
-    }
-  }
-  return controller.signal;
-}
+

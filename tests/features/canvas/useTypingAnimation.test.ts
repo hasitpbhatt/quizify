@@ -170,12 +170,12 @@ describe('notebook mode (notebookMode = true)', () => {
       sub.onSegmentStart!('n1');
     });
 
-    // After TTS starts, the fallback timeout must be cleared: advance past
-    // the 2s threshold and assert revealed stays at 0 (TTS, not fallback,
-    // is the only driver now). If the fallback were still active it would
-    // have incremented revealed on its own.
+    // After TTS starts, the 1000ms initial fallback is cleared and a new
+    // 800ms fallback is scheduled. Advance past 400ms (< 800ms) to verify
+    // the fallback didn't fire — revealed stays 0. Only the TTS-bound
+    // onCharProgress callback should advance revealed now.
     act(() => {
-      vi.advanceTimersByTime(2500);
+      vi.advanceTimersByTime(400);
     });
 
     expect(mockSubscribe).toHaveBeenCalled();

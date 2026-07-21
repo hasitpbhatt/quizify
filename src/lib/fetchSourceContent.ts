@@ -2,6 +2,7 @@ import { truncateByParagraphs } from '@/lib/truncate';
 import { getCachedSource, setCachedSource } from '@/lib/db/sourceCache';
 import { chat } from '@/lib/llm/chat';
 import { debugLog } from '@/lib/debug';
+import { anySignal } from '@/lib/llm/utils';
 import type { Persona } from '@/shared/types';
 
 export interface SourceResult {
@@ -39,20 +40,6 @@ async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Respon
   } finally {
     clearTimeout(timeout);
   }
-}
-
-function anySignal(...signals: (AbortSignal | undefined)[]): AbortSignal {
-  const controller = new AbortController();
-  for (const sig of signals) {
-    if (sig) {
-      if (sig.aborted) {
-        controller.abort(sig.reason);
-        return controller.signal;
-      }
-      sig.addEventListener('abort', () => controller.abort(sig.reason), { once: true });
-    }
-  }
-  return controller.signal;
 }
 
 const DEV_PROXY = '/__proxy?url=';
@@ -176,7 +163,7 @@ export async function fetchSourceContent(
 
   const truncated = truncateByParagraphs(content);
 
-  setCachedSource(input, truncated);
+  await setCachedSource(input, truncated);
 
   return { content: truncated, source: source ?? 'llm', url: input };
 }
