@@ -162,6 +162,7 @@ function filterVisibleNodes(
   }
 
   const filteredNodes = nodes.filter((n) => visibleNodeIds.has(n.id));
+  if (notebookMode) return { nodes: filteredNodes, edges: [] };
   const filteredEdges = edges.filter(
     (e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target),
   );
@@ -177,8 +178,10 @@ interface CanvasPageProps {
 
 export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPageProps) {
   const currentId = useSessionStore((s) => s.currentId);
-  const sessions = useSessionStore((s) => s.sessions);
-  const session = sessions.find((s) => s.id === currentId);
+  const session = useSessionStore((s) => {
+    const id = s.currentId;
+    return id ? s.sessions.find((ss) => ss.id === id) ?? null : null;
+  });
   const [activeQuiz, setActiveQuiz] = useState<{
     quizId: string;
     quiz: QuizData;
@@ -773,11 +776,10 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     }
   }, [ttsPlaying, ttsPaused]);
 
-  // Kill switch for the live char-progress viewport refit.
-  // Disable via either:
-  //   URL:   append ?nbFit=0 to the page URL
-  //   Store: localStorage.setItem('nbFit', '0') from devtools
+  // Kill switch for the live char-progress viewport refit (dev only).
+  // URL: ?nbFit=0  |  localStorage: nbFit=0
   useEffect(() => {
+    if (!import.meta.env.DEV) return;
     const readFlag = () => {
       const url = new URLSearchParams(window.location.search);
       const fromUrl = url.get('nbFit');
@@ -805,8 +807,9 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       liveFitZoomRef.current = null;
       liveFitEnabledRef.current = useNotebookStore.getState().notebookMode
         ? !(
-            new URLSearchParams(window.location.search).get('nbFit') === '0' ||
-            localStorage.getItem('nbFit') === '0'
+            import.meta.env.DEV &&
+            (new URLSearchParams(window.location.search).get('nbFit') === '0' ||
+              localStorage.getItem('nbFit') === '0')
           )
         : true;
       focusOnActiveConcept(active.id, true);
@@ -1326,6 +1329,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
               quizId={activeQuiz.quizId}
               conceptTitle={activeQuiz.conceptTitle}
               onClose={handleCloseQuiz}
+              notebookMode={notebookMode}
             />
           </ErrorBoundary>
         )}

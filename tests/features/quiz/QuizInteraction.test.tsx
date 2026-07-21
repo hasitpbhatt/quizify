@@ -250,7 +250,7 @@ describe('QuizInteraction', () => {
     expect(screen.getByText('#2: correct')).toBeInTheDocument();
   });
 
-  it('shows Try Again button after submission', async () => {
+  it('shows Try once more button after submission', async () => {
     mockSubmit.mockResolvedValue({ grade: 'incorrect', rationale: 'Wrong.', idealAnswer: '4' });
     mockUseQuizAnswer.mockReturnValue({
       submit: mockSubmit,
@@ -266,11 +266,11 @@ describe('QuizInteraction', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Try Again')).toBeInTheDocument();
+      expect(screen.getByText('Try once more')).toBeInTheDocument();
     });
   });
 
-  it('resets to unanswered state on Try Again', async () => {
+  it('resets to unanswered state on Try once more', async () => {
     mockSubmit.mockResolvedValue({ grade: 'incorrect', rationale: 'Wrong.', idealAnswer: '4' });
     mockUseQuizAnswer.mockReturnValue({
       submit: mockSubmit,
@@ -286,11 +286,11 @@ describe('QuizInteraction', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Try Again')).toBeInTheDocument();
+      expect(screen.getByText('Try once more')).toBeInTheDocument();
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByText('Try Again'));
+      fireEvent.click(screen.getByText('Try once more'));
     });
 
     // Should show the format component again
@@ -361,11 +361,11 @@ describe('QuizInteraction', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/Partial/)).toBeInTheDocument();
+      expect(screen.getByText(/Almost there/)).toBeInTheDocument();
     });
   });
 
-  it('shows "Incorrect" for incorrect grade', async () => {
+  it('shows "Not quite" for incorrect grade', async () => {
     mockSubmit.mockResolvedValue({ grade: 'incorrect', rationale: 'Nope.', idealAnswer: '4' });
     mockUseQuizAnswer.mockReturnValue({
       submit: mockSubmit,
@@ -381,7 +381,7 @@ describe('QuizInteraction', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/Incorrect/)).toBeInTheDocument();
+      expect(screen.getByText(/Not quite/)).toBeInTheDocument();
     });
   });
 });

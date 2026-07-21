@@ -357,7 +357,7 @@ export function App() {
       )}
     >
       {main}
-      <LatencyPanel />
+      {import.meta.env.DEV && <LatencyPanel />}
       <Toaster />
     </ErrorBoundary>
   );

@@ -433,13 +433,13 @@ Ship these four before any Phase 4+ work on source trust or scheduling. They are
 
 ## Tracker
 
-- [ ] #30 Welcome return action — [issue](https://github.com/hasitpbhatt/quizify/issues/30)
-- [ ] #31 Persona default — [issue](https://github.com/hasitpbhatt/quizify/issues/31)
-- [ ] #32 Collapse progress states — [issue](https://github.com/hasitpbhatt/quizify/issues/32)
-- [ ] #33 Notebook Esc discoverability — [issue](https://github.com/hasitpbhatt/quizify/issues/33)
-- [ ] #34 Phase 3 quiz remediation — [issue](https://github.com/hasitpbhatt/quizify/issues/34)
-- [ ] #35 Welcome session cards — [issue](https://github.com/hasitpbhatt/quizify/issues/35)
-- [ ] #36 Canvas corner attribution — [issue](https://github.com/hasitpbhatt/quizify/issues/36)
-- [ ] #37 Default view positioning — [issue](https://github.com/hasitpbhatt/quizify/issues/37)
-- [ ] #38 Debug affordances in prod — [issue](https://github.com/hasitpbhatt/quizify/issues/38)
-- [ ] #39 Quiz modal vs inline in notebook — [issue](https://github.com/hasitpbhatt/quizify/issues/39)
+- [x] #30 Welcome return action — shipped in c62fa05
+- [x] #31 Persona grid visually secondary — shrink grid, reduce visual weight
+- [x] #32 Collapse progress states — 7 stages → 3 mental-model states
+- [x] #33 Notebook Esc discoverability — shipped in 0c07bcd + c62fa05
+- [x] #34 Phase 3 quiz remediation — scaffolded retry with rationale
+- [x] #35 Welcome session cards — shipped in c62fa05
+- [x] #36 Canvas corner attribution — shipped in c62fa05
+- [x] #37 Default view positioning — shipped, notebook default, copy aligned
+- [x] #38 Debug affordances in prod — guard/remove LatencyPanel, nbFit, isDebugMode
+- [x] #39 Quiz modal vs inline in notebook — modal in graph, inline in notebook
