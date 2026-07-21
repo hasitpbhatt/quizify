@@ -13,7 +13,9 @@
   font-size: 13px;
   font-family: var(--font-ui);
   border: 1px solid var(--border);
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   cursor: pointer;
 }
 

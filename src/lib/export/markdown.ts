@@ -66,7 +66,9 @@ function formatSummary(summary: SummaryData): string {
   }
   lines.push('');
   if (summary.finalQuiz.length > 0) {
-    lines.push(`### Final Quiz (${summary.finalQuiz.length} question${summary.finalQuiz.length !== 1 ? 's' : ''})`);
+    lines.push(
+      `### Final Quiz (${summary.finalQuiz.length} question${summary.finalQuiz.length !== 1 ? 's' : ''})`,
+    );
     lines.push('');
     for (const quiz of summary.finalQuiz) {
       lines.push(formatQuiz(quiz));
@@ -89,7 +91,9 @@ export function exportSessionMarkdown(session: Session): string {
 
   lines.push(`# ${escapeMd(session.name)}`);
   lines.push('');
-  lines.push(`**Source:** ${session.url}  ·  **Date:** ${formatDate(session.createdAt)}  ·  **Persona:** ${session.persona}`);
+  lines.push(
+    `**Source:** ${session.url}  ·  **Date:** ${formatDate(session.createdAt)}  ·  **Persona:** ${session.persona}`,
+  );
   lines.push('');
   lines.push('---');
   lines.push('');

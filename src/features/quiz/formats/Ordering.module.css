@@ -20,7 +20,10 @@
 
 .item:not(.disabledItem) {
   cursor: grab;
-  transition: transform 0.15s var(--ease-out), background 0.15s var(--ease-out), border-color 0.15s var(--ease-out);
+  transition:
+    transform 0.15s var(--ease-out),
+    background 0.15s var(--ease-out),
+    border-color 0.15s var(--ease-out);
 }
 
 .item:not(.disabledItem):hover {
@@ -81,7 +84,9 @@
   cursor: pointer;
   align-self: flex-start;
   margin-top: 4px;
-  transition: background 0.15s var(--ease-out), transform 0.1s var(--ease-out);
+  transition:
+    background 0.15s var(--ease-out),
+    transform 0.1s var(--ease-out);
 }
 
 .submitBtn:hover:not(:disabled) {

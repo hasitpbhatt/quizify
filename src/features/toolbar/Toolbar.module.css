@@ -39,7 +39,10 @@
   cursor: pointer;
   font-size: var(--fs-caption);
   font-family: var(--font-ui);
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    color 0.15s;
 }
 
 .newBtn:hover {
@@ -63,7 +66,10 @@
   background: var(--bg-subtle);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    color 0.15s;
 }
 
 .themeToggle:hover {
@@ -95,7 +101,9 @@
   cursor: pointer;
   white-space: nowrap;
   max-width: 240px;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 
 .sessionTrigger:hover {
@@ -183,7 +191,9 @@
   cursor: pointer;
   border-radius: var(--radius-xs);
   opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
   display: flex;
   align-items: center;
 }

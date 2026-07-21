@@ -9,7 +9,12 @@ import { useNotebookStore } from '@/shared/stores/notebookStore';
  * Once a node has fully revealed, it stays complete on revisits so movement
  * around the notebook does not replay the typing effect.
  */
-export function useTypingAnimation(nodeId: string, fullText: string, skipAnimation = false, tickMs = 35) {
+export function useTypingAnimation(
+  nodeId: string,
+  fullText: string,
+  skipAnimation = false,
+  tickMs = 35,
+) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const hasTypingCompleted = useNotebookStore((s) => Boolean(s.completedTypingNodeIds[nodeId]));
   const markTypingComplete = useNotebookStore((s) => s.markTypingComplete);
@@ -17,7 +22,11 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
   const prefersReducedMotion =
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const shouldAnimate =
-    notebookMode && fullText.length > 0 && !skipAnimation && !prefersReducedMotion && !hasTypingCompleted;
+    notebookMode &&
+    fullText.length > 0 &&
+    !skipAnimation &&
+    !prefersReducedMotion &&
+    !hasTypingCompleted;
 
   const [revealed, setRevealed] = useState(() => (shouldAnimate ? 0 : fullText.length));
   const targetRef = useRef(shouldAnimate ? 0 : fullText.length);
@@ -138,5 +147,9 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
     }
   }, [nodeId, markTypingComplete]);
 
-  return { revealed, isAnimating: shouldAnimate && revealed < fullText.length, skipAnimation: skip };
+  return {
+    revealed,
+    isAnimating: shouldAnimate && revealed < fullText.length,
+    skipAnimation: skip,
+  };
 }

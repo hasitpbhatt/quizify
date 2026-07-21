@@ -150,18 +150,23 @@ class TtsManagerSingleton {
     this.rate = Math.min(2, Math.max(0.5, rate));
   }
 
-  subscribe(nodeId: string, cb: {
-    onSegmentStart?: (nodeId: string) => void;
-    onCharProgress?: (nodeId: string, charIndex: number) => void;
-    onSegmentEnd?: (nodeId: string) => void;
-  }): string {
-    const id = crypto.randomUUID?.() ?? nodeId + '-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+  subscribe(
+    nodeId: string,
+    cb: {
+      onSegmentStart?: (nodeId: string) => void;
+      onCharProgress?: (nodeId: string, charIndex: number) => void;
+      onSegmentEnd?: (nodeId: string) => void;
+    },
+  ): string {
+    const id =
+      crypto.randomUUID?.() ??
+      nodeId + '-' + Date.now() + '-' + Math.random().toString(36).slice(2);
     this.subscriptions.push({ id, nodeId, ...cb });
     return id;
   }
 
   unsubscribe(subId: string): void {
-    this.subscriptions = this.subscriptions.filter(s => s.id !== subId);
+    this.subscriptions = this.subscriptions.filter((s) => s.id !== subId);
   }
 
   subscribeState(listener: (state: TtsState) => void): () => void {
@@ -169,12 +174,12 @@ class TtsManagerSingleton {
     // Immediately invoke with current state
     listener(this.state);
     return () => {
-      this.stateListeners = this.stateListeners.filter(l => l !== listener);
+      this.stateListeners = this.stateListeners.filter((l) => l !== listener);
     };
   }
 
   hasSegment(nodeId: string): boolean {
-    return this.queue.some(s => s.nodeId === nodeId);
+    return this.queue.some((s) => s.nodeId === nodeId);
   }
 
   finishSegment(nodeId: string): void {
@@ -195,7 +200,7 @@ class TtsManagerSingleton {
   // ==================== Internal ====================
 
   private notifySegmentStart(nodeId: string): void {
-    this.subscriptions.forEach(s => {
+    this.subscriptions.forEach((s) => {
       if (s.nodeId === nodeId) {
         s.onSegmentStart?.(nodeId);
       }
@@ -204,7 +209,7 @@ class TtsManagerSingleton {
   }
 
   private notifyCharProgress(nodeId: string, charIndex: number): void {
-    this.subscriptions.forEach(s => {
+    this.subscriptions.forEach((s) => {
       if (s.nodeId === nodeId) {
         s.onCharProgress?.(nodeId, charIndex, this.currentText);
       }
@@ -213,12 +218,12 @@ class TtsManagerSingleton {
   }
 
   private notifyStateListeners(): void {
-    this.stateListeners.forEach(l => l(this.state));
+    this.stateListeners.forEach((l) => l(this.state));
   }
 
   private notifySegmentEnd(nodeId: string): void {
     this.endedSegments.add(nodeId);
-    this.subscriptions.forEach(s => {
+    this.subscriptions.forEach((s) => {
       if (s.nodeId === nodeId) {
         s.onSegmentEnd?.(nodeId);
       }
@@ -240,7 +245,15 @@ class TtsManagerSingleton {
     this.notifyStateListeners();
     this.charCount = 0;
     this.currentText = segment.text;
-    debugLog('log', 'tts', 'segment start node=%s idx=%d/%d text_len=%d', segment.nodeId, this.currentIdx, this.queue.length, segment.text.length);
+    debugLog(
+      'log',
+      'tts',
+      'segment start node=%s idx=%d/%d text_len=%d',
+      segment.nodeId,
+      this.currentIdx,
+      this.queue.length,
+      segment.text.length,
+    );
     this.notifySegmentStart(segment.nodeId);
 
     if (!this.speechSynthesisAvailable) {

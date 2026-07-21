@@ -14,7 +14,7 @@ export function FreeText({ disabled, onSubmit }: Props) {
       <textarea
         className={styles.textarea}
         value={value}
-        onChange={e => setValue(e.target.value)}
+        onChange={(e) => setValue(e.target.value)}
         disabled={disabled}
         placeholder="Write your answer in detail…"
         rows={4}

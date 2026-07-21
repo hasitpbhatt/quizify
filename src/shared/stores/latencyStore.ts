@@ -37,10 +37,7 @@ export const useLatencyStore = create<LatencyState>((set) => ({
         return { entries: state.entries };
       }
       return {
-        entries: [
-          ...state.entries,
-          { stage, label, startTime: performance.now() },
-        ],
+        entries: [...state.entries, { stage, label, startTime: performance.now() }],
       };
     }),
 

@@ -22,7 +22,11 @@ export function sessionFilename(session: Session, ext: string): string {
 
 export function sortedNodes(session: Session): CanvasNode[] {
   const concepts = session.nodes.filter((n) => n.data.kind === 'concept') as CanvasNode[];
-  concepts.sort((a, b) => (a.data as import('@/shared/types').ConceptData).index - (b.data as import('@/shared/types').ConceptData).index);
+  concepts.sort(
+    (a, b) =>
+      (a.data as import('@/shared/types').ConceptData).index -
+      (b.data as import('@/shared/types').ConceptData).index,
+  );
 
   const result: CanvasNode[] = [];
   const quizMap = new Map<string, CanvasNode[]>();
@@ -35,7 +39,8 @@ export function sortedNodes(session: Session): CanvasNode[] {
       list.push(node);
       quizMap.set(parentId, list);
     } else if (node.data.kind === 'note') {
-      const linked = (node.data as import('@/shared/types').NoteData).linkedConceptId ?? '__orphan__';
+      const linked =
+        (node.data as import('@/shared/types').NoteData).linkedConceptId ?? '__orphan__';
       const list = noteMap.get(linked) ?? [];
       list.push(node);
       noteMap.set(linked, list);
@@ -61,7 +66,9 @@ export function sortedNodes(session: Session): CanvasNode[] {
   if (summaryNode) {
     result.push(summaryNode);
     const summaryQuizzes = session.nodes.filter(
-      (n) => n.data.kind === 'quiz' && (n.data as import('@/shared/types').QuizData).parentConceptId === SUMMARY_NODE_ID
+      (n) =>
+        n.data.kind === 'quiz' &&
+        (n.data as import('@/shared/types').QuizData).parentConceptId === SUMMARY_NODE_ID,
     );
     result.push(...summaryQuizzes);
   }

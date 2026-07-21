@@ -7,41 +7,78 @@
   font-family: var(--font-ui);
   position: relative;
   cursor: pointer;
-  box-shadow: var(--shadow-xs), inset 0 0 0 0.5px var(--border-hairline);
-  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+  box-shadow:
+    var(--shadow-xs),
+    inset 0 0 0 0.5px var(--border-hairline);
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .node:hover {
   transform: scale(1.01);
-  box-shadow: var(--shadow-md), inset 0 0 0 0.5px var(--border-hairline);
+  box-shadow:
+    var(--shadow-md),
+    inset 0 0 0 0.5px var(--border-hairline);
 }
 
 /* State-based ring tints (replace the old dashed border) */
-.node[data-state="correct"],
-.node[data-state="mastered"] {
-  box-shadow: var(--shadow-xs), inset 0 0 0 1.5px rgba(34, 197, 94, 0.5);
+.node[data-state='correct'],
+.node[data-state='mastered'] {
+  box-shadow:
+    var(--shadow-xs),
+    inset 0 0 0 1.5px rgba(34, 197, 94, 0.5);
 }
 
-.node[data-state="incorrect"] {
-  box-shadow: var(--shadow-xs), inset 0 0 0 1.5px rgba(239, 68, 68, 0.4);
+.node[data-state='incorrect'] {
+  box-shadow:
+    var(--shadow-xs),
+    inset 0 0 0 1.5px rgba(239, 68, 68, 0.4);
 }
 
 /* Correct / mastered celebration glow animation */
 @keyframes nodeCorrect {
-  0%   { box-shadow: 0 0 0 0px rgba(34, 197, 94, 0); transform: scale(1); }
-  35%  { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0.25); transform: scale(1.04); }
-  70%  { box-shadow: 0 0 0 14px rgba(34, 197, 94, 0.1); transform: scale(1.01); }
-  100% { box-shadow: 0 0 0 0px rgba(34, 197, 94, 0); transform: scale(1); }
+  0% {
+    box-shadow: 0 0 0 0px rgba(34, 197, 94, 0);
+    transform: scale(1);
+  }
+  35% {
+    box-shadow: 0 0 0 8px rgba(34, 197, 94, 0.25);
+    transform: scale(1.04);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(34, 197, 94, 0.1);
+    transform: scale(1.01);
+  }
+  100% {
+    box-shadow: 0 0 0 0px rgba(34, 197, 94, 0);
+    transform: scale(1);
+  }
 }
 
 /* Incorrect shake + red flash */
 @keyframes nodeIncorrect {
-  0%   { box-shadow: 0 0 0 0px rgba(239, 68, 68, 0); transform: translateX(0); }
-  20%  { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.25); transform: translateX(-4px); }
-  40%  { transform: translateX(4px); }
-  60%  { transform: translateX(-3px); }
-  80%  { transform: translateX(2px); }
-  100% { box-shadow: 0 0 0 0px rgba(239, 68, 68, 0); transform: translateX(0); }
+  0% {
+    box-shadow: 0 0 0 0px rgba(239, 68, 68, 0);
+    transform: translateX(0);
+  }
+  20% {
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.25);
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+  100% {
+    box-shadow: 0 0 0 0px rgba(239, 68, 68, 0);
+    transform: translateX(0);
+  }
 }
 
 .animateCorrect {
@@ -99,4 +136,3 @@
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
-

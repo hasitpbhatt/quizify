@@ -39,17 +39,18 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
     }),
 
   markTypingComplete: (nodeId) =>
-    set((state) => (
+    set((state) =>
       state.completedTypingNodeIds[nodeId]
         ? {}
-        : { completedTypingNodeIds: { ...state.completedTypingNodeIds, [nodeId]: true } }
-    )),
+        : { completedTypingNodeIds: { ...state.completedTypingNodeIds, [nodeId]: true } },
+    ),
 
   hasTypingCompleted: (nodeId) => Boolean(get().completedTypingNodeIds[nodeId]),
 
   // Single source of truth for TTS state; maps TtsState to dual booleans
-  syncTtsState: (state) => set({
-    ttsPlaying: state === 'playing',
-    ttsPaused: state === 'paused',
-  }),
+  syncTtsState: (state) =>
+    set({
+      ttsPlaying: state === 'playing',
+      ttsPaused: state === 'paused',
+    }),
 }));

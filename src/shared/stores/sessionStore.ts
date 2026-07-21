@@ -10,7 +10,10 @@ import * as sessionsDb from '@/lib/db/sessionsDb';
 function createMutex() {
   let chain: Promise<unknown> = Promise.resolve();
   return <T>(fn: () => Promise<T>): Promise<T> =>
-    (chain = chain.then(() => fn(), () => fn())) as Promise<T>;
+    (chain = chain.then(
+      () => fn(),
+      () => fn(),
+    )) as Promise<T>;
 }
 const writeMutex = createMutex();
 
@@ -20,7 +23,11 @@ interface SessionState {
   loaded: boolean;
 
   load: () => Promise<void>;
-  create: (opts: { url: string; hostname: string; persona: import('@/shared/types').Persona }) => Promise<Session>;
+  create: (opts: {
+    url: string;
+    hostname: string;
+    persona: import('@/shared/types').Persona;
+  }) => Promise<Session>;
   select: (id: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
   updateCurrent: (patch: Partial<Session>, sessionId?: string) => Promise<void>;
@@ -130,8 +137,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // pipeline's persist() doesn't clobber user-authored attempts/state.
       let mergedPatch = patch;
       if (patch.nodes && existing.nodes.length > 0) {
-        const existingNodeMap = new Map(existing.nodes.map(n => [n.id, n]));
-        const mergedNodes = patch.nodes.map(node => {
+        const existingNodeMap = new Map(existing.nodes.map((n) => [n.id, n]));
+        const mergedNodes = patch.nodes.map((node) => {
           const existingNode = existingNodeMap.get(node.id);
           if (existingNode?.data?.kind === 'quiz' && node.data?.kind === 'quiz') {
             const existingQuiz = existingNode.data as QuizData;

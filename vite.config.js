@@ -45,6 +45,7 @@ var __asyncValues = (this && this.__asyncValues) || function (o) {
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
+import fs from 'node:fs';
 var BROWSER_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -59,7 +60,7 @@ function devProxyPlugin() {
             // post-hook from configureServer would run *after* Vite's internals,
             // which is too late for the default provider's /api/chat path.
             server.middlewares.use('/api/chat', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-                var body, chunk, e_1_1, mistralApiKey, mistralResponse, text, _a;
+                var body, chunk, e_1_1, envPath, mistralApiKey, debugInfo, envContent, match, mistralResponse, text, _a;
                 var _b, req_1, req_1_1;
                 var _c, e_1, _d, _e;
                 return __generator(this, function (_f) {
@@ -116,11 +117,27 @@ function devProxyPlugin() {
                             return [7 /*endfinally*/];
                         case 11: return [7 /*endfinally*/];
                         case 12:
-                            mistralApiKey = process.env.MISTRAL_API_KEY;
+                            envPath = path.resolve(process.cwd(), '.env');
+                            mistralApiKey = '';
+                            debugInfo = "cwd=".concat(process.cwd(), ";envPath=").concat(envPath, ";exists=").concat(fs.existsSync(envPath));
+                            try {
+                                envContent = fs.readFileSync(envPath, 'utf8');
+                                debugInfo += ";file_len=".concat(envContent.length);
+                                match = envContent.match(/^MISTRAL_API_KEY=(.+)$/m);
+                                if (match) {
+                                    mistralApiKey = match[1].trim();
+                                    debugInfo += ";key_found=len_".concat(mistralApiKey.length);
+                                }
+                                else
+                                    debugInfo += ';key_regex_not_found;content=' + JSON.stringify(envContent);
+                            }
+                            catch (e) {
+                                debugInfo += ';err=' + e.message;
+                            }
                             if (!mistralApiKey) {
                                 res.statusCode = 502;
                                 res.setHeader('Content-Type', 'application/json');
-                                res.end(JSON.stringify({ error: 'Default provider unavailable — set MISTRAL_API_KEY in your .env to use the Default provider in dev.' }));
+                                res.end(JSON.stringify({ error: 'Default provider unavailable — set MISTRAL_API_KEY in your .env to use the Default provider in dev.', debug: debugInfo }));
                                 return [2 /*return*/];
                             }
                             _f.label = 13;
@@ -190,6 +207,31 @@ function devProxyPlugin() {
                             return [3 /*break*/, 5];
                         case 5: return [2 /*return*/];
                     }
+                });
+            }); });
+            // Debug endpoint to check env loading (POST to avoid Vite SPA fallback)
+            server.middlewares.use('/__debug', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
+                var envPath, debug, c, match;
+                return __generator(this, function (_a) {
+                    if (req.method !== 'POST') {
+                        res.statusCode = 405;
+                        res.end();
+                        return [2 /*return*/];
+                    }
+                    envPath = path.resolve(process.cwd(), '.env');
+                    debug = "cwd=".concat(process.cwd(), "\nenvPath=").concat(envPath, "\nexists=").concat(fs.existsSync(envPath));
+                    try {
+                        c = fs.readFileSync(envPath, 'utf8');
+                        debug += "\nfile_len=".concat(c.length, "\nfile_content=").concat(JSON.stringify(c));
+                        match = c.match(/^MISTRAL_API_KEY=(.+)$/m);
+                        debug += "\nmatch=".concat(match ? 'found len=' + match[1].trim().length : 'not found');
+                    }
+                    catch (e) {
+                        debug += "\nerror=".concat(e.message);
+                    }
+                    res.setHeader('Content-Type', 'text/plain');
+                    res.end(debug);
+                    return [2 /*return*/];
                 });
             }); });
             server.middlewares.use('/__proxy', function (req, res) { return __awaiter(_this, void 0, void 0, function () {

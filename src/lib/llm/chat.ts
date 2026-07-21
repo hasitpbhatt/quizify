@@ -10,7 +10,12 @@ async function extractErrorBody(res: Response): Promise<string> {
   let detail = '';
   try {
     const body = await res.text();
-    try { const e = JSON.parse(body); if (e.error) detail = `: ${String(e.error).slice(0, 300)}`; } catch { if (body && body.length < 300) detail = `: ${body}`; }
+    try {
+      const e = JSON.parse(body);
+      if (e.error) detail = `: ${String(e.error).slice(0, 300)}`;
+    } catch {
+      if (body && body.length < 300) detail = `: ${body}`;
+    }
   } catch {}
   return detail;
 }
@@ -61,7 +66,17 @@ async function tryEndpoint(
     timeoutMs: number;
   },
 ): Promise<ChatResponse | null> {
-  const { userSignal, responseFormat, maxTokens, model: userModel, onRetry, onToken, maxRetries, startTime, timeoutMs } = opts;
+  const {
+    userSignal,
+    responseFormat,
+    maxTokens,
+    model: userModel,
+    onRetry,
+    onToken,
+    maxRetries,
+    startTime,
+    timeoutMs,
+  } = opts;
   const apiBase = getApiBase();
   const models = userModel
     ? [userModel]
@@ -101,7 +116,16 @@ async function tryEndpoint(
         }
 
         countCall();
-        debugLog('log', 'llm', 'POST %s model=%s format=%s attempt=%d/%d', label, model, responseFormat ?? 'text', attempt, maxRetries);
+        debugLog(
+          'log',
+          'llm',
+          'POST %s model=%s format=%s attempt=%d/%d',
+          label,
+          model,
+          responseFormat ?? 'text',
+          attempt,
+          maxRetries,
+        );
 
         const res = await fetch(apiBase, {
           method: 'POST',
@@ -116,7 +140,9 @@ async function tryEndpoint(
           if (attempt >= maxRetries) {
             if (model === models[models.length - 1]) {
               const detail = await extractErrorBody(res);
-              throw res.status === 429 ? new RateLimitError() : new NetworkError(`${label} returned ${res.status}${detail}`);
+              throw res.status === 429
+                ? new RateLimitError()
+                : new NetworkError(`${label} returned ${res.status}${detail}`);
             }
             break;
           }
@@ -131,7 +157,16 @@ async function tryEndpoint(
           delay = Math.round(delay * jitter);
 
           onRetry?.({ attempt, maxRetries, delayMs: delay, status: res.status, model });
-          debugLog('warn', 'llm', 'retry %d/%d status=%d delay=%dms model=%s', attempt, maxRetries, res.status, delay, model);
+          debugLog(
+            'warn',
+            'llm',
+            'retry %d/%d status=%d delay=%dms model=%s',
+            attempt,
+            maxRetries,
+            res.status,
+            delay,
+            model,
+          );
           await sleep(delay);
           attempt++;
           continue;
@@ -139,7 +174,8 @@ async function tryEndpoint(
 
         if (!res.ok) {
           const detail = await extractErrorBody(res);
-          if (model === models[models.length - 1]) throw new NetworkError(`${label} returned ${res.status}${detail}`);
+          if (model === models[models.length - 1])
+            throw new NetworkError(`${label} returned ${res.status}${detail}`);
           break;
         }
 
@@ -148,7 +184,7 @@ async function tryEndpoint(
           return { content, model, usage: undefined };
         }
 
-        const json = await res.json() as {
+        const json = (await res.json()) as {
           choices: { message: { content: string } }[];
           model: string;
           usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
@@ -156,7 +192,16 @@ async function tryEndpoint(
 
         const elapsed = Date.now() - startTime;
         const u = json.usage;
-        debugLog('log', 'llm', 'chat ok model=%s tokens=%d/%d/%d elapsed=%dms', json.model, u?.prompt_tokens ?? 0, u?.completion_tokens ?? 0, u?.total_tokens ?? 0, elapsed);
+        debugLog(
+          'log',
+          'llm',
+          'chat ok model=%s tokens=%d/%d/%d elapsed=%dms',
+          json.model,
+          u?.prompt_tokens ?? 0,
+          u?.completion_tokens ?? 0,
+          u?.total_tokens ?? 0,
+          elapsed,
+        );
 
         return {
           content: json.choices?.[0]?.message?.content ?? '',
@@ -170,10 +215,22 @@ async function tryEndpoint(
             : undefined,
         };
       } catch (err) {
-        if (err instanceof AuthError) { debugLog('error', 'llm', 'chat error AuthError model=%s', model); throw err; }
-        if (err instanceof NetworkError) { debugLog('error', 'llm', 'chat error NetworkError model=%s', model); throw err; }
-        if (err instanceof RateLimitError) { debugLog('error', 'llm', 'chat error RateLimitError model=%s', model); throw err; }
-        if (err instanceof DOMException && err.name === 'AbortError') { debugLog('warn', 'llm', 'chat abort model=%s', model); throw err; }
+        if (err instanceof AuthError) {
+          debugLog('error', 'llm', 'chat error AuthError model=%s', model);
+          throw err;
+        }
+        if (err instanceof NetworkError) {
+          debugLog('error', 'llm', 'chat error NetworkError model=%s', model);
+          throw err;
+        }
+        if (err instanceof RateLimitError) {
+          debugLog('error', 'llm', 'chat error RateLimitError model=%s', model);
+          throw err;
+        }
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          debugLog('warn', 'llm', 'chat abort model=%s', model);
+          throw err;
+        }
 
         if (attempt >= maxRetries) {
           if (model === models[models.length - 1]) {
@@ -187,7 +244,15 @@ async function tryEndpoint(
         delay = Math.round(delay * jitter);
 
         onRetry?.({ attempt, maxRetries, delayMs: delay, model });
-        debugLog('warn', 'llm', 'retry %d/%d status=? delay=%dms model=%s', attempt, maxRetries, delay, model);
+        debugLog(
+          'warn',
+          'llm',
+          'retry %d/%d status=? delay=%dms model=%s',
+          attempt,
+          maxRetries,
+          delay,
+          model,
+        );
         await sleep(delay);
         attempt++;
       }
@@ -246,7 +311,18 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<
   const maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
   const startTime = Date.now();
 
-  const shared = { userSignal, responseFormat, maxTokens, temperature, model, onRetry: opts.onRetry, onToken: opts.onToken, maxRetries, startTime, timeoutMs };
+  const shared = {
+    userSignal,
+    responseFormat,
+    maxTokens,
+    temperature,
+    model,
+    onRetry: opts.onRetry,
+    onToken: opts.onToken,
+    maxRetries,
+    startTime,
+    timeoutMs,
+  };
 
   const msgChars = messages.reduce((s, m) => s + (m.content?.length ?? 0), 0);
   debugLog('log', 'llm', 'chat start model=%s msgs=%d chars=%d', model, messages.length, msgChars);
@@ -256,5 +332,3 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions): Promise<
 
   throw new NetworkError('All endpoints exhausted');
 }
-
-

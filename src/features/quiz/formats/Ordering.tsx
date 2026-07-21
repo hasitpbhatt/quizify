@@ -20,15 +20,18 @@ export function Ordering({ items, disabled, onSubmit }: Props) {
     timeoutRef.current = setTimeout(() => setAnnouncement(''), 2000);
   }, []);
 
-  const moveItem = useCallback((from: number, to: number) => {
-    if (disabled) return;
-    const next = [...order];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    setOrder(next);
-    setFocusIndex(to);
-    announce('Moved "' + moved + '" to position ' + (to + 1));
-  }, [order, disabled, announce]);
+  const moveItem = useCallback(
+    (from: number, to: number) => {
+      if (disabled) return;
+      const next = [...order];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      setOrder(next);
+      setFocusIndex(to);
+      announce('Moved "' + moved + '" to position ' + (to + 1));
+    },
+    [order, disabled, announce],
+  );
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     if (disabled) return;
@@ -75,7 +78,9 @@ export function Ordering({ items, disabled, onSubmit }: Props) {
   };
 
   const itemClass = (isDragging: boolean) => {
-    return [styles.item, isDragging ? styles.dragging : '', disabled ? styles.disabledItem : ''].filter(Boolean).join(' ');
+    return [styles.item, isDragging ? styles.dragging : '', disabled ? styles.disabledItem : '']
+      .filter(Boolean)
+      .join(' ');
   };
 
   return (
@@ -102,17 +107,15 @@ export function Ordering({ items, disabled, onSubmit }: Props) {
             onClick={() => setFocusIndex(i)}
             onFocus={() => setFocusIndex(i)}
           >
-            <div className={styles.dragHandle} aria-hidden="true">☰</div>
+            <div className={styles.dragHandle} aria-hidden="true">
+              ☰
+            </div>
             <span className={styles.index}>{i + 1}.</span>
             <span className={styles.label}>{item}</span>
           </div>
         );
       })}
-      <button
-        className={styles.submitBtn}
-        onClick={() => onSubmit(order)}
-        disabled={disabled}
-      >
+      <button className={styles.submitBtn} onClick={() => onSubmit(order)} disabled={disabled}>
         Submit Order
       </button>
     </div>

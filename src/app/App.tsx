@@ -41,7 +41,10 @@ function extractHostname(url: string): string {
 export function App() {
   useTheme();
   const [page, setPage] = useState<'welcome' | 'progress' | 'canvas'>('welcome');
-  const [progress, setProgress] = useState<JourneyProgress>({ stage: 'fetch', label: 'Reading the source\u2026' });
+  const [progress, setProgress] = useState<JourneyProgress>({
+    stage: 'fetch',
+    label: 'Reading the source\u2026',
+  });
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const reachedCanvasRef = useRef(false);
@@ -132,11 +135,14 @@ export function App() {
 
   const handleCancel = goWelcome;
 
-  const handleSelectSession = useCallback((id: string) => {
-    useNotebookStore.getState().setNotebookMode(readNotebookModePreference(id));
-    select(id);
-    setPage('canvas');
-  }, [select]);
+  const handleSelectSession = useCallback(
+    (id: string) => {
+      useNotebookStore.getState().setNotebookMode(readNotebookModePreference(id));
+      select(id);
+      setPage('canvas');
+    },
+    [select],
+  );
 
   const handleGenerate = useCallback(async (url: string) => {
     const { persona } = useSettingsStore.getState();
@@ -219,11 +225,19 @@ export function App() {
       // Stage 2 — outline
       latency.startStage('outline', 'Sketching an outline\u2026');
       setProgress({ stage: 'outline', label: 'Sketching an outline\u2026' });
-      const outline = await executePromptTask(outlineTask, {
-        persona, signal: abortController.signal,
-        context: { url },
-        onRetry: (info) => useToastStore.getState().add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
-      }, src.content);
+      const outline = await executePromptTask(
+        outlineTask,
+        {
+          persona,
+          signal: abortController.signal,
+          context: { url },
+          onRetry: (info) =>
+            useToastStore
+              .getState()
+              .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
+        },
+        src.content,
+      );
       latency.endStage('outline');
 
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -231,7 +245,11 @@ export function App() {
       // Stage 3+ — pipeline (detail, quiz, summary, build)
       const { create: createSession, select } = useSessionStore.getState();
       useNotebookStore.setState({ notebookMode: true, completedTypingNodeIds: {} });
-      const session = await createSession({ url: src.url, hostname: extractHostname(src.url), persona });
+      const session = await createSession({
+        url: src.url,
+        hostname: extractHostname(src.url),
+        persona,
+      });
       await select(session.id);
 
       // Navigate to canvas early so we can stream nodes in real-time
@@ -241,7 +259,7 @@ export function App() {
       let pipelineStage = '';
       await runPipeline(
         outline.title,
-        outline.concepts.map(c => ({ id: c.id, title: c.title, explanation: c.explanation })),
+        outline.concepts.map((c) => ({ id: c.id, title: c.title, explanation: c.explanation })),
         persona,
         src.url,
         (p) => {
@@ -281,34 +299,35 @@ export function App() {
     }
   }, []);
 
-  const main = page === 'progress' ? (
-    <div key="progress" className="pageEnter">
-      <Toolbar onNewSession={goWelcome} />
-      <ProgressScreen
-        progress={progress}
-        error={error}
-        onCancel={handleCancel}
-        previewData={previewData}
-      />
-    </div>
-  ) : page === 'canvas' ? (
-    <div key="canvas" className={isGenerating ? 'pageEnterInstant' : 'pageEnter'}>
-      <Toolbar onNewSession={goWelcome} />
-      <ReactFlowProvider>
-        <CanvasPage progress={progress} isGenerating={isGenerating} onHome={goWelcome} />
-      </ReactFlowProvider>
-    </div>
-  ) : (
-    <div key="welcome" className="pageEnter">
-      <WelcomeModal
-        onGenerate={handleGenerate}
-        error={error ?? undefined}
-        onClearError={() => setError(null)}
-        sessions={sessions}
-        onSelectSession={handleSelectSession}
-      />
-    </div>
-  );
+  const main =
+    page === 'progress' ? (
+      <div key="progress" className="pageEnter">
+        <Toolbar onNewSession={goWelcome} />
+        <ProgressScreen
+          progress={progress}
+          error={error}
+          onCancel={handleCancel}
+          previewData={previewData}
+        />
+      </div>
+    ) : page === 'canvas' ? (
+      <div key="canvas" className={isGenerating ? 'pageEnterInstant' : 'pageEnter'}>
+        <Toolbar onNewSession={goWelcome} />
+        <ReactFlowProvider>
+          <CanvasPage progress={progress} isGenerating={isGenerating} onHome={goWelcome} />
+        </ReactFlowProvider>
+      </div>
+    ) : (
+      <div key="welcome" className="pageEnter">
+        <WelcomeModal
+          onGenerate={handleGenerate}
+          error={error ?? undefined}
+          onClearError={() => setError(null)}
+          sessions={sessions}
+          onSelectSession={handleSelectSession}
+        />
+      </div>
+    );
 
   return (
     <ErrorBoundary
@@ -318,7 +337,10 @@ export function App() {
           <h2 style={{ marginBottom: 8 }}>Something went wrong</h2>
           <p style={{ color: 'var(--text-secondary, #888)', marginBottom: 16 }}>{error.message}</p>
           <button
-            onClick={() => { reset(); window.location.reload(); }}
+            onClick={() => {
+              reset();
+              window.location.reload();
+            }}
             style={{
               padding: '8px 20px',
               borderRadius: 6,

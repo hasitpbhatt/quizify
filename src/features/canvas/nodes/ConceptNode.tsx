@@ -20,7 +20,11 @@ function ConceptNodeInner(props: NodeProps) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const textToRead = `${data.title}. ${data.explanation}`;
   const skipTyping = props.data.skipTyping === true;
-  const { revealed, isAnimating, skipAnimation } = useTypingAnimation(props.id, textToRead, skipTyping);
+  const { revealed, isAnimating, skipAnimation } = useTypingAnimation(
+    props.id,
+    textToRead,
+    skipTyping,
+  );
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -103,37 +107,45 @@ function ConceptNodeInner(props: NodeProps) {
   const titlePrefixLength = titleText.length + 2;
 
   const titleRevealed = notebookMode ? Math.min(revealed, titleText.length) : titleText.length;
-  const explanationRevealed = notebookMode ? Math.max(0, revealed - titlePrefixLength) : explanationText.length;
-  const explanationVisible = notebookMode ? explanationText.slice(0, explanationRevealed) : explanationText;
-  const explanationParagraphs = (notebookMode ? explanationVisible : explanationText).split(/\n+/).filter(Boolean);
+  const explanationRevealed = notebookMode
+    ? Math.max(0, revealed - titlePrefixLength)
+    : explanationText.length;
+  const explanationVisible = notebookMode
+    ? explanationText.slice(0, explanationRevealed)
+    : explanationText;
+  const explanationParagraphs = (notebookMode ? explanationVisible : explanationText)
+    .split(/\n+/)
+    .filter(Boolean);
 
   const isTitleAnimating = notebookMode && revealed < titleText.length;
-  const isExplanationAnimating = notebookMode && revealed >= titleText.length && revealed < textToRead.length;
+  const isExplanationAnimating =
+    notebookMode && revealed >= titleText.length && revealed < textToRead.length;
 
-  const nodeClass = [
-    styles.node,
-    isShell ? styles.loading : '',
-    entered ? styles.entered : '',
-  ].filter(Boolean).join(' ');
+  const nodeClass = [styles.node, isShell ? styles.loading : '', entered ? styles.entered : '']
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <div className={nodeClass} onClick={() => { if (isAnimating) skipAnimation(); }}>
+    <div
+      className={nodeClass}
+      onClick={() => {
+        if (isAnimating) skipAnimation();
+      }}
+    >
       <Handle type="target" position={Position.Left} />
-      <div
-        className={styles.title}
-        data-typing={isTitleAnimating ? 'true' : undefined}
-      >
+      <div className={styles.title} data-typing={isTitleAnimating ? 'true' : undefined}>
         {notebookMode ? titleText.slice(0, titleRevealed) : titleText}
       </div>
-      <div
-        className={styles.explanation}
-        data-typing={isExplanationAnimating ? 'true' : undefined}
-      >
+      <div className={styles.explanation} data-typing={isExplanationAnimating ? 'true' : undefined}>
         {explanationParagraphs.map((p, i) => (
           <p
             key={i}
             className={styles.explanationPara}
-            data-typing={notebookMode && isExplanationAnimating && i === explanationParagraphs.length - 1 ? 'true' : undefined}
+            data-typing={
+              notebookMode && isExplanationAnimating && i === explanationParagraphs.length - 1
+                ? 'true'
+                : undefined
+            }
           >
             {p}
           </p>
@@ -142,8 +154,19 @@ function ConceptNodeInner(props: NodeProps) {
       {!notebookMode && (
         <div className={styles.footer}>
           <span className={styles.quizBadge}>Concepts</span>
-          <button onClick={handlePlay} className={styles.playButton} disabled={isLoading} title="Listen">
-            {isLoading ? <Loader2 size={14} className={styles.spin} /> : isPlaying ? <Square size={14} /> : <Volume2 size={14} />}
+          <button
+            onClick={handlePlay}
+            className={styles.playButton}
+            disabled={isLoading}
+            title="Listen"
+          >
+            {isLoading ? (
+              <Loader2 size={14} className={styles.spin} />
+            ) : isPlaying ? (
+              <Square size={14} />
+            ) : (
+              <Volume2 size={14} />
+            )}
             {isPlaying ? 'Stop' : 'Listen'}
           </button>
         </div>
@@ -155,7 +178,10 @@ function ConceptNodeInner(props: NodeProps) {
 
 function ConceptNodeWrapper(props: NodeProps) {
   return (
-    <ErrorBoundary name="ConceptNode" fallback={<NodeErrorFallback nodeId={props.id} type="concept" />}>
+    <ErrorBoundary
+      name="ConceptNode"
+      fallback={<NodeErrorFallback nodeId={props.id} type="concept" />}
+    >
       <ConceptNodeInner {...props} />
     </ErrorBoundary>
   );

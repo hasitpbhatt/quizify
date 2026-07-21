@@ -33,7 +33,10 @@ const FETCH_TIMEOUT_MS = 8_000;
 
 async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
   const ac = new AbortController();
-  const timeout = setTimeout(() => ac.abort(new DOMException('Fetch timed out', 'TimeoutError')), FETCH_TIMEOUT_MS);
+  const timeout = setTimeout(
+    () => ac.abort(new DOMException('Fetch timed out', 'TimeoutError')),
+    FETCH_TIMEOUT_MS,
+  );
   try {
     const signal = init?.signal ? anySignal(init.signal, ac.signal) : ac.signal;
     return await fetch(url, { ...init, signal });
@@ -52,7 +55,9 @@ async function fetchViaCfProxy(url: string): Promise<Response> {
   return fetchWithTimeout(`/api/fetch?url=${encodeURIComponent(url)}`);
 }
 
-async function raceProxies(url: string): Promise<{ content: string; source: SourceResult['source'] } | null> {
+async function raceProxies(
+  url: string,
+): Promise<{ content: string; source: SourceResult['source'] } | null> {
   const absolute = url.startsWith('http') ? url : `https://${url}`;
 
   debugLog('log', 'fetch', 'proxy start url=%s', absolute);
@@ -89,10 +94,10 @@ async function raceProxies(url: string): Promise<{ content: string; source: Sour
 }
 
 async function callLlm(prompt: string): Promise<string> {
-  const response = await chat(
-    [{ role: 'user', content: prompt }],
-    { maxTokens: 4000, temperature: 0.3 },
-  );
+  const response = await chat([{ role: 'user', content: prompt }], {
+    maxTokens: 4000,
+    temperature: 0.3,
+  });
   return response.content;
 }
 
@@ -121,7 +126,7 @@ function extractSubjectFromUrl(input: string): string {
 
 export async function fetchSourceContent(
   input: string,
-  opts: { persona: Persona; signal?: AbortSignal }
+  opts: { persona: Persona; signal?: AbortSignal },
 ): Promise<SourceResult> {
   const cached = await getCachedSource(input);
   if (cached) {
@@ -152,7 +157,7 @@ export async function fetchSourceContent(
       source = 'llm';
     } catch (err) {
       throw new Error(
-        `Couldn't generate content for "${input}". ${err instanceof Error ? err.message : 'LLM call failed.'}`
+        `Couldn't generate content for "${input}". ${err instanceof Error ? err.message : 'LLM call failed.'}`,
       );
     }
   }

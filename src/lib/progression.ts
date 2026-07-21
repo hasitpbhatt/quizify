@@ -21,9 +21,9 @@ export function getUnlockedConceptIndex(nodes: CanvasNode[]): number {
     const quizzes = quizzesByParent.get(concepts[i].id) ?? [];
     if (quizzes.length === 0) return i;
     const allCorrect = quizzes.every(
-      q =>
+      (q) =>
         q.data.state === 'correct' ||
-        (q.data.attempts && q.data.attempts.some(att => att.grade === 'correct')),
+        (q.data.attempts && q.data.attempts.some((att) => att.grade === 'correct')),
     );
     if (!allCorrect) return i;
   }

@@ -25,7 +25,10 @@ export function normalizeLearningProgress(
   };
 }
 
-export function computeNextReviewAt(state: 'correct' | 'partial' | 'incorrect' | 'mastered' | 'untested' | 'inProgress', now = Date.now()): number {
+export function computeNextReviewAt(
+  state: 'correct' | 'partial' | 'incorrect' | 'mastered' | 'untested' | 'inProgress',
+  now = Date.now(),
+): number {
   switch (state) {
     case 'incorrect':
       return now;
@@ -49,7 +52,7 @@ export function getNextLearningAction(
 
   const completedSet = new Set(completedConceptIds ?? []);
 
-  const remainingConceptIds = orderedConceptIds.filter(id => !completedSet.has(id));
+  const remainingConceptIds = orderedConceptIds.filter((id) => !completedSet.has(id));
 
   if (remainingConceptIds.length === 0) {
     return { kind: 'complete' };
@@ -62,7 +65,11 @@ export function getNextLearningAction(
     }
   }
 
-  if (lastConceptId && !completedSet.has(lastConceptId) && orderedConceptIds.includes(lastConceptId)) {
+  if (
+    lastConceptId &&
+    !completedSet.has(lastConceptId) &&
+    orderedConceptIds.includes(lastConceptId)
+  ) {
     return { kind: 'continue', conceptId: lastConceptId };
   }
 

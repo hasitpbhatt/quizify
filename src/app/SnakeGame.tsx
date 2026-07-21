@@ -44,11 +44,11 @@ export function SnakeGame({ paused }: SnakeGameProps) {
     const snake = snakeRef.current;
     for (let attempt = 0; attempt < 200; attempt++) {
       const p = randomGrid();
-      if (!snake.some(s => s.x === p.x && s.y === p.y)) return p;
+      if (!snake.some((s) => s.x === p.x && s.y === p.y)) return p;
     }
     for (let y = 0; y < GRID; y++) {
       for (let x = 0; x < GRID; x++) {
-        if (!snake.some(s => s.x === x && s.y === y)) return { x, y };
+        if (!snake.some((s) => s.x === x && s.y === y)) return { x, y };
       }
     }
     return { x: 0, y: 0 };
@@ -66,7 +66,11 @@ export function SnakeGame({ paused }: SnakeGameProps) {
 
   function reset() {
     const mid = Math.floor(GRID / 2);
-    snakeRef.current = [{ x: mid, y: mid }, { x: mid - 1, y: mid }, { x: mid - 2, y: mid }];
+    snakeRef.current = [
+      { x: mid, y: mid },
+      { x: mid - 1, y: mid },
+      { x: mid - 2, y: mid },
+    ];
     dirRef.current = { x: 1, y: 0 };
     nextRef.current = { x: 1, y: 0 };
     scoreRef.current = 0;
@@ -121,10 +125,17 @@ export function SnakeGame({ paused }: SnakeGameProps) {
     });
   }
 
-  function tick(snake: { x: number; y: number }[], dir: Dir, food: { x: number; y: number }, s: number) {
+  function tick(
+    snake: { x: number; y: number }[],
+    dir: Dir,
+    food: { x: number; y: number },
+    s: number,
+  ) {
     const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
-    if (head.x < 0 || head.x >= GRID || head.y < 0 || head.y >= GRID) return { snake, food, score: s, dead: true };
-    if (snake.some(seg => seg.x === head.x && seg.y === head.y)) return { snake, food, score: s, dead: true };
+    if (head.x < 0 || head.x >= GRID || head.y < 0 || head.y >= GRID)
+      return { snake, food, score: s, dead: true };
+    if (snake.some((seg) => seg.x === head.x && seg.y === head.y))
+      return { snake, food, score: s, dead: true };
 
     const newSnake = [head, ...snake];
     let newFood = food;
@@ -220,23 +231,27 @@ export function SnakeGame({ paused }: SnakeGameProps) {
         <span>Score: {score}</span>
       </div>
       <div className={styles.wrapper}>
-        <canvas
-          ref={canvasRef}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-        />
-        {state === 'idle' && (
-          <div className={styles.overlay}>Press any arrow to start</div>
-        )}
+        <canvas ref={canvasRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} />
+        {state === 'idle' && <div className={styles.overlay}>Press any arrow to start</div>}
         {state === 'gameOver' && (
-          <div className={styles.overlay} onClick={reset}>Game Over — tap to restart</div>
+          <div className={styles.overlay} onClick={reset}>
+            Game Over — tap to restart
+          </div>
         )}
       </div>
       <div className={styles.dpad}>
-        <button className={styles.dpadUp} onPointerDown={() => setDir(DIR.UP)}>↑</button>
-        <button className={styles.dpadLeft} onPointerDown={() => setDir(DIR.LEFT)}>←</button>
-        <button className={styles.dpadRight} onPointerDown={() => setDir(DIR.RIGHT)}>→</button>
-        <button className={styles.dpadDown} onPointerDown={() => setDir(DIR.DOWN)}>↓</button>
+        <button className={styles.dpadUp} onPointerDown={() => setDir(DIR.UP)}>
+          ↑
+        </button>
+        <button className={styles.dpadLeft} onPointerDown={() => setDir(DIR.LEFT)}>
+          ←
+        </button>
+        <button className={styles.dpadRight} onPointerDown={() => setDir(DIR.RIGHT)}>
+          →
+        </button>
+        <button className={styles.dpadDown} onPointerDown={() => setDir(DIR.DOWN)}>
+          ↓
+        </button>
       </div>
     </div>
   );

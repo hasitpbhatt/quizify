@@ -4,7 +4,12 @@ import type { QuizFormat } from '@/shared/types';
 import type { QuizItem } from './contentParser';
 
 const VALID_FORMATS: QuizFormat[] = [
-  'multipleChoice', 'trueFalse', 'shortAnswer', 'freeText', 'fillBlank', 'ordering',
+  'multipleChoice',
+  'trueFalse',
+  'shortAnswer',
+  'freeText',
+  'fillBlank',
+  'ordering',
 ];
 
 export interface SummaryResponse {
@@ -13,14 +18,18 @@ export interface SummaryResponse {
 }
 
 function parseQuizItem(raw: unknown, index: number): QuizItem {
-  if (!raw || typeof raw !== 'object') throw new ParseError(`Summary quiz ${index} is not an object`);
+  if (!raw || typeof raw !== 'object')
+    throw new ParseError(`Summary quiz ${index} is not an object`);
   const item = raw as Record<string, unknown>;
   if (!VALID_FORMATS.includes(item.format as QuizFormat)) {
     throw new ParseError(`Summary quiz ${index}: invalid format "${String(item.format)}"`);
   }
-  if (typeof item.prompt !== 'string') throw new ParseError(`Summary quiz ${index}: missing or invalid "prompt"`);
-  if (typeof item.correctAnswer !== 'string') throw new ParseError(`Summary quiz ${index}: missing or invalid "correctAnswer"`);
-  if (typeof item.rationale !== 'string') throw new ParseError(`Summary quiz ${index}: missing or invalid "rationale"`);
+  if (typeof item.prompt !== 'string')
+    throw new ParseError(`Summary quiz ${index}: missing or invalid "prompt"`);
+  if (typeof item.correctAnswer !== 'string')
+    throw new ParseError(`Summary quiz ${index}: missing or invalid "correctAnswer"`);
+  if (typeof item.rationale !== 'string')
+    throw new ParseError(`Summary quiz ${index}: missing or invalid "rationale"`);
 
   return {
     format: item.format as QuizFormat,
@@ -39,11 +48,15 @@ export function parseSummaryResponse(raw: string): SummaryResponse {
 
   const match = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (match) {
-    try { parsed = JSON.parse(match[1]); } catch {}
+    try {
+      parsed = JSON.parse(match[1]);
+    } catch {}
   }
 
   if (!parsed) {
-    try { parsed = JSON.parse(raw); } catch {}
+    try {
+      parsed = JSON.parse(raw);
+    } catch {}
   }
 
   if (!parsed) {

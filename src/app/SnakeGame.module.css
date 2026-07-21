@@ -77,7 +77,19 @@
   background: var(--bg-subtle);
 }
 
-.dpadUp { grid-column: 2; grid-row: 1; }
-.dpadLeft { grid-column: 1; grid-row: 2; }
-.dpadRight { grid-column: 3; grid-row: 2; }
-.dpadDown { grid-column: 2; grid-row: 3; }
+.dpadUp {
+  grid-column: 2;
+  grid-row: 1;
+}
+.dpadLeft {
+  grid-column: 1;
+  grid-row: 2;
+}
+.dpadRight {
+  grid-column: 3;
+  grid-row: 2;
+}
+.dpadDown {
+  grid-column: 2;
+  grid-row: 3;
+}

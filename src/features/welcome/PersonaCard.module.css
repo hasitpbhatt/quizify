@@ -9,7 +9,9 @@
   box-shadow: var(--shadow-card);
   text-align: left;
   cursor: pointer;
-  transition: transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
+  transition:
+    transform var(--dur) var(--ease-out),
+    box-shadow var(--dur) var(--ease-out);
 }
 
 .card:hover {
@@ -18,7 +20,9 @@
 }
 
 .selected {
-  box-shadow: 0 0 0 2px var(--accent), var(--shadow-md);
+  box-shadow:
+    0 0 0 2px var(--accent),
+    var(--shadow-md);
   background: var(--bg-elevated);
 }
 
@@ -56,5 +60,7 @@
 }
 
 @media (max-width: 580px) {
-  .card { min-width: 0; }
+  .card {
+    min-width: 0;
+  }
 }

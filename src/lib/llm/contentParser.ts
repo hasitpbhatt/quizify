@@ -14,7 +14,12 @@ export interface QuizItem {
 }
 
 const VALID_FORMATS: QuizFormat[] = [
-  'multipleChoice', 'trueFalse', 'shortAnswer', 'freeText', 'fillBlank', 'ordering',
+  'multipleChoice',
+  'trueFalse',
+  'shortAnswer',
+  'freeText',
+  'fillBlank',
+  'ordering',
 ];
 
 export interface ConceptDetailContent {
@@ -32,11 +37,15 @@ export function parseContentResponse(raw: string): ContentResponse {
 
   const match = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (match) {
-    try { parsed = JSON.parse(match[1]); } catch {}
+    try {
+      parsed = JSON.parse(match[1]);
+    } catch {}
   }
 
   if (!parsed) {
-    try { parsed = JSON.parse(raw); } catch {}
+    try {
+      parsed = JSON.parse(raw);
+    } catch {}
   }
 
   if (!parsed) {
@@ -66,7 +75,8 @@ export function parseContentResponse(raw: string): ContentResponse {
     throw new ParseError('Missing or invalid "detail" object');
   }
   const detailObj = obj.detail as Record<string, unknown>;
-  if (typeof detailObj.explanation !== 'string') throw new ParseError('Missing "detail.explanation"');
+  if (typeof detailObj.explanation !== 'string')
+    throw new ParseError('Missing "detail.explanation"');
   if (typeof detailObj.example !== 'string') throw new ParseError('Missing "detail.example"');
 
   if (!Array.isArray(obj.quizzes) || obj.quizzes.length === 0) {
@@ -81,18 +91,24 @@ export function parseContentResponse(raw: string): ContentResponse {
         if (!VALID_FORMATS.includes(quiz.format as QuizFormat)) {
           throw new Error(`Quiz ${j}: invalid format "${String(quiz.format)}"`);
         }
-        if (typeof quiz.prompt !== 'string') throw new Error(`Quiz ${j}: missing or invalid "prompt"`);
-        if (typeof quiz.correctAnswer !== 'string') throw new Error(`Quiz ${j}: missing or invalid "correctAnswer"`);
-        if (typeof quiz.rationale !== 'string') throw new Error(`Quiz ${j}: missing or invalid "rationale"`);
+        if (typeof quiz.prompt !== 'string')
+          throw new Error(`Quiz ${j}: missing or invalid "prompt"`);
+        if (typeof quiz.correctAnswer !== 'string')
+          throw new Error(`Quiz ${j}: missing or invalid "correctAnswer"`);
+        if (typeof quiz.rationale !== 'string')
+          throw new Error(`Quiz ${j}: missing or invalid "rationale"`);
 
         return {
           format: quiz.format as QuizFormat,
           prompt: quiz.prompt,
           options: Array.isArray(quiz.options) ? quiz.options : undefined,
-          blankedSentence: typeof quiz.blankedSentence === 'string' ? quiz.blankedSentence : undefined,
+          blankedSentence:
+            typeof quiz.blankedSentence === 'string' ? quiz.blankedSentence : undefined,
           items: Array.isArray(quiz.items) ? quiz.items : undefined,
           correctAnswer: quiz.correctAnswer,
-          acceptableAnswers: Array.isArray(quiz.acceptableAnswers) ? quiz.acceptableAnswers : undefined,
+          acceptableAnswers: Array.isArray(quiz.acceptableAnswers)
+            ? quiz.acceptableAnswers
+            : undefined,
           rationale: quiz.rationale,
         } as QuizItem;
       } catch (e) {

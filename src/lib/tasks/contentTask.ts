@@ -5,7 +5,8 @@ import { buildContentSystemPrompt, buildContentUserMessage } from '@/lib/prompts
 export const contentTask: PromptTask<ContentResponse> = {
   id: 'content',
   buildSystem: (persona, ctx) => buildContentSystemPrompt(persona, ctx.topic as string),
-  buildUser: (input) => buildContentUserMessage(input as { id: string; title: string; explanation: string }),
+  buildUser: (input) =>
+    buildContentUserMessage(input as { id: string; title: string; explanation: string }),
   parse: parseContentResponse,
   responseFormat: 'json',
   maxTokens: 1600,

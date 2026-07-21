@@ -17,14 +17,14 @@ function NoteNodeInner(props: NodeProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(data.text);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const updateCurrent = useSessionStore(s => s.updateCurrent);
+  const updateCurrent = useSessionStore((s) => s.updateCurrent);
   // Stable random rotation: computed once based on node id hash so it's consistent across renders
   const rotation = useRef<number | null>(null);
   if (rotation.current === null) {
     // Simple deterministic hash of node ID → float in [-2, 2]
     let hash = 0;
     for (let i = 0; i < props.id.length; i++) hash = (hash * 31 + props.id.charCodeAt(i)) >>> 0;
-    rotation.current = ((hash % 400) / 100) - 2; // -2 to +2 deg
+    rotation.current = (hash % 400) / 100 - 2; // -2 to +2 deg
   }
 
   useEffect(() => {
@@ -49,24 +49,25 @@ function NoteNodeInner(props: NodeProps) {
     const authoritative = await sessionsDb.getSession(currentId);
     if (!authoritative) return;
 
-    const updatedNodes: CanvasNode[] = authoritative.nodes.map(n =>
-      n.id === props.id
-        ? { ...n, data: { ...n.data, text: trimmed } as NoteData }
-        : n
+    const updatedNodes: CanvasNode[] = authoritative.nodes.map((n) =>
+      n.id === props.id ? { ...n, data: { ...n.data, text: trimmed } as NoteData } : n,
     );
     await updateCurrent({ nodes: updatedNodes });
   }, [draft, data.text, props, updateCurrent]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      setEditing(false);
-      setDraft(data.text);
-    }
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSave();
-    }
-  }, [data.text, handleSave]);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setEditing(false);
+        setDraft(data.text);
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSave();
+      }
+    },
+    [data.text, handleSave],
+  );
 
   const handleDelete = useCallback(async () => {
     const nodeId = props.id;
@@ -75,8 +76,10 @@ function NoteNodeInner(props: NodeProps) {
     const authoritative = await sessionsDb.getSession(currentId);
     if (!authoritative) return;
 
-    const updatedNodes = authoritative.nodes.filter(n => n.id !== nodeId);
-    const updatedEdges = authoritative.edges.filter(e => e.source !== nodeId && e.target !== nodeId);
+    const updatedNodes = authoritative.nodes.filter((n) => n.id !== nodeId);
+    const updatedEdges = authoritative.edges.filter(
+      (e) => e.source !== nodeId && e.target !== nodeId,
+    );
     await updateCurrent({ nodes: updatedNodes, edges: updatedEdges });
   }, [props, updateCurrent]);
 
@@ -92,17 +95,17 @@ function NoteNodeInner(props: NodeProps) {
           ref={inputRef}
           className={styles.editInput}
           value={draft}
-          onChange={e => setDraft(e.target.value)}
+          onChange={(e) => setDraft(e.target.value)}
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
         />
       ) : (
         <div className={styles.text}>{data.text}</div>
       )}
-      <button className={styles.deleteBtn} onClick={handleDelete} title="Delete note">×</button>
-      {data.linkedConceptId && (
-        <div className={styles.linkBadge}>🔗 {data.linkedConceptId}</div>
-      )}
+      <button className={styles.deleteBtn} onClick={handleDelete} title="Delete note">
+        ×
+      </button>
+      {data.linkedConceptId && <div className={styles.linkBadge}>🔗 {data.linkedConceptId}</div>}
       <Handle type="source" position={Position.Bottom} />
     </div>
   );

@@ -13,7 +13,15 @@ interface PersonaCardProps {
   onSelect: (p: Persona) => void;
 }
 
-export function PersonaCard({ persona, label, sublabel, description, icon: Icon, selected, onSelect }: PersonaCardProps) {
+export function PersonaCard({
+  persona,
+  label,
+  sublabel,
+  description,
+  icon: Icon,
+  selected,
+  onSelect,
+}: PersonaCardProps) {
   return (
     <button
       className={clsx(styles.card, selected && styles.selected)}
