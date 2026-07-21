@@ -97,8 +97,11 @@ export function WelcomeModal({
   const resumeSession = useMemo(() => {
     const isComplete = (s: Session) => {
       const quizNodes = s.nodes.filter((n) => n.data?.kind === 'quiz');
-      return quizNodes.length > 0 && quizNodes.every(
-        (n) => (n.data as any)?.state === 'correct' || (n.data as any)?.state === 'mastered',
+      return (
+        quizNodes.length > 0 &&
+        quizNodes.every(
+          (n) => (n.data as any)?.state === 'correct' || (n.data as any)?.state === 'mastered',
+        )
       );
     };
     const withContent = sessions.filter(
@@ -411,7 +414,14 @@ export function WelcomeModal({
                             <span className={styles.sessionDot}>·</span>
                             <span
                               style={{
-                                color: masteryPct >= 100 ? 'var(--success)' : masteryPct >= 80 ? 'var(--success)' : masteryPct >= 50 ? 'var(--warning)' : 'var(--text-tertiary)',
+                                color:
+                                  masteryPct >= 100
+                                    ? 'var(--success)'
+                                    : masteryPct >= 80
+                                      ? 'var(--success)'
+                                      : masteryPct >= 50
+                                        ? 'var(--warning)'
+                                        : 'var(--text-tertiary)',
                               }}
                             >
                               {masteryPct >= 100 ? 'Completed' : `${masteryPct}% mastered`}
