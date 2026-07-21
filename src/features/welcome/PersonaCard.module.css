@@ -1,35 +1,37 @@
 .card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
-  padding: var(--space-5) var(--space-5) var(--space-4);
-  border-radius: var(--radius-lg);
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow-card);
-  text-align: left;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1.5);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-hairline);
+  background: transparent;
   cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  color: var(--text-tertiary);
   transition:
-    transform var(--dur) var(--ease-out),
-    box-shadow var(--dur) var(--ease-out);
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+  white-space: nowrap;
 }
 
 .card:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
 }
 
 .selected {
-  box-shadow:
-    0 0 0 2px var(--accent),
-    var(--shadow-md);
-  background: var(--bg-elevated);
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent-pressed);
 }
 
 .icon {
-  color: var(--text-tertiary);
-  margin-bottom: var(--space-2);
-  transition: color var(--dur) var(--ease-out);
+  flex-shrink: 0;
+  transition: color var(--dur-fast) var(--ease-out);
 }
 
 .selected .icon {
@@ -37,30 +39,10 @@
 }
 
 .title {
-  font-family: var(--font-ui);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-h1);
-  line-height: var(--lh-tight);
-  color: var(--text-primary);
+  font-weight: var(--fw-h2);
 }
 
 .sublabel {
-  font-family: var(--font-ui);
-  font-size: var(--fs-caption);
-  color: var(--text-tertiary);
-  margin-top: 2px;
-}
-
-.description {
-  font-family: var(--font-ui);
-  font-size: var(--fs-caption);
-  color: var(--text-secondary);
-  line-height: var(--lh-normal);
-  margin-top: var(--space-3);
-}
-
-@media (max-width: 580px) {
-  .card {
-    min-width: 0;
-  }
+  color: inherit;
+  opacity: 0.6;
 }
