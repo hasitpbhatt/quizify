@@ -15,7 +15,7 @@ ${personaInstructions[persona]}
 
 You will receive ONE concept with an ID, title, and a brief explanation.
 You must:
-1. Expand the explanation to 2-3 paragraphs and provide a concrete, memorable example.
+1. Expand the explanation into 2-3 distinct paragraphs separated by a blank line (\n\n). Do NOT return a single block of text. Provide a concrete, memorable example in a separate paragraph.
 2. Generate 2-3 quiz questions that test understanding of this concept.
 
 Quiz formats available:
