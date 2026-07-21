@@ -35,6 +35,7 @@ import { downloadSessionMarkdown } from '@/lib/export/markdown';
 import { exportCanvasAsPng } from '@/lib/export/image';
 import { useToastStore } from '@/shared/stores/toastStore';
 import { useKeyboardShortcuts } from '@/shared/useKeyboardShortcuts';
+import { getNextLearningAction, normalizeLearningProgress, type NextLearningAction } from '@/shared/learningProgress';
 import '@/styles/notebook.css';
 import styles from './CanvasPage.module.css';
 
@@ -157,6 +158,8 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const [summaryQuiz, setSummaryQuiz] = useState<boolean>(false);
   const [revealedQuizIds, setRevealedQuizIds] = useState<Set<string>>(new Set());
   const [showOrientationCue, setShowOrientationCue] = useState(false);
+  const [showLearningCue, setShowLearningCue] = useState(false);
+  const [learningCueDismissed, setLearningCueDismissed] = useState(false);
   const updateCurrent = useSessionStore(s => s.updateCurrent);
   const reactFlow = useReactFlow();
   const isMobile = useIsMobile();
@@ -220,6 +223,17 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     return () => clearTimeout(timer);
   }, [notebookMode, session, currentId, isGenerating]);
 
+  const dismissLearningCue = useCallback(() => {
+    setShowLearningCue(false);
+    setLearningCueDismissed(true);
+    if (!currentId) return;
+    try {
+      sessionStorage.setItem(`quizify:learningcue:${currentId}`, 'dismissed');
+    } catch {
+      // Non-fatal if session storage is unavailable.
+    }
+  }, [currentId]);
+
   const focusOnActiveConcept = useCallback((conceptId: string, includeQuizzes = false) => {
     if (!session) return;
     const nodesToFocus = [conceptId];
@@ -275,6 +289,53 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       .filter((n): n is CanvasNode & { data: ConceptData } => n.data.kind === 'concept')
       .sort((a, b) => a.data.index - b.data.index);
   }, [session?.nodes]);
+
+  const nextAction: NextLearningAction | null = useMemo(() => {
+    if (!session) return null;
+    const progress = normalizeLearningProgress(
+      session.lastConceptId,
+      session.completedConceptIds,
+      session.nextReviewAtByConceptId,
+      session.lastActivityAt,
+    );
+    const orderedIds = concepts.map(c => c.id);
+    return getNextLearningAction(progress, orderedIds);
+  }, [session, concepts]);
+
+  const handleCueAction = useCallback(() => {
+    if (!nextAction || nextAction.kind === 'complete') return;
+    focusOnActiveConcept(nextAction.conceptId, true);
+    setShowLearningCue(false);
+  }, [nextAction, focusOnActiveConcept]);
+
+  useEffect(() => {
+    if (!notebookMode || !session || !currentId || isGenerating || !nextAction) {
+      setShowLearningCue(false);
+      return;
+    }
+
+    if (learningCueDismissed) {
+      setShowLearningCue(false);
+      return;
+    }
+
+    try {
+      if (sessionStorage.getItem(`quizify:learningcue:${currentId}`) === 'dismissed') {
+        setShowLearningCue(false);
+        return;
+      }
+    } catch {
+      // Fall through — show the cue.
+    }
+
+    if (showOrientationCue) {
+      setShowLearningCue(false);
+      return;
+    }
+
+    const timer = setTimeout(() => setShowLearningCue(true), 450);
+    return () => clearTimeout(timer);
+  }, [notebookMode, session, currentId, isGenerating, nextAction, learningCueDismissed, showOrientationCue]);
 
   const currentConceptIndex = useMemo(
     () => getUnlockedConceptIndex(session?.nodes ?? []),
@@ -958,12 +1019,43 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         </div>
       )}
 
+      {notebookMode && showLearningCue && nextAction && (
+        <div className="notebookLearningCue" role="status" aria-live="polite">
+          <div className="notebookLearningCueCopy">
+            <span className="notebookLearningCueText">
+              {nextAction.kind === 'review'
+                ? 'A quick review is ready'
+                : nextAction.kind === 'continue'
+                  ? `Continue with ${conceptTitles.get(nextAction.conceptId) ?? 'the current concept'}`
+                  : nextAction.kind === 'start'
+                    ? `Begin with ${conceptTitles.get(nextAction.conceptId) ?? 'the first concept'}`
+                    : 'You have covered this lesson'}
+            </span>
+          </div>
+          {nextAction.kind !== 'complete' && (
+            <button className="notebookLearningCueAction" onClick={handleCueAction} type="button">
+              {nextAction.kind === 'review' ? 'Review now'
+                : nextAction.kind === 'continue' ? 'Continue'
+                : 'Start lesson'}
+            </button>
+          )}
+          <button className="notebookLearningCueClose" onClick={dismissLearningCue} type="button" aria-label="Dismiss">
+            ✕
+          </button>
+        </div>
+      )}
+
       {notebookMode && (
         <>
           <div className="notebookModePill" title="You're in Notebook view. Press Esc or the X to switch to the canvas graph.">
             <BookOpen size={12} />
             <span>Notebook</span>
           </div>
+          {concepts.length > 0 && (
+            <div className="notebookConceptProgress">
+              Concept {currentConceptIndex + 1} of {concepts.length}
+            </div>
+          )}
           <div className="notebookControls">
             <button onClick={toggleNotebookMode} title="Exit Notebook">
               <X size={14} />

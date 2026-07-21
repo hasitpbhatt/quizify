@@ -6,6 +6,7 @@ import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import * as sessionsDb from '@/lib/db/sessionsDb';
 import * as factories from '../../shared/factories';
+import type { CanvasNode, ConceptData, QuizData } from '@/shared/types';
 
 function renderCanvas() {
   return render(
@@ -217,6 +218,183 @@ describe('CanvasPage', () => {
       await waitFor(() => {
         expect(screen.queryByText('Start here')).not.toBeInTheDocument();
       });
+    });
+  });
+
+  describe('learning cue', () => {
+    function setNotebookMode() {
+      useNotebookStore.setState({
+        notebookMode: true,
+        ttsPlaying: false,
+        ttsPaused: false,
+        currentSegmentNodeId: null,
+        segmentIndex: 0,
+        totalSegments: 0,
+        completedTypingNodeIds: {},
+      });
+    }
+
+    function buildSessionWithProgress(
+      conceptCount: number,
+      quizPerConcept: number,
+      completedConceptIndices: number[],
+      lastConceptIndex: number | null,
+      nextReviewAtByConceptId: Record<string, number> = {},
+    ) {
+      const now = Date.now();
+      const nodes: CanvasNode[] = [];
+      const edges: import('@/shared/types').CanvasEdge[] = [];
+      for (let ci = 0; ci < conceptCount; ci++) {
+        const c = factories.mockConceptNode({
+          id: `c${ci}`,
+          data: { kind: 'concept', index: ci, title: `Concept ${ci}`, explanation: '', example: '' } as ConceptData,
+        });
+        nodes.push(c);
+        for (let qi = 0; qi < quizPerConcept; qi++) {
+          const q = factories.mockQuizNode(c.id, {
+            id: `q${ci}-${qi}`,
+            data: {
+              kind: 'quiz',
+              parentConceptId: c.id,
+              format: 'multipleChoice',
+              prompt: `Quiz ${ci}-${qi}?`,
+              options: ['A', 'B'],
+              correctAnswer: 'A',
+              rationale: 'R',
+              attempts: [],
+              state: completedConceptIndices.includes(ci) ? 'correct' : 'untested',
+            } as QuizData,
+          });
+          nodes.push(q);
+          edges.push(factories.mockEdge(c.id, q.id));
+        }
+      }
+      const completedIds = completedConceptIndices.map(i => `c${i}`);
+      const lastId = lastConceptIndex != null ? `c${lastConceptIndex}` : null;
+      return {
+        session: factories.mockSession(nodes, edges, {
+          lastConceptId: lastId ?? undefined,
+          completedConceptIds: completedIds,
+          nextReviewAtByConceptId,
+          lastActivityAt: now,
+        }),
+      };
+    }
+
+    async function setupSession(session: ReturnType<typeof factories.mockSession>) {
+      await sessionsDb.putSession(session);
+      useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
+    }
+
+    beforeEach(() => {
+      window.sessionStorage.clear();
+    });
+
+    /** Helper: dismiss the orientation cue so the learning cue can surface. */
+    async function dismissOrientation() {
+      await waitFor(() => {
+        expect(screen.getByText('Got it')).toBeInTheDocument();
+      }, { timeout: 2000 });
+      await act(async () => { screen.getByText('Got it').click(); });
+    }
+
+    it('shows continue cue when lastConceptId is incomplete', async () => {
+      setNotebookMode();
+      const { session } = buildSessionWithProgress(3, 1, [], 0);
+      await setupSession(session);
+
+      renderCanvas();
+      await dismissOrientation();
+
+      await waitFor(() => {
+        expect(screen.getByText(/Continue with Concept 0/)).toBeInTheDocument();
+      }, { timeout: 2000 });
+      expect(screen.getByText('Continue')).toBeInTheDocument();
+    });
+
+    it('shows review cue when a concept is due for review', async () => {
+      setNotebookMode();
+      const now = Date.now();
+      const { session } = buildSessionWithProgress(3, 1, [0], 1, { c1: now - 1000 });
+      await setupSession(session);
+
+      renderCanvas();
+
+      await waitFor(() => {
+        expect(screen.getByText('A quick review is ready')).toBeInTheDocument();
+      }, { timeout: 2000 });
+      expect(screen.getByText('Review now')).toBeInTheDocument();
+    });
+
+    it('shows start cue when no lastConceptId', async () => {
+      setNotebookMode();
+      const { session } = buildSessionWithProgress(3, 1, [], null);
+      await setupSession(session);
+
+      renderCanvas();
+      await dismissOrientation();
+
+      await waitFor(() => {
+        expect(screen.getByText(/Begin with Concept 0/)).toBeInTheDocument();
+      }, { timeout: 2000 });
+      expect(screen.getByText('Start lesson')).toBeInTheDocument();
+    });
+
+    it('does not show the learning cue when already dismissed', async () => {
+      setNotebookMode();
+      const { session } = buildSessionWithProgress(3, 1, [], 0);
+      window.sessionStorage.setItem(`quizify:learningcue:${session.id}`, 'dismissed');
+      await setupSession(session);
+
+      renderCanvas();
+
+      await waitFor(() => {
+        expect(screen.queryByText(/Continue with/)).not.toBeInTheDocument();
+      });
+    });
+
+    it('does not show the learning cue in graph mode', async () => {
+      const { session } = buildSessionWithProgress(3, 1, [], 0);
+      await setupSession(session);
+
+      renderCanvas();
+
+      await waitFor(() => {
+        expect(screen.queryByText(/Continue with/)).not.toBeInTheDocument();
+      });
+    });
+
+    it('dismisses the cue when the dismiss button is clicked', async () => {
+      setNotebookMode();
+      const { session } = buildSessionWithProgress(3, 1, [], 0);
+      await setupSession(session);
+
+      renderCanvas();
+      await dismissOrientation();
+
+      await waitFor(() => {
+        expect(screen.getByText('Continue')).toBeInTheDocument();
+      }, { timeout: 2000 });
+
+      await act(async () => {
+        screen.getByLabelText('Dismiss').click();
+      });
+
+      expect(screen.queryByText(/Continue with/)).not.toBeInTheDocument();
+    });
+
+    it('shows concept progress indicator', async () => {
+      setNotebookMode();
+      const { session } = buildSessionWithProgress(3, 1, [0], 1);
+      await setupSession(session);
+
+      renderCanvas();
+
+      await waitFor(() => {
+        const el = document.querySelector('.notebookConceptProgress');
+        expect(el).toBeTruthy();
+        expect(el?.textContent).toMatch(/Concept.*2.*of.*3/);
+      }, { timeout: 2000 });
     });
   });
 

@@ -6,6 +6,7 @@ import { useToastStore } from '@/shared/stores/toastStore';
 import { debugLog } from '@/lib/debug';
 import * as sessionsDb from '@/lib/db/sessionsDb';
 import type { QuizData, Attempt, QuizState } from '@/shared/types';
+import { computeNextReviewAt } from '@/shared/learningProgress';
 
 export interface SubmitResult {
   grade: 'correct' | 'partial' | 'incorrect';
@@ -133,8 +134,34 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
               ...updatedNodes[quizIndex],
               data: { ...updatedNodes[quizIndex].data, attempts: updatedAttempts, state: newState } as QuizData,
             };
-            await updateCurrent({ nodes: updatedNodes });
-            debugLog('log', 'grade', 'grade persist session=%s node=%s state=%s attempts=%d', currentId, quizId, newState, updatedAttempts.length);
+
+            const conceptId = quiz.parentConceptId;
+            const siblingQuizzes = updatedNodes.filter(
+              n => n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === conceptId,
+            );
+            const allComplete = siblingQuizzes.every(n => {
+              const q = n.data as QuizData;
+              return q.state === 'correct' || q.state === 'mastered';
+            });
+
+            const prevCompleted = authoritative.completedConceptIds ?? [];
+            const completedConceptIds = allComplete && !prevCompleted.includes(conceptId)
+              ? [...prevCompleted, conceptId]
+              : prevCompleted;
+
+            const nextReviewAtByConceptId = {
+              ...(authoritative.nextReviewAtByConceptId ?? {}),
+              [conceptId]: computeNextReviewAt(newState),
+            };
+
+            await updateCurrent({
+              nodes: updatedNodes,
+              lastConceptId: conceptId,
+              completedConceptIds,
+              nextReviewAtByConceptId,
+              lastActivityAt: Date.now(),
+            });
+            debugLog('log', 'grade', 'grade persist session=%s node=%s state=%s attempts=%d conceptComplete=%s', currentId, quizId, newState, updatedAttempts.length, allComplete ? conceptId : 'no');
           }
         }
       }

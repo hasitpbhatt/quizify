@@ -90,6 +90,11 @@ export interface CanvasEdge {
 }
 
 export interface Session {
+  /** Lightweight learner memory used for resume and review decisions. */
+  lastConceptId?: string;
+  completedConceptIds?: string[];
+  nextReviewAtByConceptId?: Record<string, number>;
+  lastActivityAt?: number;
   id: string;
   name: string;
   url: string;

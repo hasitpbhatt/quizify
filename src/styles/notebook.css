@@ -687,3 +687,134 @@
     animation: none;
   }
 }
+
+/* --- Learning cue: resume/review prompt (notebook mode) --- */
+.notebookLearningCue {
+  position: fixed;
+  top: 72px;
+  left: 20px;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(420px, calc(100vw - 40px));
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(84, 87, 232, 0.2);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(224, 237, 255, 0.92));
+  box-shadow: 0 4px 16px rgba(52, 35, 15, 0.08);
+  color: rgba(30, 45, 80, 0.96);
+  backdrop-filter: blur(10px);
+  animation: learningCueSlideIn 0.35s var(--ease-out);
+}
+
+[data-theme='dark'] .notebookLearningCue,
+[data-theme='dark'] [data-notebook="true"] .notebookLearningCue {
+  border-color: rgba(130, 140, 240, 0.22);
+  background: linear-gradient(180deg, rgba(20, 28, 50, 0.96), rgba(15, 22, 42, 0.92));
+  color: rgba(210, 218, 255, 0.96);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+}
+
+@keyframes learningCueSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notebookLearningCueCopy {
+  flex: 1;
+  min-width: 0;
+}
+
+.notebookLearningCueText {
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: inherit;
+  display: block;
+}
+
+.notebookLearningCueAction {
+  flex: 0 0 auto;
+  border: 1px solid rgba(84, 87, 232, 0.3);
+  border-radius: 999px;
+  padding: 8px 16px;
+  background: rgba(84, 87, 232, 0.08);
+  color: inherit;
+  font-family: var(--font-ui), system-ui, sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.notebookLearningCueAction:hover {
+  transform: translateY(-1px);
+  background: rgba(84, 87, 232, 0.15);
+  border-color: rgba(84, 87, 232, 0.5);
+}
+
+.notebookLearningCueAction:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.notebookLearningCueClose {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0.5;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 160ms ease, background 160ms ease;
+}
+
+.notebookLearningCueClose:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme='dark'] .notebookLearningCueClose:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* --- Concept progress indicator (notebook mode) --- */
+.notebookConceptProgress {
+  position: fixed;
+  top: 20px;
+  left: 100px;
+  z-index: 100;
+  font-family: var(--font-ui), system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--text-secondary);
+  padding: 5px 10px;
+  background: var(--bg-glass);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notebookLearningCue {
+    animation: none;
+  }
+}

@@ -43,7 +43,7 @@ export function mockEdge(source: string, target: string): CanvasEdge {
   return { id: `edge-${source}-${target}`, source, target, type: 'wiggly' };
 }
 
-export function mockSession(nodes: CanvasNode[], edges: CanvasEdge[]): Session {
+export function mockSession(nodes: CanvasNode[], edges: CanvasEdge[], overrides?: Partial<Session>): Session {
   return {
     id: crypto.randomUUID(),
     name: 'Quantum Computing',
@@ -55,5 +55,6 @@ export function mockSession(nodes: CanvasNode[], edges: CanvasEdge[]): Session {
     nodes,
     edges,
     scores: {},
+    ...overrides,
   };
 }
