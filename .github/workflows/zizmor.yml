@@ -15,6 +15,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run Zizmor
-        uses: woodruffw/zizmor@v1.5.0
+        uses: woodruffw/zizmor@v1.27.0
         with:
           args: .
