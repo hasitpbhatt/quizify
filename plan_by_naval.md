@@ -434,12 +434,12 @@ Ship these four before any Phase 4+ work on source trust or scheduling. They are
 ## Tracker
 
 - [x] #30 Welcome return action — shipped in c62fa05
-- [ ] #31 Persona grid visually secondary — shrink grid, reduce visual weight
-- [ ] #32 Collapse progress states — 7 stages → 3 mental-model states
+- [x] #31 Persona grid visually secondary — shrink grid, reduce visual weight
+- [x] #32 Collapse progress states — 7 stages → 3 mental-model states
 - [x] #33 Notebook Esc discoverability — shipped in 0c07bcd + c62fa05
-- [ ] #34 Phase 3 quiz remediation — scaffolded retry with rationale
+- [x] #34 Phase 3 quiz remediation — scaffolded retry with rationale
 - [x] #35 Welcome session cards — shipped in c62fa05
 - [x] #36 Canvas corner attribution — shipped in c62fa05
 - [x] #37 Default view positioning — shipped, notebook default, copy aligned
-- [ ] #38 Debug affordances in prod — guard/remove LatencyPanel, nbFit, isDebugMode
+- [x] #38 Debug affordances in prod — guard/remove LatencyPanel, nbFit, isDebugMode
 - [ ] #39 Quiz modal vs inline in notebook — modal in graph, inline in notebook

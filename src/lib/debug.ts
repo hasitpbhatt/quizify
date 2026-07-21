@@ -1,4 +1,5 @@
 export function isDebugMode(): boolean {
+  if (import.meta.env.PROD) return false;
   if (typeof window === 'undefined') return false;
   const fromUrl = new URLSearchParams(window.location.search).get('debug');
   if (fromUrl === '1') return true;
