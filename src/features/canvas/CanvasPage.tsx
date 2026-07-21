@@ -178,8 +178,10 @@ interface CanvasPageProps {
 
 export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPageProps) {
   const currentId = useSessionStore((s) => s.currentId);
-  const sessions = useSessionStore((s) => s.sessions);
-  const session = sessions.find((s) => s.id === currentId);
+  const session = useSessionStore((s) => {
+    const id = s.currentId;
+    return id ? s.sessions.find((ss) => ss.id === id) ?? null : null;
+  });
   const [activeQuiz, setActiveQuiz] = useState<{
     quizId: string;
     quiz: QuizData;
