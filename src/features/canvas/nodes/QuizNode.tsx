@@ -43,7 +43,7 @@ function QuizNodeInner(props: NodeProps) {
 
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const skipTyping = props.data.skipTyping === true;
-  const { revealed } = useTypingAnimation(props.id, data.prompt, skipTyping, 80);
+  const { revealed, skipAnimation } = useTypingAnimation(props.id, data.prompt, skipTyping, 80);
   const promptText = notebookMode ? data.prompt.slice(0, revealed) : data.prompt;
   const promptParagraphs = notebookMode && promptText.length > 0
     ? promptText.split(/\n+/)
@@ -69,7 +69,7 @@ function QuizNodeInner(props: NodeProps) {
   }, [data.state]);
 
   return (
-    <div ref={nodeRef} className={styles.node} data-node-type="quiz" data-state={data.state}>
+    <div ref={nodeRef} className={styles.node} data-node-type="quiz" data-state={data.state} onClick={() => { if (isAnimating) skipAnimation(); }}>
       <Handle type="target" position={Position.Left} />
       <div className={styles.format}>
         <span
