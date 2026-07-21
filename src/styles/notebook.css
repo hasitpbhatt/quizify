@@ -108,6 +108,25 @@
   border-color: var(--accent) !important;
 }
 
+/* --- Quiz state visual feedback --- */
+[data-notebook="true"] .react-flow__node-quiz[data-state="correct"] > div,
+[data-notebook="true"] .react-flow__node-quiz[data-state="mastered"] > div {
+  border-color: rgba(34, 197, 94, 0.5) !important;
+  border-style: solid !important;
+  background: rgba(34, 197, 94, 0.04) !important;
+}
+
+[data-notebook="true"] .react-flow__node-quiz[data-state="incorrect"] > div {
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  border-style: solid !important;
+  background: rgba(239, 68, 68, 0.04) !important;
+}
+
+[data-notebook="true"] .react-flow__node-quiz[data-state="partial"] > div {
+  border-color: rgba(234, 179, 8, 0.5) !important;
+  border-style: solid !important;
+}
+
 /* --- Restore NoteNode sticky note container styling --- */
 [data-notebook="true"] .react-flow__node-note > div {
   background: var(--note-bg) !important;
@@ -153,11 +172,11 @@
 /* --- Explanation / body text --- */
 [data-notebook="true"] [class*="explanation"],
 [data-notebook="true"] [class*="recapItem"] {
-  font-family: var(--font-canvas), 'Caveat', cursive !important;
-  font-size: 1.3rem !important;
+  font-family: Georgia, 'Times New Roman', serif !important;
+  font-size: 1.4rem !important;
   font-weight: 500 !important;
   color: var(--ink-color) !important;
-  line-height: 1.6 !important;
+  line-height: 1.7 !important;
   margin-bottom: var(--space-3);
 }
 
@@ -204,7 +223,13 @@
 }
 
 /* --- Paragraph-aware rendering for typing-revealed prose --- */
-[data-notebook="true"] [class*="explanationPara"],
+[data-notebook="true"] [class*="explanationPara"] {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif !important;
+  font-size: 1.4rem !important;
+  color: var(--ink-color) !important;
+  line-height: 1.7 !important;
+}
 [data-notebook="true"] [class*="promptPara"] {
   margin: 0;
   font-family: var(--font-canvas), 'Caveat', cursive !important;

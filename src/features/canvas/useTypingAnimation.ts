@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { ttsManager } from '@/lib/llm/ttsManager';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 
@@ -24,6 +24,8 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
   const hasReceivedProgressRef = useRef(false);
   const fallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fallbackIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fullTextRef = useRef(fullText);
+  fullTextRef.current = fullText;
 
   useEffect(() => {
     if (!shouldAnimate) {
@@ -120,5 +122,21 @@ export function useTypingAnimation(nodeId: string, fullText: string, skipAnimati
     };
   }, [nodeId, fullText, shouldAnimate, markTypingComplete, tickMs]);
 
-  return { revealed, isAnimating: shouldAnimate && revealed < fullText.length };
+  const skip = useCallback(() => {
+    const text = fullTextRef.current;
+    ttsManager.finishSegment(nodeId);
+    markTypingComplete(nodeId);
+    targetRef.current = text.length;
+    setRevealed(text.length);
+    if (fallbackTimeoutRef.current) {
+      clearTimeout(fallbackTimeoutRef.current);
+      fallbackTimeoutRef.current = null;
+    }
+    if (fallbackIntervalRef.current) {
+      clearInterval(fallbackIntervalRef.current);
+      fallbackIntervalRef.current = null;
+    }
+  }, [nodeId, markTypingComplete]);
+
+  return { revealed, isAnimating: shouldAnimate && revealed < fullText.length, skipAnimation: skip };
 }

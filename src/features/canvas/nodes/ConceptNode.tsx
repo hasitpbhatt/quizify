@@ -19,7 +19,7 @@ function ConceptNodeInner(props: NodeProps) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const textToRead = `${data.title}. ${data.explanation}`;
   const skipTyping = props.data.skipTyping === true;
-  const { revealed } = useTypingAnimation(props.id, textToRead, skipTyping);
+  const { revealed, isAnimating, skipAnimation } = useTypingAnimation(props.id, textToRead, skipTyping);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -111,7 +111,7 @@ function ConceptNodeInner(props: NodeProps) {
   ].filter(Boolean).join(' ');
 
   return (
-    <div className={nodeClass}>
+    <div className={nodeClass} onClick={() => { if (isAnimating) skipAnimation(); }}>
       <Handle type="target" position={Position.Left} />
       <div
         className={styles.title}
