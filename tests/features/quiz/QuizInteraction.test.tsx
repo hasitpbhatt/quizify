@@ -106,6 +106,7 @@ function renderQuiz(quiz?: QuizData) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockSubmit.mockReset();
+  mockSubmit.mockResolvedValue({ grade: 'correct', rationale: '', idealAnswer: '' });
   mockUseQuizAnswer.mockReturnValue({
     submit: mockSubmit,
     submitting: false,
