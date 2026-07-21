@@ -5,6 +5,7 @@ import styles from './ConceptNode.module.css';
 import { fetchTtsBlob } from '@/lib/llm/tts';
 import { useTypingAnimation } from '@/features/canvas/useTypingAnimation';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
+import { ttsManager } from '@/lib/llm/ttsManager';
 import type { ConceptData } from '@/shared/types';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
@@ -37,7 +38,8 @@ function ConceptNodeInner(props: NodeProps) {
 
   const isShell = data.example === 'Loading...';
 
-  // Cleanup audio resources on unmount
+  // Cleanup audio resources on unmount — only cancel speech if this node
+  // was the one speaking (notebook narration uses ttsManager, not per-node).
   useEffect(() => {
     return () => {
       if (audioRef.current) {
@@ -47,16 +49,20 @@ function ConceptNodeInner(props: NodeProps) {
           currentBlobUrlRef.current = null;
         }
       }
-      window.speechSynthesis.cancel();
+      if (isPlaying && !ttsManager.isPlaying) {
+        window.speechSynthesis.cancel();
+      }
     };
-  }, []);
+  }, [isPlaying]);
 
   const handlePlay = useCallback(async () => {
     if (isPlaying) {
       if (audioRef.current) {
         audioRef.current.pause();
       }
-      window.speechSynthesis.cancel();
+      if (!ttsManager.isPlaying) {
+        window.speechSynthesis.cancel();
+      }
       setIsPlaying(false);
       return;
     }

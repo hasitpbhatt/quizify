@@ -102,6 +102,10 @@ export function parseContentResponse(raw: string): ContentResponse {
     })
     .filter((item): item is QuizItem => item !== null);
 
+  if (quizzes.length === 0) {
+    console.warn('[contentParser] all quiz items were malformed — returning empty quizzes array');
+  }
+
   return {
     detail: {
       explanation: detailObj.explanation,

@@ -176,27 +176,37 @@ export async function runWithConcurrency(
   concurrency: number,
   fn: (item: { id: string; title: string; explanation: string }, index: number) => Promise<void>,
 ): Promise<void> {
+  const poolAbort = new AbortController();
+
+  const safeFn = async (item: { id: string; title: string; explanation: string }, i: number) => {
+    if (poolAbort.signal.aborted) return;
+    try {
+      await fn(item, i);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        poolAbort.abort(err);
+        return;
+      }
+      throw err;
+    }
+  };
+
   if (concurrency >= items.length) {
-    await Promise.all(items.map((item, i) => fn(item, i)));
+    const results = await Promise.allSettled(items.map((item, i) => safeFn(item, i)));
+    if (poolAbort.signal.aborted) throw poolAbort.signal.reason;
+    for (const r of results) {
+      if (r.status === 'rejected') throw r.reason;
+    }
   } else {
     let next = 0;
-    let abortErr: DOMException | null = null;
     const workers = Array.from({ length: concurrency }, async () => {
-      while (next < items.length && !abortErr) {
+      while (next < items.length && !poolAbort.signal.aborted) {
         const i = next++;
-        try {
-          await fn(items[i], i);
-        } catch (err) {
-          if (err instanceof DOMException && err.name === 'AbortError') {
-            abortErr = err;
-          } else {
-            throw err;
-          }
-        }
+        await safeFn(items[i], i);
       }
     });
     await Promise.all(workers);
-    if (abortErr) throw abortErr;
+    if (poolAbort.signal.aborted) throw poolAbort.signal.reason;
   }
 }
 
