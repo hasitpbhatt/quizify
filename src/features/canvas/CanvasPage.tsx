@@ -1075,59 +1075,59 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
 
         {!notebookMode && (
           <div className={styles.actionsRow}>
-              {onHome && (
+            {onHome && (
+              <button
+                className={styles.actionBtn}
+                onClick={onHome}
+                title="New session"
+                type="button"
+              >
+                <Plus size={14} />
+                <span>New</span>
+              </button>
+            )}
+
+            {(() => {
+              const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
+              const cycleTheme = () => {
+                const next = theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light';
+                setTheme(next);
+              };
+              return (
                 <button
                   className={styles.actionBtn}
-                  onClick={onHome}
-                  title="New session"
+                  onClick={cycleTheme}
+                  title={'Theme: ' + theme}
                   type="button"
                 >
-                  <Plus size={14} />
-                  <span>New</span>
+                  <ThemeIcon size={14} />
                 </button>
-              )}
+              );
+            })()}
 
-              {(() => {
-                const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
-                const cycleTheme = () => {
-                  const next = theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light';
-                  setTheme(next);
-                };
-                return (
-                  <button
-                    className={styles.actionBtn}
-                    onClick={cycleTheme}
-                    title={'Theme: ' + theme}
-                    type="button"
-                  >
-                    <ThemeIcon size={14} />
-                  </button>
-                );
-              })()}
-
-              <div className={styles.exportWrapper} ref={exportRef}>
-                <button
-                  className={styles.actionBtn}
-                  onClick={() => setShowExport((v) => !v)}
-                  title="Export"
-                >
-                  <Download size={14} />
-                  <span>Export</span>
-                  <ChevronDown size={12} />
-                </button>
-                {showExport && (
-                  <div className={styles.exportDropdown} data-open-up={exportOpenUp}>
-                    <button onClick={handleExportJson}>JSON</button>
-                    <button onClick={handleExportMarkdown}>Markdown</button>
-                    <button onClick={handleExportPng}>PNG</button>
-                  </div>
-                )}
-              </div>
-
-              <button className={styles.actionBtn} onClick={handleAddNote} title="Add note">
-                <Plus size={14} />
-                <span>Add note</span>
+            <div className={styles.exportWrapper} ref={exportRef}>
+              <button
+                className={styles.actionBtn}
+                onClick={() => setShowExport((v) => !v)}
+                title="Export"
+              >
+                <Download size={14} />
+                <span>Export</span>
+                <ChevronDown size={12} />
               </button>
+              {showExport && (
+                <div className={styles.exportDropdown} data-open-up={exportOpenUp}>
+                  <button onClick={handleExportJson}>JSON</button>
+                  <button onClick={handleExportMarkdown}>Markdown</button>
+                  <button onClick={handleExportPng}>PNG</button>
+                </div>
+              )}
+            </div>
+
+            <button className={styles.actionBtn} onClick={handleAddNote} title="Add note">
+              <Plus size={14} />
+              <span>Add note</span>
+            </button>
           </div>
         )}
 
