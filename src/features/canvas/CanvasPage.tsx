@@ -1130,14 +1130,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                 <span>Add note</span>
               </button>
 
-              <button
-                className={styles.actionBtn}
-                onClick={toggleNotebookMode}
-                title="Switch to notebook reading mode"
-              >
-                <BookOpen size={14} />
-                <span>Notebook</span>
-              </button>
             </>
           </div>
         )}
