@@ -211,15 +211,12 @@
 }
 
 .personaGrid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 @media (max-width: 580px) {
-  .personaGrid {
-    grid-template-columns: repeat(2, 1fr);
-  }
   .inputRow {
     flex-direction: column;
   }
@@ -229,11 +226,19 @@
   }
 }
 
-.personaHint {
-  margin: 0;
+.personaRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.personaLabel {
+  font-family: var(--font-ui);
   font-size: var(--fs-small);
-  color: var(--text-tertiary);
-  line-height: var(--lh-normal);
+  font-weight: var(--fw-h2);
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .sessionsSection {
@@ -421,202 +426,34 @@
   background: var(--accent-hover);
 }
 
-.settingsSection {
-  border-top: 1px solid var(--border-hairline);
-  padding-top: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.settingsToggle {
+.sessionToggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
   padding: var(--space-3) var(--space-4);
-  background: var(--bg-subtle);
-  border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-ui);
-  cursor: pointer;
-  font-family: var(--font-ui);
-  font-size: var(--fs-small);
-  color: var(--text-secondary);
-  transition: background var(--dur-fast) var(--ease-out);
-}
-
-.settingsToggle:hover {
-  background: var(--bg-elevated);
-}
-
-.settingsToggleLead,
-.settingsToggleTrail {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.chevronOpen {
-  transform: rotate(180deg);
-  transition: transform var(--dur) var(--ease-out);
-}
-
-.badgeOk {
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-caption);
-  color: var(--success);
-  background: rgba(46, 158, 91, 0.12);
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-pill);
-}
-
-.badgeWarn {
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-caption);
-  color: var(--warning);
-  background: rgba(217, 164, 65, 0.14);
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-pill);
-}
-
-.settingsPanel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  padding: var(--space-5);
-  background: var(--bg-subtle);
-  border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-ui);
-  animation: panelIn var(--dur) var(--ease-out) both;
-}
-
-@keyframes panelIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.fieldLabel {
-  font-family: var(--font-ui);
-  font-size: var(--fs-small);
-  font-weight: var(--fw-h2);
-  color: var(--text-primary);
-}
-
-.optional {
-  font-weight: var(--fw-body);
-  color: var(--text-tertiary);
-}
-
-.inputWrapper {
-  display: flex;
-  align-items: center;
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
-  padding: 0 var(--space-3);
-  transition:
-    border-color var(--dur-fast) var(--ease-out),
-    box-shadow var(--dur-fast) var(--ease-out);
-}
-
-.inputWrapper:focus-within {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-focus);
-}
-
-.monoInput {
-  flex: 1;
-  padding: var(--space-3) 0;
-  font-family: var(--font-mono);
-  font-size: var(--fs-small);
   background: transparent;
-  color: var(--text-primary);
-  border: none;
-  outline: none;
-}
-
-.monoInput::placeholder {
-  color: var(--text-tertiary);
-}
-
-.toggleBtn {
-  display: flex;
-  align-items: center;
-  padding: var(--space-2);
-  color: var(--text-tertiary);
-  border-radius: var(--radius-xs);
-  background: none;
-  border: none;
-  cursor: pointer;
-  transition: color var(--dur-fast) var(--ease-out);
-}
-
-.toggleBtn:hover {
-  color: var(--text-secondary);
-}
-
-.fieldHint {
-  margin: 0;
-  font-size: var(--fs-caption);
-  color: var(--text-tertiary);
-  line-height: var(--lh-normal);
-}
-
-.mutedLink {
-  color: var(--text-secondary);
-}
-
-.providerRow {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.providerBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 1;
-  justify-content: center;
-  padding: var(--space-3) var(--space-4);
-  border: 1.5px solid var(--border);
+  border: 1px dashed var(--border-hairline);
   border-radius: var(--radius-ui);
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
+  cursor: pointer;
   font-family: var(--font-ui);
   font-size: var(--fs-small);
-  font-weight: var(--fw-h2);
-  cursor: pointer;
+  color: var(--text-secondary);
   transition:
     background var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out),
     color var(--dur-fast) var(--ease-out);
 }
 
-.providerBtn:hover {
-  border-color: var(--accent-glass);
+.sessionToggle:hover {
+  background: var(--bg-subtle);
+  border-color: var(--border);
   color: var(--text-primary);
 }
 
-.providerBtnActive {
-  border-color: var(--accent);
-  background: var(--accent-subtle);
-  color: var(--accent);
-}
-
-:root[data-theme='dark'] .providerBtnActive {
-  color: var(--accent-hover);
+.chevronOpen {
+  transform: rotate(180deg);
+  transition: transform var(--dur) var(--ease-out);
 }
 
 .errorBanner {
@@ -681,8 +518,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .modal,
-  .settingsPanel {
+  .modal {
     animation: none;
   }
   .generateBtn:hover {

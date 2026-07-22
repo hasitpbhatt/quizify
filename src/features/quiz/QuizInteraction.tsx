@@ -8,14 +8,13 @@ import { FillBlank } from './formats/FillBlank';
 import { Ordering } from './formats/Ordering';
 import type { SubmitResult } from './useQuizAnswer';
 import { useQuizAnswer } from './useQuizAnswer';
-import { useSessionStore } from '@/shared/stores/sessionStore';
-import * as sessionsDb from '@/lib/db/sessionsDb';
 
 interface Props {
   quiz: QuizData;
   quizId: string;
   conceptTitle: string;
   onClose: () => void;
+  notebookMode?: boolean;
 }
 
 const badgeColors: Record<string, string> = {
@@ -86,47 +85,33 @@ function useFocusTrap(
   }, [containerRef, autoFocusSelector]);
 }
 
-export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) {
+export function QuizInteraction({ quiz, quizId, conceptTitle, onClose, notebookMode }: Props) {
   const { submit, submitting, error, attempts, retryInfo } = useQuizAnswer(quiz, quizId);
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
+  const [showRemediation, setShowRemediation] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
   const promptId = 'quiz-prompt-' + quizId;
 
   useFocusTrap(overlayRef, '.quiz-close-btn');
-
-  const handleResetQuiz = useCallback(async () => {
-    const { currentId, updateCurrent } = useSessionStore.getState();
-    if (!currentId) return;
-    const authoritative = await sessionsDb.getSession(currentId);
-    if (!authoritative) return;
-    const quizIndex = authoritative.nodes.findIndex(
-      (n) => n.id === quizId && n.data?.kind === 'quiz',
-    );
-    if (quizIndex === -1) return;
-    const updatedNodes = [...authoritative.nodes];
-    updatedNodes[quizIndex] = {
-      ...updatedNodes[quizIndex],
-      data: {
-        ...updatedNodes[quizIndex].data,
-        attempts: [],
-        state: 'untested',
-        bestScore: undefined,
-      } as QuizData,
-    };
-    await updateCurrent({ nodes: updatedNodes });
-    setSubmitted(false);
-    setResult(null);
-  }, [quizId]);
 
   const handleSubmit = useCallback(
     async (answer: string | string[]) => {
       const res = await submit(answer);
       setResult(res);
       setSubmitted(true);
+      if (res.grade === 'incorrect' || res.grade === 'partial') {
+        setShowRemediation(true);
+      }
     },
     [submit],
   );
+
+  const handleTryOnceMore = useCallback(() => {
+    setShowRemediation(false);
+    setSubmitted(false);
+    setResult(null);
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -147,18 +132,23 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
       role="dialog"
       aria-modal="true"
       aria-labelledby={promptId}
-      onClick={(e) => {
-        if (e.target === overlayRef.current) onClose();
-      }}
+      onClick={
+        notebookMode
+          ? undefined
+          : (e) => {
+              if (e.target === overlayRef.current) onClose();
+            }
+      }
       style={{
         position: 'fixed',
         inset: 0,
         zIndex: 100,
-        background: 'rgba(0,0,0,0.4)',
+        background: notebookMode ? 'transparent' : 'rgba(0,0,0,0.4)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backdropFilter: 'blur(4px)',
+        backdropFilter: notebookMode ? 'none' : 'blur(4px)',
+        pointerEvents: notebookMode ? 'none' : 'auto',
       }}
     >
       <div
@@ -172,6 +162,7 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
           maxHeight: '80vh',
           overflow: 'auto',
           boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+          pointerEvents: notebookMode ? 'auto' : undefined,
         }}
       >
         <div
@@ -275,6 +266,61 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
               </div>
             )}
           </div>
+        ) : result && showRemediation && result.grade !== 'correct' ? (
+          <div>
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 8,
+                marginBottom: 12,
+                background:
+                  result.grade === 'partial' ? 'rgba(234,179,8,0.1)' : 'rgba(239,68,68,0.1)',
+                border: result.grade === 'partial' ? '1px solid #eab308' : '1px solid #ef4444',
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 600,
+                  fontSize: 13,
+                  marginBottom: 8,
+                  color: result.grade === 'partial' ? '#eab308' : '#ef4444',
+                  fontFamily: 'var(--font-ui)',
+                }}
+              >
+                {result.grade === 'partial' ? '~ Almost there' : '\u2717 Not quite'}
+              </div>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: 'var(--text-primary)',
+                  fontFamily: 'var(--font-ui)',
+                  lineHeight: 1.5,
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>What to notice</div>
+                <div style={{ marginBottom: 12 }}>{result.rationale}</div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>The correct answer</div>
+                <div style={{ color: '#22c55e' }}>{quiz.correctAnswer}</div>
+              </div>
+            </div>
+            <button
+              onClick={handleTryOnceMore}
+              style={{
+                padding: '8px 20px',
+                borderRadius: 6,
+                border: 'none',
+                background: 'var(--accent)',
+                color: '#fff',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-ui)',
+                fontSize: 13,
+                fontWeight: 600,
+                width: '100%',
+              }}
+            >
+              Try once more
+            </button>
+          </div>
         ) : result ? (
           <div style={{ position: 'relative' }}>
             {result.grade === 'correct' && <ConfettiExplosion />}
@@ -284,17 +330,8 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
                 borderRadius: 8,
                 marginBottom: 12,
                 background:
-                  result.grade === 'correct'
-                    ? 'rgba(34,197,94,0.1)'
-                    : result.grade === 'partial'
-                      ? 'rgba(234,179,8,0.1)'
-                      : 'rgba(239,68,68,0.1)',
-                border:
-                  result.grade === 'correct'
-                    ? '1px solid #22c55e'
-                    : result.grade === 'partial'
-                      ? '1px solid #eab308'
-                      : '1px solid #ef4444',
+                  result.grade === 'correct' ? 'rgba(34,197,94,0.1)' : 'rgba(234,179,8,0.1)',
+                border: result.grade === 'correct' ? '1px solid #22c55e' : '1px solid #eab308',
               }}
             >
               <div
@@ -302,20 +339,11 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
                   fontWeight: 600,
                   fontSize: 14,
                   marginBottom: 4,
-                  color:
-                    result.grade === 'correct'
-                      ? '#22c55e'
-                      : result.grade === 'partial'
-                        ? '#eab308'
-                        : '#ef4444',
+                  color: result.grade === 'correct' ? '#22c55e' : '#eab308',
                   fontFamily: 'var(--font-ui)',
                 }}
               >
-                {result.grade === 'correct'
-                  ? '\u2713 Correct'
-                  : result.grade === 'partial'
-                    ? '~ Partial'
-                    : '\u2717 Incorrect'}
+                {result.grade === 'correct' ? '\u2713 Correct' : '~ Partial'}
               </div>
               <div
                 style={{
@@ -327,43 +355,6 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose }: Props) 
               >
                 {result.rationale}
               </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button
-                onClick={() => {
-                  setSubmitted(false);
-                  setResult(null);
-                }}
-                style={{
-                  padding: '8px 20px',
-                  borderRadius: 6,
-                  border: '1px solid var(--border)',
-                  background: 'var(--bg-elevated)',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-ui)',
-                  fontSize: 13,
-                }}
-              >
-                Try Again
-              </button>
-              <button
-                onClick={() => {
-                  handleResetQuiz();
-                }}
-                style={{
-                  padding: '8px 20px',
-                  borderRadius: 6,
-                  border: '1px solid var(--border)',
-                  background: 'transparent',
-                  color: 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-ui)',
-                  fontSize: 13,
-                }}
-              >
-                Reset quiz
-              </button>
             </div>
           </div>
         ) : null}

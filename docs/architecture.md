@@ -150,7 +150,7 @@ Input ──► fetchSourceContent() ──► SourceResult.content
 ## Store Architecture
 
 ```
-settingsStore ──┬── apiKey, jinaToken, persona, theme, provider
+settingsStore ──┬── persona, theme
                 └── localStorage "quizify:*" keys
 
 sessionStore ──┬── sessions[] + currentId

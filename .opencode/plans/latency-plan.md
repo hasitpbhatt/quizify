@@ -22,13 +22,6 @@ Everything below reads this profile.
 - **LLM call counter** per generate. Dev-flagged console output. Capture
   baseline before any other change.
 
-## Phase 1 — Remove Jina entirely
-- `fetchSourceContent.ts`: delete `fetchViaJina`/`JINA_BASE`/serial block
-  (`:172-179`)/`'jina'` union (`:8`). New chain: cache → parallel proxy race
-  (first 3, escalate) → LLM fallback, hard 8s fetch deadline.
-- Full `jinaToken` cleanup: `settingsStore.ts`, `WelcomeModal.tsx`,
-  `App.tsx`, `public/_headers:2`, and Jina tests.
-
 ## Phase 2 — Minimize call count
 - Keep the single combined content call (explanation + quizzes, one
   call/concept). `allowStreamingSplit=false` on Mistral keeps it collapsed.

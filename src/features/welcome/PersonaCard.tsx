@@ -29,12 +29,12 @@ export function PersonaCard({
       role="radio"
       aria-checked={selected}
       aria-label={`${label}: ${description}`}
+      title={description}
       type="button"
     >
-      <Icon size={24} className={styles.icon} />
-      <div className={styles.title}>{label}</div>
-      <div className={styles.sublabel}>{sublabel}</div>
-      <div className={styles.description}>{description}</div>
+      <Icon size={14} className={styles.icon} />
+      <span className={styles.title}>{label}</span>
+      <span className={styles.sublabel}>· {sublabel}</span>
     </button>
   );
 }
