@@ -67,7 +67,6 @@
 
 .exportDropdown {
   position: absolute;
-  bottom: calc(100% + 6px);
   left: 0;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
@@ -75,6 +74,14 @@
   box-shadow: var(--shadow-lg);
   overflow: hidden;
   min-width: 130px;
+}
+
+.exportDropdown[data-open-up='true'] {
+  bottom: calc(100% + 6px);
+}
+
+.exportDropdown[data-open-up='false'] {
+  top: calc(100% + 6px);
 }
 
 .exportDropdown button {
@@ -157,17 +164,6 @@
   animation: graphCueIn 0.3s var(--ease-out) both;
   max-width: min(90vw, 440px);
   font-family: var(--font-ui);
-}
-
-@keyframes graphCueIn {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
 }
 
 .graphCueContent {
@@ -304,5 +300,16 @@
   }
   to {
     opacity: 1;
+  }
+}
+
+@keyframes graphCueIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 }

@@ -1,29 +1,17 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
-import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { readNotebookModePreference } from '@/shared/notebookModePreference';
-import { ChevronDown, X, Sun, Moon, Monitor, Plus } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import styles from './Toolbar.module.css';
 
-interface ToolbarProps {
-  onNewSession?: () => void;
-}
-
-export function Toolbar({ onNewSession }: ToolbarProps) {
+export function Toolbar() {
   const { sessions, currentId, load, select, remove } = useSessionStore();
-  const { theme, setTheme } = useSettingsStore();
   const [open, setOpen] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null);
   const [focusIndex, setFocusIndex] = useState(-1);
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const cycleTheme = () => {
-    const next = theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light';
-    setTheme(next);
-  };
-  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
 
   useEffect(() => {
     load();
@@ -35,7 +23,7 @@ export function Toolbar({ onNewSession }: ToolbarProps) {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false);
-        setConfirmingDelete(null);
+        setDeleteCandidate(null);
         setFocusIndex(-1);
       }
     };
@@ -86,13 +74,13 @@ export function Toolbar({ onNewSession }: ToolbarProps) {
           if (focusIndex >= 0 && focusIndex < sessions.length) {
             select(sessions[focusIndex].id);
             setOpen(false);
-            setConfirmingDelete(null);
+            setDeleteCandidate(null);
           }
           break;
         case 'Escape':
           e.preventDefault();
+          if (deleteCandidate) { setDeleteCandidate(null); break; }
           setOpen(false);
-          setConfirmingDelete(null);
           break;
       }
     },
@@ -137,22 +125,6 @@ export function Toolbar({ onNewSession }: ToolbarProps) {
 
       <div className={styles.spacer} />
 
-      {onNewSession && (
-        <button className={styles.newBtn} onClick={onNewSession} title="New session" type="button">
-          <Plus size={16} />
-          <span>New</span>
-        </button>
-      )}
-
-      <button
-        className={styles.themeToggle}
-        onClick={cycleTheme}
-        title={'Theme: ' + theme}
-        type="button"
-      >
-        <ThemeIcon size={16} />
-      </button>
-
       <div className={styles.sessionSelect} ref={ref} onKeyDown={handleKeyDown}>
         <button
           className={styles.sessionTrigger}
@@ -181,7 +153,7 @@ export function Toolbar({ onNewSession }: ToolbarProps) {
                   useNotebookStore.getState().setNotebookMode(readNotebookModePreference(s.id));
                   select(s.id);
                   setOpen(false);
-                  setConfirmingDelete(null);
+                  setDeleteCandidate(null);
                 }}
                 onMouseEnter={() => setFocusIndex(i)}
               >
@@ -191,27 +163,69 @@ export function Toolbar({ onNewSession }: ToolbarProps) {
                   className={styles.deleteBtn}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (confirmingDelete === s.id) {
-                      remove(s.id);
-                      setConfirmingDelete(null);
-                    } else {
-                      setConfirmingDelete(s.id);
-                    }
+                    setDeleteCandidate(s.id);
                   }}
-                  aria-label={
-                    confirmingDelete === s.id
-                      ? 'Confirm delete ' + s.name
-                      : 'Delete session ' + s.name
-                  }
+                  aria-label={'Delete session ' + s.name}
+                  title="Delete session"
                   type="button"
                 >
-                  {confirmingDelete === s.id ? 'Confirm?' : <X size={14} />}
+                  <X size={14} />
                 </button>
               </div>
             ))}
+            <div className={styles.localNote}>
+              Sessions are stored locally in this browser (IndexedDB).
+            </div>
           </div>
         )}
       </div>
+
+      {deleteCandidate &&
+        (() => {
+          const sessionToDelete = sessions.find((s) => s.id === deleteCandidate);
+          return (
+            <div className={styles.dialogOverlay} onClick={() => setDeleteCandidate(null)}>
+              <div
+                className={styles.dialogModal}
+                onClick={(e) => e.stopPropagation()}
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="toolbar-delete-title"
+                aria-describedby="toolbar-delete-desc"
+              >
+                <h2 id="toolbar-delete-title" className={styles.dialogTitle}>
+                  Delete Session
+                </h2>
+                <p id="toolbar-delete-desc" className={styles.dialogDesc}>
+                  Are you sure you want to delete the session "
+                  {sessionToDelete?.name || 'this session'}"? This action cannot be undone.
+                </p>
+                <div className={styles.dialogButtons}>
+                  <button
+                    className={styles.dialogCancelBtn}
+                    onClick={() => setDeleteCandidate(null)}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className={styles.dialogConfirmBtn}
+                    onClick={() => {
+                      if (deleteCandidate) {
+                        remove(deleteCandidate);
+                        setDeleteCandidate(null);
+                        setOpen(false);
+                      }
+                    }}
+                    type="button"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }

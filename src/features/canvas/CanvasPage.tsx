@@ -31,6 +31,7 @@ import { SummaryQuizInteraction } from '@/features/quiz/SummaryQuizInteraction';
 import { NoteNode } from './nodes/NoteNode';
 import { MobileFocusView } from './MobileFocusView';
 import { useIsMobile } from '@/shared/useMediaQuery';
+import { useDismissibleCue } from '@/shared/useDismissibleCue';
 import {
   Plus,
   BookOpen,
@@ -44,6 +45,9 @@ import {
   VolumeX,
   List,
   SkipForward,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { writeNotebookModePreference } from '@/shared/notebookModePreference';
@@ -189,9 +193,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   } | null>(null);
   const [summaryQuiz, setSummaryQuiz] = useState<boolean>(false);
   const [revealedQuizIds, setRevealedQuizIds] = useState<Set<string>>(new Set());
-  const [showOrientationCue, setShowOrientationCue] = useState(false);
-  const [showGraphCue, setShowGraphCue] = useState(false);
-  const [showLearningCue, setShowLearningCue] = useState(false);
   const [learningCueDismissed, setLearningCueDismissed] = useState(false);
   const updateCurrent = useSessionStore((s) => s.updateCurrent);
   const reactFlow = useReactFlow();
@@ -200,6 +201,8 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const toggleNotebookMode = useNotebookStore((s) => s.toggleNotebookMode);
   // During generation, stream content without notebook TTS gating or typewriter delays.
   const immersiveNotebook = notebookMode && !isGenerating;
+  const theme = useSettingsStore((s) => s.theme);
+  const setTheme = useSettingsStore((s) => s.setTheme);
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
   const ttsRate = useSettingsStore((s) => s.ttsRate);
   const setTtsEnabled = useSettingsStore((s) => s.setTtsEnabled);
@@ -226,81 +229,64 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     writeNotebookModePreference(currentId, notebookMode);
   }, [currentId, notebookMode]);
 
-  const dismissOrientationCue = useCallback(() => {
-    setShowOrientationCue(false);
-    if (!currentId) return;
-    try {
-      sessionStorage.setItem(`quizify:nbintro:${currentId}`, 'seen');
-    } catch {
-      // Non-fatal if session storage is unavailable.
-    }
-  }, [currentId]);
-
-  const dismissGraphCue = useCallback(() => {
-    setShowGraphCue(false);
-    if (!currentId) return;
-    try {
-      sessionStorage.setItem(`quizify:graphintro:${currentId}`, 'seen');
-    } catch {
-      // Non-fatal if session storage is unavailable.
-    }
-  }, [currentId]);
-
-  useEffect(() => {
-    const idx = getUnlockedConceptIndex(session?.nodes ?? []);
-    if (!notebookMode || !session || !currentId || isGenerating || idx !== 0) {
-      setShowOrientationCue(false);
-      return;
-    }
-
-    try {
-      if (sessionStorage.getItem(`quizify:nbintro:${currentId}`) === 'seen') {
-        setShowOrientationCue(false);
-        return;
+  const conceptTitles = useMemo(() => {
+    const map = new Map<string, string>();
+    if (session) {
+      for (const n of session.nodes) {
+        if (n.data.kind === 'concept') {
+          const c = n.data as ConceptData;
+          map.set(n.id, c.title);
+        }
       }
-    } catch {
-      // If storage is unavailable, we still show the cue for this visit.
     }
+    return map;
+  }, [session]);
 
-    const timer = setTimeout(() => setShowOrientationCue(true), 450);
-    return () => clearTimeout(timer);
-  }, [notebookMode, session, currentId, isGenerating]);
+  const concepts = useMemo(() => {
+    return (session?.nodes ?? [])
+      .filter((n): n is CanvasNode & { data: ConceptData } => n.data.kind === 'concept')
+      .sort((a, b) => a.data.index - b.data.index);
+  }, [session?.nodes]);
 
-  // Graph-mode orientation cue: shown once per session when canvas first loads with nodes.
-  useEffect(() => {
-    if (notebookMode || !session || !currentId || isGenerating) {
-      setShowGraphCue(false);
-      return;
-    }
-    const hasNodes = session.nodes.some((n) => n.data.kind === 'concept');
-    if (!hasNodes) {
-      setShowGraphCue(false);
-      return;
-    }
+  const nextAction: NextLearningAction | null = useMemo(() => {
+    if (!session) return null;
+    const progress = normalizeLearningProgress(
+      session.lastConceptId,
+      session.completedConceptIds,
+      session.nextReviewAtByConceptId,
+      session.lastActivityAt,
+    );
+    const orderedIds = concepts.map((c) => c.id);
+    return getNextLearningAction(progress, orderedIds);
+  }, [session, concepts]);
 
-    try {
-      if (sessionStorage.getItem(`quizify:graphintro:${currentId}`) === 'seen') {
-        setShowGraphCue(false);
-        return;
-      }
-    } catch {
-      // Fall through — show the cue.
-    }
+  const currentIdx = getUnlockedConceptIndex(session?.nodes ?? []);
+  const hasConceptNodes = session?.nodes.some((n) => n.data.kind === 'concept') ?? false;
 
-    const timer = setTimeout(() => setShowGraphCue(true), 600);
-    return () => clearTimeout(timer);
-  }, [notebookMode, session, currentId, isGenerating]);
+  const { show: showOrientationCue, dismiss: dismissOrientationCue } = useDismissibleCue({
+    storageKey: currentId ? `quizify:nbintro:${currentId}` : '',
+    delay: 450,
+    enabled: !!notebookMode && !!session && !!currentId && !isGenerating && currentIdx === 0,
+  });
 
-  const dismissLearningCue = useCallback(() => {
-    setShowLearningCue(false);
+  const { show: showGraphCue, dismiss: dismissGraphCue } = useDismissibleCue({
+    storageKey: currentId ? `quizify:graphintro:${currentId}` : '',
+    delay: 600,
+    enabled: !notebookMode && !!session && !!currentId && !isGenerating && hasConceptNodes,
+  });
+
+  const { show: showLearningCue, dismiss: dismissLearningCue } = useDismissibleCue({
+    storageKey: currentId ? `quizify:learningcue:${currentId}` : '',
+    delay: 450,
+    enabled:
+      !!notebookMode && !!session && !!currentId && !isGenerating && !!nextAction &&
+      !learningCueDismissed && !showOrientationCue,
+  });
+
+  const dismissLearningCueLocal = useCallback(() => {
     setLearningCueDismissed(true);
-    if (!currentId) return;
-    try {
-      sessionStorage.setItem(`quizify:learningcue:${currentId}`, 'dismissed');
-    } catch {
-      // Non-fatal if session storage is unavailable.
-    }
-  }, [currentId]);
+    dismissLearningCue();
+  }, [dismissLearningCue]);
 
   const focusOnActiveConcept = useCallback(
     (conceptId: string, includeQuizzes = false) => {
@@ -347,79 +333,13 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     [],
   );
 
-  const conceptTitles = useMemo(() => {
-    const map = new Map<string, string>();
-    if (session) {
-      for (const n of session.nodes) {
-        if (n.data.kind === 'concept') {
-          const c = n.data as ConceptData;
-          map.set(n.id, c.title);
-        }
-      }
-    }
-    return map;
-  }, [session]);
 
-  const concepts = useMemo(() => {
-    return (session?.nodes ?? [])
-      .filter((n): n is CanvasNode & { data: ConceptData } => n.data.kind === 'concept')
-      .sort((a, b) => a.data.index - b.data.index);
-  }, [session?.nodes]);
-
-  const nextAction: NextLearningAction | null = useMemo(() => {
-    if (!session) return null;
-    const progress = normalizeLearningProgress(
-      session.lastConceptId,
-      session.completedConceptIds,
-      session.nextReviewAtByConceptId,
-      session.lastActivityAt,
-    );
-    const orderedIds = concepts.map((c) => c.id);
-    return getNextLearningAction(progress, orderedIds);
-  }, [session, concepts]);
 
   const handleCueAction = useCallback(() => {
     if (!nextAction || nextAction.kind === 'complete') return;
     focusOnActiveConcept(nextAction.conceptId, true);
-    setShowLearningCue(false);
-  }, [nextAction, focusOnActiveConcept]);
-
-  useEffect(() => {
-    if (!notebookMode || !session || !currentId || isGenerating || !nextAction) {
-      setShowLearningCue(false);
-      return;
-    }
-
-    if (learningCueDismissed) {
-      setShowLearningCue(false);
-      return;
-    }
-
-    try {
-      if (sessionStorage.getItem(`quizify:learningcue:${currentId}`) === 'dismissed') {
-        setShowLearningCue(false);
-        return;
-      }
-    } catch {
-      // Fall through — show the cue.
-    }
-
-    if (showOrientationCue) {
-      setShowLearningCue(false);
-      return;
-    }
-
-    const timer = setTimeout(() => setShowLearningCue(true), 450);
-    return () => clearTimeout(timer);
-  }, [
-    notebookMode,
-    session,
-    currentId,
-    isGenerating,
-    nextAction,
-    learningCueDismissed,
-    showOrientationCue,
-  ]);
+    dismissLearningCueLocal();
+  }, [nextAction, focusOnActiveConcept, dismissLearningCueLocal]);
 
   const currentConceptIndex = useMemo(
     () => getUnlockedConceptIndex(session?.nodes ?? []),
@@ -500,6 +420,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const [captionVisible, setCaptionVisible] = useState<boolean>(false);
 
   const [showExport, setShowExport] = useState(false);
+  const [exportOpenUp, setExportOpenUp] = useState(true);
   const exportRef = useRef<HTMLDivElement>(null);
 
   const [showOutline, setShowOutline] = useState(false);
@@ -530,6 +451,15 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
 
   useEffect(() => {
     if (!showExport) return;
+
+    // Measure available space and flip dropdown direction accordingly.
+    const wrapper = exportRef.current;
+    if (wrapper) {
+      const rect = wrapper.getBoundingClientRect();
+      const spaceAbove = rect.top;
+      setExportOpenUp(spaceAbove > 140);
+    }
+
     const handler = (e: MouseEvent) => {
       if (
         exportRef.current &&
@@ -1144,6 +1074,26 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         {!notebookMode && (
           <div className={styles.actionsRow}>
             <>
+              {onHome && (
+                <button className={styles.actionBtn} onClick={onHome} title="New session" type="button">
+                  <Plus size={14} />
+                  <span>New</span>
+                </button>
+              )}
+
+              {(() => {
+                const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
+                const cycleTheme = () => {
+                  const next = theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light';
+                  setTheme(next);
+                };
+                return (
+                  <button className={styles.actionBtn} onClick={cycleTheme} title={'Theme: ' + theme} type="button">
+                    <ThemeIcon size={14} />
+                  </button>
+                );
+              })()}
+
               <div className={styles.exportWrapper} ref={exportRef}>
                 <button
                   className={styles.actionBtn}
@@ -1155,7 +1105,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                   <ChevronDown size={12} />
                 </button>
                 {showExport && (
-                  <div className={styles.exportDropdown}>
+                  <div className={styles.exportDropdown} data-open-up={exportOpenUp}>
                     <button onClick={handleExportJson}>JSON</button>
                     <button onClick={handleExportMarkdown}>Markdown</button>
                     <button onClick={handleExportPng}>PNG</button>
@@ -1171,7 +1121,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
               <button
                 className={styles.actionBtn}
                 onClick={toggleNotebookMode}
-                title="Notebook view"
+                title="Switch to notebook reading mode"
               >
                 <BookOpen size={14} />
                 <span>Notebook</span>
@@ -1229,7 +1179,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
             )}
             <button
               className="notebookLearningCueClose"
-              onClick={dismissLearningCue}
+              onClick={dismissLearningCueLocal}
               type="button"
               aria-label="Dismiss"
             >
