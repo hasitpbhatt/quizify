@@ -279,8 +279,13 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     storageKey: currentId ? `quizify:learningcue:${currentId}` : '',
     delay: 450,
     enabled:
-      !!notebookMode && !!session && !!currentId && !isGenerating && !!nextAction &&
-      !learningCueDismissed && !showOrientationCue,
+      !!notebookMode &&
+      !!session &&
+      !!currentId &&
+      !isGenerating &&
+      !!nextAction &&
+      !learningCueDismissed &&
+      !showOrientationCue,
   });
 
   const dismissLearningCueLocal = useCallback(() => {
@@ -332,8 +337,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     },
     [],
   );
-
-
 
   const handleCueAction = useCallback(() => {
     if (!nextAction || nextAction.kind === 'complete') return;
@@ -1075,7 +1078,12 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
           <div className={styles.actionsRow}>
             <>
               {onHome && (
-                <button className={styles.actionBtn} onClick={onHome} title="New session" type="button">
+                <button
+                  className={styles.actionBtn}
+                  onClick={onHome}
+                  title="New session"
+                  type="button"
+                >
                   <Plus size={14} />
                   <span>New</span>
                 </button>
@@ -1088,7 +1096,12 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                   setTheme(next);
                 };
                 return (
-                  <button className={styles.actionBtn} onClick={cycleTheme} title={'Theme: ' + theme} type="button">
+                  <button
+                    className={styles.actionBtn}
+                    onClick={cycleTheme}
+                    title={'Theme: ' + theme}
+                    type="button"
+                  >
                     <ThemeIcon size={14} />
                   </button>
                 );

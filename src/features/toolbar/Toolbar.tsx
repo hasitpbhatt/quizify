@@ -79,7 +79,10 @@ export function Toolbar() {
           break;
         case 'Escape':
           e.preventDefault();
-          if (deleteCandidate) { setDeleteCandidate(null); break; }
+          if (deleteCandidate) {
+            setDeleteCandidate(null);
+            break;
+          }
           setOpen(false);
           break;
       }
