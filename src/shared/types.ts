@@ -42,6 +42,7 @@ export interface ConceptData {
   title: string;
   explanation: string;
   example: string;
+  streaming?: boolean;
   sourceReference?: string;
   sourceUrl?: string;
 }
