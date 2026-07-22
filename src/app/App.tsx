@@ -311,7 +311,7 @@ export function App() {
   const main =
     page === 'progress' ? (
       <div key="progress" className="pageEnter">
-        <Toolbar canvasPage={false} />
+        <Toolbar />
         <div className={styles.actionBar}>
           <button className={styles.actionBtn} onClick={goWelcome} type="button">
             <Plus size={14} />

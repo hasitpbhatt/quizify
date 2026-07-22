@@ -1075,7 +1075,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
 
         {!notebookMode && (
           <div className={styles.actionsRow}>
-            <>
               {onHome && (
                 <button
                   className={styles.actionBtn}
@@ -1129,8 +1128,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                 <Plus size={14} />
                 <span>Add note</span>
               </button>
-
-            </>
           </div>
         )}
 
