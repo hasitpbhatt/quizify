@@ -9,7 +9,11 @@ import {
   X,
   Clock,
   ChevronDown,
+  BookOpen,
+  Link2,
+  Lightbulb,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { PersonaCard } from './PersonaCard';
 import { useWelcomeState, EXAMPLE_CHIPS } from './useWelcomeState';
 import { useSessionStore } from '@/shared/stores/sessionStore';
@@ -19,14 +23,28 @@ import {
   normalizeLearningProgress,
   type NextLearningAction,
 } from '@/shared/learningProgress';
-import type { Persona, Session } from '@/shared/types';
+import type { ConceptData, Persona, Session } from '@/shared/types';
 import styles from './WelcomeModal.module.css';
 
-const PERSONA_ICONS: Record<string, typeof Sparkles> = {
+const PERSONA_ICONS: Record<Persona, LucideIcon> = {
   curious: Sparkles,
   student: GraduationCap,
   professional: Briefcase,
   expert: Microscope,
+};
+
+const CHIP_ICON_MAP: Record<string, React.ElementType> = {
+  'https://en.wikipedia.org/wiki/Photosynthesis': BookOpen,
+  'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function':
+    Link2,
+  'agentic AI': Lightbulb,
+};
+
+const LABEL_PREFIX_MAP: Record<string, string> = {
+  'https://en.wikipedia.org/wiki/Photosynthesis': 'Read',
+  'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function':
+    'Read',
+  'agentic AI': 'Explore',
 };
 
 function relativeTime(date: Date): string {
@@ -43,10 +61,10 @@ function relativeTime(date: Date): string {
 
 function getSessionNextAction(session: Session): NextLearningAction | null {
   const conceptIds = session.nodes
-    .filter((node) => node.data.kind === 'concept')
+    .filter((node) => node.data?.kind === 'concept')
     .sort((a, b) => {
-      const ai = a.data.kind === 'concept' ? a.data.index : 0;
-      const bi = b.data.kind === 'concept' ? b.data.index : 0;
+      const ai = a.data.kind === 'concept' ? (a.data as ConceptData).index : 0;
+      const bi = b.data.kind === 'concept' ? (b.data as ConceptData).index : 0;
       return ai - bi;
     })
     .map((node) => node.id);
@@ -74,12 +92,94 @@ function actionLabel(action: NextLearningAction): string {
 }
 
 function formatConceptProgress(session: Session): string {
-  const conceptIds = session.nodes.filter((node) => node.data.kind === 'concept').map((n) => n.id);
+  const conceptIds = session.nodes.filter((node) => node.data?.kind === 'concept').map((n) => n.id);
   const total = conceptIds.length;
   if (total === 0) return '';
   const done = (session.completedConceptIds ?? []).filter((id) => conceptIds.includes(id)).length;
   if (done >= total) return 'Completed';
   return `${done} of ${total} concepts done`;
+}
+
+function SessionCard({
+  session,
+  onSelect,
+  onDelete,
+  badge,
+}: {
+  session: Session;
+  onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
+  badge?: string;
+}) {
+  const Icon = PERSONA_ICONS[session.persona] ?? Sparkles;
+  const nodesList = session.nodes || [];
+  const conceptCount = nodesList.filter((n) => n.data?.kind === 'concept').length;
+  const progressLabel = formatConceptProgress(session);
+
+  return (
+    <div
+      className={styles.sessionCard}
+      onClick={() => onSelect(session.id)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(session.id);
+        }
+      }}
+    >
+      {badge && <span className={styles.resumeBadge}>{badge}</span>}
+      <ArrowRight size={14} className={styles.sessionCardArrow} />
+      <Icon size={16} />
+      <div className={styles.sessionInfo}>
+        <span className={styles.sessionName}>{session.name}</span>
+        <span className={styles.sessionMeta}>
+          {session.hostname && (
+            <>
+              <Globe size={11} />
+              <span>{session.hostname}</span>
+              <span className={styles.sessionDot}>·</span>
+            </>
+          )}
+          <Clock size={11} />
+          <span>{relativeTime(new Date(session.updatedAt))}</span>
+          {conceptCount > 0 && (
+            <>
+              <span className={styles.sessionDot}>·</span>
+              <span>
+                {conceptCount} concept
+                {conceptCount !== 1 ? 's' : ''}
+              </span>
+            </>
+          )}
+          {progressLabel && (
+            <>
+              <span className={styles.sessionDot}>·</span>
+              <span
+                style={{
+                  color: progressLabel === 'Completed' ? 'var(--success)' : 'var(--text-secondary)',
+                }}
+              >
+                {progressLabel}
+              </span>
+            </>
+          )}
+        </span>
+      </div>
+      <button
+        className={styles.sessionDelete}
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(session.id);
+        }}
+        aria-label={`Delete session ${session.name}`}
+        type="button"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
 }
 
 interface WelcomeModalProps {
@@ -95,7 +195,7 @@ const PERSONAS: {
   label: string;
   sublabel: string;
   description: string;
-  icon: typeof Sparkles;
+  icon: LucideIcon;
 }[] = [
   {
     value: 'curious',
@@ -149,6 +249,7 @@ export function WelcomeModal({
       return false;
     }
   });
+  const [dismissedStorage, setDismissedStorage] = useState(false);
 
   const resumeSession = useMemo(() => {
     const withContent = sessions.filter((session) =>
@@ -181,7 +282,7 @@ export function WelcomeModal({
       result.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sortBy === 'concepts') {
       const getConceptCount = (s: (typeof sessions)[0]) =>
-        s.nodes.filter((n) => n.data.kind === 'concept').length;
+        s.nodes.filter((n) => n.data?.kind === 'concept').length;
       result.sort((a, b) => getConceptCount(b) - getConceptCount(a));
     }
     return result;
@@ -228,7 +329,7 @@ export function WelcomeModal({
       try {
         localStorage.setItem('quizify:storage-disclosure', 'true');
       } catch {
-        /* storage unavailable */
+        // storage unavailable
       }
       setStorageAcknowledged(true);
     }
@@ -240,12 +341,14 @@ export function WelcomeModal({
     setExampleUrl(chipUrl);
   };
 
+  const showStorageNotice = !storageAcknowledged && !dismissedStorage && !error;
+
   return (
     <div className={styles.overlay}>
       <div className={styles.ambient} aria-hidden />
 
       <main
-        className={styles.modal}
+        className={`${styles.modal} ${showSessions && sessions.length > 0 ? styles.modalWide : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="welcome-heading"
@@ -263,6 +366,7 @@ export function WelcomeModal({
             </button>
           </div>
         )}
+
         <header className={styles.hero}>
           <div className={styles.eyebrow}>
             <Sparkles size={14} />
@@ -272,11 +376,111 @@ export function WelcomeModal({
             Turn any topic into a canvas you actually remember.
           </h1>
           <p className={styles.subheading}>
-            Paste a URL or type a topic and Quizify builds a guided tutor lesson — concepts,
-            quizzes, and a final recap. Tutor view is the default; switch to Map anytime to see the
-            full outline.
+            Paste a URL or topic. Quizify builds a guided, interactive lesson — concepts, quizzes,
+            and a recap.
           </p>
         </header>
+
+        {/* URL input is the primary conversion action — sits directly below the hero,
+            before persona, so new visitors see the input first. Returning users
+            find the resume card further down. */}
+        <section className={styles.section}>
+          <label className={styles.label} htmlFor="url-input">
+            What do you want to learn?
+          </label>
+          <div className={styles.inputRow}>
+            <input
+              id="url-input"
+              className={styles.urlInput}
+              type="text"
+              placeholder="Paste a URL or type a topic — e.g. an article link or 'agentic AI'"
+              value={url}
+              autoFocus
+              onChange={(e) => {
+                setUrl(e.target.value);
+                setExampleUrl('');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSubmit();
+              }}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            {/* Show a hint on hover + a helper text below when the button
+                is disabled so users always know why they can't submit. */}
+            <button
+              className={styles.generateBtn}
+              disabled={!submitEnabled}
+              onClick={handleSubmit}
+              type="button"
+              title={
+                !submitEnabled ? (submitDisabledReason ?? undefined) : 'Press Enter to generate'
+              }
+            >
+              <span>Generate</span>
+              <ArrowRight size={16} />
+            </button>
+          </div>
+          {!submitEnabled && submitDisabledReason && (
+            <p className={styles.generateHint}>{submitDisabledReason}</p>
+          )}
+          {showStorageNotice && (
+            <div className={styles.storageNotice}>
+              <p role="note">
+                Lessons are saved locally in this browser (IndexedDB). They are not synced to the
+                cloud.
+              </p>
+              <button
+                className={styles.storageDismiss}
+                onClick={() => {
+                  setDismissedStorage(true);
+                  setStorageAcknowledged(true);
+                }}
+                aria-label="Dismiss"
+                type="button"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+          <div className={styles.chips}>
+            {EXAMPLE_CHIPS.map((chip) => {
+              const ChipIcon = CHIP_ICON_MAP[chip.url];
+              const prefix = LABEL_PREFIX_MAP[chip.url] ?? 'Try';
+              return (
+                <button
+                  key={chip.url}
+                  className={`${styles.chip} ${exampleUrl === chip.url ? styles.chipActive : ''}`}
+                  onClick={() => pickExample(chip.url)}
+                  type="button"
+                >
+                  {ChipIcon && <ChipIcon size={12} />}
+                  <span>
+                    {prefix}: {chip.label.split(': ').pop()}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <div className={styles.personaRow}>
+          <span className={styles.personaLabel}>Teaching style:</span>
+          <div className={styles.personaGrid} role="radiogroup" aria-label="Teaching style">
+            {PERSONAS.map((p) => (
+              <PersonaCard
+                key={p.value}
+                persona={p.value}
+                label={p.label}
+                sublabel={p.sublabel}
+                description={p.description}
+                icon={p.icon}
+                selected={persona === p.value}
+                onSelect={setPersona}
+              />
+            ))}
+          </div>
+        </div>
 
         {resumeSession && (
           <section className={styles.resumeSection}>
@@ -316,79 +520,40 @@ export function WelcomeModal({
           </section>
         )}
 
-        <section className={styles.section}>
-          <label className={styles.label} htmlFor="url-input">
-            What do you want to learn?
-          </label>
-          <div className={styles.inputRow}>
-            <input
-              id="url-input"
-              className={styles.urlInput}
-              type="text"
-              placeholder="Paste a URL or type a topic — e.g. an article link or 'agentic AI'"
-              value={url}
-              autoFocus
-              onChange={(e) => {
-                setUrl(e.target.value);
-                setExampleUrl('');
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSubmit();
-              }}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <button
-              className={styles.generateBtn}
-              disabled={!submitEnabled}
-              onClick={handleSubmit}
-              type="button"
-              title={submitDisabledReason ?? undefined}
-            >
-              <span>Generate</span>
-              <ArrowRight size={16} />
-            </button>
-          </div>
-          {persona && submitDisabledReason && (
-            <p className={styles.generateHint}>{submitDisabledReason}</p>
-          )}
-          {!storageAcknowledged && (
-            <p className={styles.storageNotice} role="note">
-              Lessons are saved locally in this browser (IndexedDB). They are not synced to the
-              cloud.
-            </p>
-          )}
-          <div className={styles.chips}>
-            {EXAMPLE_CHIPS.map((chip) => (
-              <button
-                key={chip.label}
-                className={`${styles.chip} ${exampleUrl === chip.url ? styles.chipActive : ''}`}
-                onClick={() => pickExample(chip.url)}
-                type="button"
-              >
-                {chip.label}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <div className={styles.personaRow}>
-          <span className={styles.personaLabel}>Style:</span>
-          <div className={styles.personaGrid} role="radiogroup" aria-label="Teaching style">
-            {PERSONAS.map((p) => (
-              <PersonaCard
-                key={p.value}
-                persona={p.value}
-                label={p.label}
-                sublabel={p.sublabel}
-                description={p.description}
-                icon={p.icon}
-                selected={persona === p.value}
-                onSelect={setPersona}
-              />
-            ))}
-          </div>
-        </div>
+        {sessions.length > 5 && showSessions && (
+          <section className={styles.sessionsSection}>
+            <div className={styles.sessionsHeader}>
+              <div className={styles.sessionControls}>
+                <input
+                  type="text"
+                  placeholder="Search sessions..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className={styles.searchBar}
+                />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as 'recent' | 'name' | 'concepts')}
+                  className={styles.sortSelect}
+                >
+                  <option value="recent">Recent</option>
+                  <option value="name">Name</option>
+                  <option value="concepts">Concepts</option>
+                </select>
+              </div>
+            </div>
+            <div className={styles.sessionList}>
+              {filteredSessions.map((s) => (
+                <SessionCard
+                  key={s.id}
+                  session={s}
+                  onSelect={onSelectSession}
+                  onDelete={(id) => setConfirmingDelete(id)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
         {sessions.length > 0 && (
           <>
@@ -397,107 +562,33 @@ export function WelcomeModal({
               onClick={() => setShowSessions(!showSessions)}
               type="button"
             >
-              <span>Past sessions ({sessions.length})</span>
+              <span>
+                {showSessions ? 'Hide past sessions' : `Past sessions (${sessions.length})`}
+              </span>
               <ChevronDown size={14} className={showSessions ? styles.chevronOpen : undefined} />
             </button>
-            {showSessions && (
+            {/* When sessions <=5, show simple list without search/sort */}
+            {showSessions && sessions.length <= 5 && (
               <section className={styles.sessionsSection}>
-                <div className={styles.sessionsHeader}>
-                  <div className={styles.sessionControls}>
-                    <input
-                      type="text"
-                      placeholder="Search sessions..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className={styles.searchBar}
-                    />
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value as any)}
-                      className={styles.sortSelect}
-                    >
-                      <option value="recent">Recent</option>
-                      <option value="name">Name</option>
-                      <option value="concepts">Concepts</option>
-                    </select>
-                  </div>
-                </div>
                 <div className={styles.sessionList}>
-                  {filteredSessions.map((s, idx) => {
-                    const Icon = PERSONA_ICONS[s.persona] ?? Sparkles;
-                    const nodesList = s.nodes || [];
-                    const conceptCount = nodesList.filter((n) => n.data?.kind === 'concept').length;
-                    const progressLabel = formatConceptProgress(s);
+                  {sessions.map((s, idx) => {
+                    const action = getSessionNextAction(s);
+                    const badge =
+                      idx === 0 &&
+                      sortBy === 'recent' &&
+                      !searchQuery &&
+                      action &&
+                      action.kind !== 'complete'
+                        ? actionLabel(action)
+                        : undefined;
                     return (
-                      <div
+                      <SessionCard
                         key={s.id}
-                        className={styles.sessionCard}
-                        onClick={() => {
-                          onSelectSession(s.id);
-                          setConfirmingDelete(null);
-                        }}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            onSelectSession(s.id);
-                          }
-                        }}
-                      >
-                        {idx === 0 && sortBy === 'recent' && !searchQuery && (
-                          <span className={styles.resumeBadge}>Resume</span>
-                        )}
-                        <Icon size={16} />
-                        <div className={styles.sessionInfo}>
-                          <span className={styles.sessionName}>{s.name}</span>
-                          <span className={styles.sessionMeta}>
-                            {s.hostname && (
-                              <>
-                                <Globe size={11} />
-                                <span>{s.hostname}</span>
-                                <span className={styles.sessionDot}>·</span>
-                              </>
-                            )}
-                            <Clock size={11} />
-                            <span>{relativeTime(new Date(s.updatedAt))}</span>
-                            {conceptCount > 0 && (
-                              <>
-                                <span className={styles.sessionDot}>·</span>
-                                <span>
-                                  {conceptCount} concept{conceptCount !== 1 ? 's' : ''}
-                                </span>
-                              </>
-                            )}
-                            {progressLabel && (
-                              <>
-                                <span className={styles.sessionDot}>·</span>
-                                <span
-                                  style={{
-                                    color:
-                                      progressLabel === 'Completed'
-                                        ? 'var(--success)'
-                                        : 'var(--text-secondary)',
-                                  }}
-                                >
-                                  {progressLabel}
-                                </span>
-                              </>
-                            )}
-                          </span>
-                        </div>
-                        <button
-                          className={styles.sessionDelete}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setConfirmingDelete(s.id);
-                          }}
-                          aria-label={`Delete session ${s.name}`}
-                          type="button"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
+                        session={s}
+                        onSelect={onSelectSession}
+                        onDelete={(id) => setConfirmingDelete(id)}
+                        badge={badge}
+                      />
                     );
                   })}
                 </div>
