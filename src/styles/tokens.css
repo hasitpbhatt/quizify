@@ -22,6 +22,16 @@
   --success: #2e9e5b;
   --warning: #d9a441;
   --danger: #d14b4b;
+  /* Feedback colors maintain WCAG AA contrast for normal text. */
+  --feedback-success-text: #176b3a;
+  --feedback-success-border: #2e7d4f;
+  --feedback-success-bg: rgba(23, 107, 58, 0.1);
+  --feedback-warning-text: #765600;
+  --feedback-warning-border: #9b7200;
+  --feedback-warning-bg: rgba(118, 86, 0, 0.1);
+  --feedback-danger-text: #a12626;
+  --feedback-danger-border: #b93838;
+  --feedback-danger-bg: rgba(161, 38, 38, 0.1);
 
   /* spacing */
   --space-0: 0px;
@@ -113,6 +123,15 @@
   --success: #3dbe73;
   --warning: #e6bb66;
   --danger: #e26c6c;
+  --feedback-success-text: #6fdc9b;
+  --feedback-success-border: #459866;
+  --feedback-success-bg: rgba(111, 220, 155, 0.12);
+  --feedback-warning-text: #f0ca78;
+  --feedback-warning-border: #a88642;
+  --feedback-warning-bg: rgba(240, 202, 120, 0.12);
+  --feedback-danger-text: #ff8f8f;
+  --feedback-danger-border: #a95353;
+  --feedback-danger-bg: rgba(255, 143, 143, 0.12);
 
   --shadow-xs: 0 0.5px 1px rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);

@@ -1,12 +1,14 @@
 import { getDb, STORES } from './db';
+import type { SourceProvenance } from '@/shared/types';
 
 export interface SourceCacheEntry {
   url: string;
   content: string;
   cachedAt: number; // ms epoch
+  provenance?: SourceProvenance;
 }
 
-export async function getCachedSource(url: string): Promise<string | undefined> {
+export async function getCachedSourceEntry(url: string): Promise<SourceCacheEntry | undefined> {
   const db = await getDb();
   const entry = (await db.get(STORES.SOURCE_CACHE, url)) as SourceCacheEntry | undefined;
   if (!entry) return undefined;
@@ -15,14 +17,23 @@ export async function getCachedSource(url: string): Promise<string | undefined> 
     await db.delete(STORES.SOURCE_CACHE, url);
     return undefined;
   }
-  return entry.content;
+  return entry;
 }
 
-export async function setCachedSource(url: string, content: string): Promise<void> {
+export async function getCachedSource(url: string): Promise<string | undefined> {
+  return (await getCachedSourceEntry(url))?.content;
+}
+
+export async function setCachedSource(
+  url: string,
+  content: string,
+  provenance: SourceProvenance = 'legacy-unknown',
+): Promise<void> {
   const db = await getDb();
   await db.put(STORES.SOURCE_CACHE, {
     url,
     content,
     cachedAt: Date.now(),
+    provenance,
   } satisfies SourceCacheEntry);
 }

@@ -94,6 +94,15 @@ export function exportSessionMarkdown(session: Session): string {
   lines.push(
     `**Source:** ${session.url}  ·  **Date:** ${formatDate(session.createdAt)}  ·  **Persona:** ${session.persona}`,
   );
+  if (session.sourceProvenance) {
+    const provenanceLabel =
+      session.sourceProvenance === 'fetched'
+        ? 'Fetched from URL'
+        : session.sourceProvenance === 'topic-generated'
+          ? 'Generated from topic (source unavailable)'
+          : 'Unknown source';
+    lines.push(`**Provenance:** ${provenanceLabel}`);
+  }
   lines.push('');
   lines.push('---');
   lines.push('');

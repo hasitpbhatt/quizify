@@ -85,6 +85,7 @@ describe('ConceptNode', () => {
         title: 'Test',
         explanation: 'Test explanation.',
         example: 'Loading...',
+        generationStatus: 'generating',
       },
     });
     const { container } = render(<ReactFlowProvider><ConceptNode {...createNodeProps(node)} /></ReactFlowProvider>);

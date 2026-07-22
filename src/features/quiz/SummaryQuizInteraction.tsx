@@ -7,6 +7,7 @@ import { ShortAnswer } from './formats/ShortAnswer';
 import { FreeText } from './formats/FreeText';
 import { FillBlank } from './formats/FillBlank';
 import { Ordering } from './formats/Ordering';
+import { gradeQuizAnswer } from './quizGrading';
 
 interface Props {
   quizData: QuizData[];
@@ -73,18 +74,12 @@ function useFocusTrap(
   }, [containerRef, autoFocusSelector]);
 }
 
-function parseScores(scores: Record<string, { best: number; attempts: number }>): boolean[] {
-  return Object.entries(scores)
-    .sort(([a], [b]) => Number(a) - Number(b))
-    .map(([, v]) => v.best === 1);
-}
-
-function toScoresRecord(results: boolean[]): Record<string, { best: number; attempts: number }> {
-  const scores: Record<string, { best: number; attempts: number }> = {};
-  results.forEach((correct, i) => {
-    scores[String(i)] = { best: correct ? 1 : 0, attempts: 1 };
-  });
-  return scores;
+function parseScores(
+  scores: Record<string, { best: number; attempts: number }>,
+): Record<number, boolean> {
+  return Object.fromEntries(
+    Object.entries(scores).map(([index, score]) => [Number(index), score.best === 1]),
+  );
 }
 
 export function SummaryQuizInteraction({
@@ -95,22 +90,39 @@ export function SummaryQuizInteraction({
   onUpdateScores,
 }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [results, setResults] = useState<boolean[]>(() => parseScores(initialScores));
+  const [results, setResults] = useState<Record<number, boolean>>(() =>
+    parseScores(initialScores),
+  );
+  const [, setCumulativeScores] = useState(initialScores);
   const [showResults, setShowResults] = useState(false);
+  const [grading, setGrading] = useState(false);
+  const [announcement, setAnnouncement] = useState('');
   const overlayRef = useRef<HTMLDivElement>(null);
 
   const current = quizData[currentIndex];
   const total = quizData.length;
-  const done = results.length;
+  const done = Object.keys(results).length;
 
   useFocusTrap(overlayRef, showResults ? '.summary-close-btn' : '.summary-first-focus');
 
   const handleAnswer = useCallback(
     (correct: boolean) => {
       setResults((prev) => {
-        const next = [...prev];
+        const next = { ...prev };
         next[currentIndex] = correct;
-        onUpdateScores(toScoresRecord(next));
+        return next;
+      });
+      setCumulativeScores((prev) => {
+        const key = String(currentIndex);
+        const previous = prev[key] ?? { best: 0, attempts: 0 };
+        const next = {
+          ...prev,
+          [key]: {
+            best: Math.max(previous.best, correct ? 1 : 0),
+            attempts: previous.attempts + 1,
+          },
+        };
+        onUpdateScores(next);
         return next;
       });
     },
@@ -134,22 +146,22 @@ export function SummaryQuizInteraction({
   }, []);
 
   const masteryPct = useMemo(() => {
-    if (results.length === 0) return 0;
-    return Math.round((results.filter(Boolean).length / results.length) * 100);
-  }, [results]);
+    if (total === 0) return 0;
+    return Math.round((Object.values(results).filter(Boolean).length / total) * 100);
+  }, [results, total]);
 
   const retakeAll = useCallback(() => {
-    setResults([]);
+    setResults({});
     setCurrentIndex(0);
     setShowResults(false);
-    onUpdateScores({});
+    setAnnouncement('Assessment reset. Question 1 of ' + total + '.');
     onRetake();
-  }, [onRetake, onUpdateScores]);
+  }, [onRetake, total]);
 
   if (showResults) {
-    const correct = results.filter(Boolean).length;
-    const incorrect = results.filter((r) => !r).length;
-    const unattempted = total - results.length;
+    const correct = Object.values(results).filter(Boolean).length;
+    const incorrect = Object.values(results).filter((result) => !result).length;
+    const unattempted = total - done;
 
     return (
       <div
@@ -161,7 +173,12 @@ export function SummaryQuizInteraction({
         aria-label="Summary quiz results"
       >
         <div className={styles.panel} onClick={(e) => e.stopPropagation()}>
-          <div className={styles.resultsPanel}>
+          <div
+            className={styles.resultsPanel}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             <div className={styles.masteryPct}>{masteryPct}%</div>
             <div className={styles.masteryLabel}>Mastery</div>
             <div className={styles.breakdown}>
@@ -199,16 +216,20 @@ export function SummaryQuizInteraction({
 
   const answered = results[currentIndex] !== undefined;
 
-  const submitAnswer = (answer: string | string[]) => {
-    const normalizedAnswer = Array.isArray(answer) ? answer.join('|') : answer;
-    const correct =
-      normalizedAnswer.trim().toLowerCase() === current.correctAnswer.trim().toLowerCase();
-    handleAnswer(correct);
-  };
-
-  const submitOrdering = (answer: string[]) => {
-    const correct = answer.join('|').toLowerCase() === current.correctAnswer.toLowerCase();
-    handleAnswer(correct);
+  const submitAnswer = async (answer: string | string[]) => {
+    setGrading(true);
+    setAnnouncement('Grading answer.');
+    try {
+      const result = await gradeQuizAnswer(current, answer, {
+        conceptTitle: current.parentConceptId,
+        quizId: `summary-${currentIndex}`,
+      });
+      const correct = result.grade === 'correct';
+      handleAnswer(correct);
+      setAnnouncement(correct ? 'Answer correct.' : 'Answer not correct.');
+    } finally {
+      setGrading(false);
+    }
   };
 
   return (
@@ -224,31 +245,40 @@ export function SummaryQuizInteraction({
         <div className={[styles.questionCounter, 'summary-first-focus'].join(' ')} tabIndex={-1}>
           Question {currentIndex + 1} of {total}
         </div>
+        <div role="status" aria-live="polite" aria-atomic="true">
+          {announcement}
+        </div>
         <div className={styles.prompt}>{current.prompt}</div>
 
         {current.format === 'multipleChoice' && (
           <MultipleChoice
             options={current.options ?? []}
-            disabled={answered}
+            disabled={answered || grading}
             onSubmit={submitAnswer}
           />
         )}
         {current.format === 'trueFalse' && (
-          <TrueFalse disabled={answered} onSubmit={submitAnswer} />
+          <TrueFalse disabled={answered || grading} onSubmit={submitAnswer} />
         )}
         {current.format === 'shortAnswer' && (
-          <ShortAnswer disabled={answered} onSubmit={submitAnswer} />
+          <ShortAnswer disabled={answered || grading} onSubmit={submitAnswer} />
         )}
-        {current.format === 'freeText' && <FreeText disabled={answered} onSubmit={submitAnswer} />}
+        {current.format === 'freeText' && (
+          <FreeText disabled={answered || grading} onSubmit={submitAnswer} />
+        )}
         {current.format === 'fillBlank' && (
           <FillBlank
             blankedSentence={current.blankedSentence ?? ''}
-            disabled={answered}
+            disabled={answered || grading}
             onSubmit={submitAnswer}
           />
         )}
         {current.format === 'ordering' && (
-          <Ordering items={current.items ?? []} disabled={answered} onSubmit={submitOrdering} />
+          <Ordering
+            items={current.items ?? []}
+            disabled={answered || grading}
+            onSubmit={submitAnswer}
+          />
         )}
 
         <div className={styles.nav}>
@@ -269,6 +299,7 @@ export function SummaryQuizInteraction({
               className={[styles.navBtn, 'summary-first-focus'].join(' ')}
               style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
               onClick={finishQuiz}
+              disabled={!answered || grading || done < total}
             >
               Show Results
             </button>

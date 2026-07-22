@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import styles from './FreeText.module.css';
 
 interface Props {
@@ -8,10 +8,15 @@ interface Props {
 
 export function FreeText({ disabled, onSubmit }: Props) {
   const [value, setValue] = useState('');
+  const textareaId = useId();
 
   return (
     <div className={styles.wrapper}>
+      <label className={styles.label} htmlFor={textareaId}>
+        Your answer
+      </label>
       <textarea
+        id={textareaId}
         className={styles.textarea}
         value={value}
         onChange={(e) => setValue(e.target.value)}

@@ -131,17 +131,19 @@
   box-shadow: var(--shadow-focus);
 }
 
-.notebookToggle {
-  display: flex;
+.viewToggle {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
+  gap: var(--space-1);
+  min-height: 32px;
+  padding: 0 var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-ui);
   background: var(--bg-subtle);
   color: var(--text-secondary);
   cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--fs-caption);
   transition:
     border-color 0.15s,
     background 0.15s,
@@ -149,15 +151,50 @@
   flex-shrink: 0;
 }
 
-.notebookToggle:hover {
+.viewToggle:hover {
   border-color: var(--border-strong);
   background: var(--bg-elevated);
-  color: var(--accent);
+  color: var(--text-primary);
 }
 
-.notebookToggle:focus-visible {
+.viewToggleActive {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent-pressed);
+}
+
+.viewToggle:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
+}
+
+.renameBtn {
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--fs-caption);
+  cursor: pointer;
+}
+
+.renameBtn:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.renameInput {
+  width: 100%;
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ui);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
 }
 
 .sessionName {

@@ -14,6 +14,7 @@ import { debugLog } from '@/lib/debug';
 import type { QuizItem } from '@/lib/llm/contentParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useToastStore } from '@/shared/stores/toastStore';
+import * as sessionsDb from '@/lib/db/sessionsDb';
 
 export type PipelineStep = 'detail' | 'quiz' | 'summary' | 'build' | 'done' | 'error';
 
@@ -25,7 +26,7 @@ export interface PipelineProgress {
 
 type ProgressCallback = (progress: PipelineProgress) => void;
 
-const CONCURRENCY = 1;
+const CONCURRENCY = 3;
 
 const COL_WIDTH = 480;
 const GAP_COL = 80;
@@ -85,6 +86,7 @@ export function pushConceptShells(
         title: concept.title,
         explanation: concept.explanation,
         example: 'Loading...',
+        generationStatus: 'generating',
         sourceUrl,
       } satisfies ConceptData,
     });
@@ -178,6 +180,8 @@ export async function processOneConcept(
           explanation: content.detail.explanation,
           example: content.detail.example,
           streaming: false,
+          generationStatus: 'ready',
+          generationError: undefined,
         } as ConceptData,
       };
     }
@@ -230,6 +234,18 @@ export async function processOneConcept(
       `Failed to load ${concept.title}`,
       err instanceof Error ? err.message : 'Unknown error',
     );
+    if (nodeIdx !== undefined && nodeIdx !== -1) {
+      nodes[nodeIdx] = {
+        ...nodes[nodeIdx],
+        data: {
+          ...nodes[nodeIdx].data,
+          streaming: false,
+          generationStatus: 'failed',
+          generationError: err instanceof Error ? err.message : 'Unknown error',
+        } as ConceptData,
+      };
+      await persist();
+    }
     return null;
   }
 }
@@ -284,9 +300,10 @@ export async function runContentPhase(
   signal: AbortSignal | undefined,
   persist: () => Promise<void>,
   onNotify: (step: PipelineStep, label: string, error?: string) => void,
-): Promise<void> {
+): Promise<number> {
   const total = concepts.length;
   let completed = 0;
+  let failed = 0;
   onNotify('detail', `Generating content (0/${total} done\u2026)`);
 
   await runWithConcurrency(concepts, Math.min(CONCURRENCY, total), async (concept, i) => {
@@ -303,9 +320,11 @@ export async function runContentPhase(
       onNotify,
     );
     conceptLastNodeIds[i] = lastNodeId;
+    if (!lastNodeId) failed++;
     completed++;
     onNotify('detail', `Generating content (${completed}/${total} done\u2026)`);
   });
+  return failed;
 }
 
 export function pushChainEdges(
@@ -441,7 +460,7 @@ export async function runPipeline(
     concepts.length,
     CONCURRENCY === Infinity ? 'Infinity' : String(CONCURRENCY),
   );
-  await runContentPhase(
+  const failedConcepts = await runContentPhase(
     nodes,
     edges,
     generatedConcepts,
@@ -474,6 +493,107 @@ export async function runPipeline(
     notify,
   );
 
-  notify('done', 'Canvas ready!');
+  notify(
+    'done',
+    failedConcepts > 0
+      ? `Lesson ready with ${failedConcepts} issue${failedConcepts === 1 ? '' : 's'}`
+      : 'Canvas ready!',
+  );
   return { nodes, edges };
+}
+
+export async function retryFailedConcept(sessionId: string, conceptId: string): Promise<boolean> {
+  const session = await sessionsDb.getSession(sessionId);
+  if (!session) return false;
+  const sourceNode = session.nodes.find(
+    (node): node is CanvasNode & { data: ConceptData } =>
+      node.id === conceptId && node.data.kind === 'concept',
+  );
+  if (!sourceNode) return false;
+
+  const quizIds = new Set(
+    session.nodes
+      .filter(
+        (node) =>
+          node.data.kind === 'quiz' && (node.data as QuizData).parentConceptId === conceptId,
+      )
+      .map((node) => node.id),
+  );
+  const nodes = session.nodes
+    .filter((node) => !quizIds.has(node.id))
+    .map((node) =>
+      node.id === conceptId
+        ? {
+            ...node,
+            data: {
+              ...node.data,
+              example: 'Loading...',
+              generationStatus: 'generating',
+              generationError: undefined,
+            } as ConceptData,
+          }
+        : node,
+    );
+  const edges = session.edges.filter(
+    (edge) => !quizIds.has(edge.source) && !quizIds.has(edge.target),
+  );
+  const generatedConcepts: ConceptInfo[] = [];
+  const { updateCurrent } = useSessionStore.getState();
+  const persist = () =>
+    updateCurrent({ nodes: [...nodes], edges: [...edges], updatedAt: Date.now() }, sessionId);
+
+  await persist();
+  const tailId = await processOneConcept(
+    nodes,
+    edges,
+    generatedConcepts,
+    {
+      id: sourceNode.id,
+      title: sourceNode.data.title,
+      explanation: sourceNode.data.explanation,
+    },
+    sourceNode.data.index,
+    session.name,
+    session.persona,
+    undefined,
+    persist,
+    (_step, label) => useToastStore.getState().add(label),
+  );
+
+  if (!tailId) return false;
+  const nextConcept = session.nodes
+    .filter((node): node is CanvasNode & { data: ConceptData } => node.data.kind === 'concept')
+    .find((node) => node.data.index === sourceNode.data.index + 1);
+  if (nextConcept) {
+    edges.push({
+      id: `edge-${tailId}-${nextConcept.id}`,
+      source: tailId,
+      target: nextConcept.id,
+      type: 'wiggly',
+    });
+    await persist();
+  }
+  return true;
+}
+
+export async function skipFailedConcept(sessionId: string, conceptId: string): Promise<void> {
+  const session = await sessionsDb.getSession(sessionId);
+  if (!session) return;
+  const nodes = session.nodes.map((node) =>
+    node.id === conceptId && node.data.kind === 'concept'
+      ? {
+          ...node,
+          data: {
+            ...node.data,
+            example: 'Skipped. You can retry this concept later.',
+            streaming: false,
+            generationStatus: 'skipped',
+            generationError: undefined,
+          } as ConceptData,
+        }
+      : node,
+  );
+  await useSessionStore
+    .getState()
+    .updateCurrent({ nodes, updatedAt: Date.now() }, sessionId);
 }

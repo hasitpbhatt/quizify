@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import styles from './FillBlank.module.css';
 
 interface Props {
@@ -10,12 +10,17 @@ interface Props {
 export function FillBlank({ blankedSentence, disabled, onSubmit }: Props) {
   const [value, setValue] = useState('');
   const parts = blankedSentence.split('___');
+  const inputId = useId();
 
   return (
     <div className={styles.wrapper}>
+      <label className={styles.label} htmlFor={inputId}>
+        Fill in the blank
+      </label>
       <div className={styles.sentence}>
         {parts[0]}
         <input
+          id={inputId}
           className={styles.blankInput}
           value={value}
           onChange={(e) => setValue(e.target.value)}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { JourneyProgress, JourneyStage, JourneyState } from './App';
 import { SnakeGame } from './SnakeGame';
+import type { SourceProvenance } from '@/shared/types';
 import styles from './ProgressScreen.module.css';
 
 interface DisplayStage {
@@ -38,6 +39,7 @@ interface ProgressScreenProps {
   previewData?: {
     title: string;
     snippet: string;
+    provenance: SourceProvenance;
     onConfirm: () => void;
     onCancel: () => void;
   } | null;
@@ -75,9 +77,11 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
               <span className={styles.orbRing} />
               <span className={styles.orbRing2} />
             </div>
-            <h1 className={styles.title}>Content Preview</h1>
+            <h1 className={styles.title}>Confirm lesson source</h1>
             <p className={styles.subtitle}>
-              We fetched the content successfully. Does this look correct?
+              {previewData.provenance === 'topic-generated'
+                ? 'We could not read the page, so this lesson was generated from its topic.'
+                : 'This cached source predates source verification. Check the preview before continuing.'}
             </p>
           </div>
 
@@ -99,7 +103,7 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
               onClick={previewData.onConfirm}
               type="button"
             >
-              Looks good, continue!
+              Use this lesson
             </button>
           </div>
         </div>

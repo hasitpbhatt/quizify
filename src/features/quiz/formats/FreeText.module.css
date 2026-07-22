@@ -4,6 +4,13 @@
   gap: 8px;
 }
 
+.label {
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .textarea {
   padding: 10px 14px;
   border-radius: 6px;
@@ -15,6 +22,11 @@
   outline: none;
   resize: vertical;
   line-height: 1.5;
+}
+
+.textarea:focus-visible {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
 }
 
 .submitBtn {

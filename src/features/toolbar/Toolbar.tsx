@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { readNotebookModePreference } from '@/shared/notebookModePreference';
-import { BookOpen, ChevronDown, X } from 'lucide-react';
+import { useIsMobile } from '@/shared/useMediaQuery';
+import { AccessibleDialog } from '@/lib/components/AccessibleDialog';
+import { ChevronDown, X, Map, BookOpen } from 'lucide-react';
 import styles from './Toolbar.module.css';
 
 interface ToolbarProps {
@@ -10,9 +12,14 @@ interface ToolbarProps {
 }
 
 export function Toolbar({ canvasPage }: ToolbarProps) {
-  const { sessions, currentId, load, select, remove } = useSessionStore();
+  const { sessions, currentId, load, select, remove, updateCurrent } = useSessionStore();
+  const notebookMode = useNotebookStore((s) => s.notebookMode);
+  const toggleNotebookMode = useNotebookStore((s) => s.toggleNotebookMode);
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
   const [focusIndex, setFocusIndex] = useState(-1);
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -21,7 +28,6 @@ export function Toolbar({ canvasPage }: ToolbarProps) {
     load();
   }, [load]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -35,7 +41,6 @@ export function Toolbar({ canvasPage }: ToolbarProps) {
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  // Reset focus index when dropdown opens
   useEffect(() => {
     if (open) {
       const idx = sessions.findIndex((s) => s.id === currentId);
@@ -45,10 +50,9 @@ export function Toolbar({ canvasPage }: ToolbarProps) {
     }
   }, [open, currentId, sessions]);
 
-  // Scroll focused item into view
   useEffect(() => {
     if (focusIndex < 0 || !dropdownRef.current) return;
-    const items = dropdownRef.current.querySelectorAll('[role="option"]');
+    const items = dropdownRef.current.querySelectorAll('[data-session-item]');
     const target = items[focusIndex] as HTMLElement | undefined;
     target?.scrollIntoView?.({ block: 'nearest' });
   }, [focusIndex]);
@@ -76,7 +80,9 @@ export function Toolbar({ canvasPage }: ToolbarProps) {
         case ' ':
           e.preventDefault();
           if (focusIndex >= 0 && focusIndex < sessions.length) {
-            select(sessions[focusIndex].id);
+            const session = sessions[focusIndex];
+            useNotebookStore.getState().setNotebookMode(readNotebookModePreference(session.id));
+            select(session.id);
             setOpen(false);
             setDeleteCandidate(null);
           }
@@ -106,15 +112,22 @@ export function Toolbar({ canvasPage }: ToolbarProps) {
     });
   };
 
-  const dropdownItemClass = (sId: string, i: number) => {
-    return [
-      styles.dropdownItem,
-      sId === currentId ? styles.dropdownItemActive : '',
-      i === focusIndex ? styles.dropdownItemFocused : '',
-    ]
-      .filter(Boolean)
-      .join(' ');
+  const startRename = () => {
+    if (!current) return;
+    setRenameValue(current.name);
+    setRenaming(true);
   };
+
+  const commitRename = async () => {
+    const trimmed = renameValue.trim();
+    setRenaming(false);
+    if (!current || !trimmed || trimmed === current.name) return;
+    await updateCurrent({ name: trimmed });
+  };
+
+  const sessionToDelete = deleteCandidate
+    ? sessions.find((s) => s.id === deleteCandidate)
+    : undefined;
 
   return (
     <div className={styles.toolbar}>
@@ -132,14 +145,27 @@ export function Toolbar({ canvasPage }: ToolbarProps) {
 
       <div className={styles.spacer} />
 
-      {canvasPage && (
+      {canvasPage && !isMobile && (
         <button
-          className={styles.notebookToggle}
-          onClick={useNotebookStore.getState().toggleNotebookMode}
-          title="Switch to notebook reading mode"
+          className={`${styles.viewToggle} ${notebookMode ? styles.viewToggleActive : ''}`}
+          onClick={toggleNotebookMode}
+          aria-pressed={notebookMode}
           type="button"
         >
-          <BookOpen size={14} />
+          <BookOpen size={14} aria-hidden />
+          <span>Tutor</span>
+        </button>
+      )}
+
+      {canvasPage && !isMobile && (
+        <button
+          className={`${styles.viewToggle} ${!notebookMode ? styles.viewToggleActive : ''}`}
+          onClick={() => useNotebookStore.getState().setNotebookMode(false)}
+          aria-pressed={!notebookMode}
+          type="button"
+        >
+          <Map size={14} aria-hidden />
+          <span>Map</span>
         </button>
       )}
 
@@ -147,26 +173,35 @@ export function Toolbar({ canvasPage }: ToolbarProps) {
         <button
           className={styles.sessionTrigger}
           onClick={() => setOpen((v) => !v)}
-          aria-haspopup="listbox"
+          aria-haspopup="menu"
           aria-expanded={open}
+          aria-label="Sessions"
+          type="button"
         >
           <span className={styles.sessionName}>
             {current ? current.name : 'No session selected'}
           </span>
-          <ChevronDown size={14} />
+          <ChevronDown size={14} aria-hidden />
         </button>
 
         {open && (
-          <div className={styles.dropdown} role="listbox" ref={dropdownRef}>
+          <div className={styles.dropdown} role="menu" ref={dropdownRef}>
             {sessions.length === 0 && (
               <div className={styles.emptyState}>No saved sessions yet</div>
             )}
             {sessions.map((s, i) => (
               <div
                 key={s.id}
-                className={dropdownItemClass(s.id, i)}
-                role="option"
-                aria-selected={s.id === currentId}
+                className={[
+                  styles.dropdownItem,
+                  s.id === currentId ? styles.dropdownItemActive : '',
+                  i === focusIndex ? styles.dropdownItemFocused : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                data-session-item
+                role="menuitem"
+                tabIndex={i === focusIndex ? 0 : -1}
                 onClick={() => {
                   useNotebookStore.getState().setNotebookMode(readNotebookModePreference(s.id));
                   select(s.id);
@@ -183,7 +218,7 @@ export function Toolbar({ canvasPage }: ToolbarProps) {
                     e.stopPropagation();
                     setDeleteCandidate(s.id);
                   }}
-                  aria-label={'Delete session ' + s.name}
+                  aria-label={`Delete session ${s.name}`}
                   title="Delete session"
                   type="button"
                 >
@@ -191,6 +226,11 @@ export function Toolbar({ canvasPage }: ToolbarProps) {
                 </button>
               </div>
             ))}
+            {current && (
+              <button className={styles.renameBtn} onClick={startRename} type="button">
+                Rename current session
+              </button>
+            )}
             <div className={styles.localNote}>
               Sessions are stored locally in this browser (IndexedDB).
             </div>
@@ -198,52 +238,75 @@ export function Toolbar({ canvasPage }: ToolbarProps) {
         )}
       </div>
 
-      {deleteCandidate &&
-        (() => {
-          const sessionToDelete = sessions.find((s) => s.id === deleteCandidate);
-          return (
-            <div className={styles.dialogOverlay} onClick={() => setDeleteCandidate(null)}>
-              <div
-                className={styles.dialogModal}
-                onClick={(e) => e.stopPropagation()}
-                role="alertdialog"
-                aria-modal="true"
-                aria-labelledby="toolbar-delete-title"
-                aria-describedby="toolbar-delete-desc"
-              >
-                <h2 id="toolbar-delete-title" className={styles.dialogTitle}>
-                  Delete Session
-                </h2>
-                <p id="toolbar-delete-desc" className={styles.dialogDesc}>
-                  Are you sure you want to delete the session "
-                  {sessionToDelete?.name || 'this session'}"? This action cannot be undone.
-                </p>
-                <div className={styles.dialogButtons}>
-                  <button
-                    className={styles.dialogCancelBtn}
-                    onClick={() => setDeleteCandidate(null)}
-                    type="button"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className={styles.dialogConfirmBtn}
-                    onClick={() => {
-                      if (deleteCandidate) {
-                        remove(deleteCandidate);
-                        setDeleteCandidate(null);
-                        setOpen(false);
-                      }
-                    }}
-                    type="button"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+      {renaming && (
+        <AccessibleDialog
+          role="dialog"
+          label="Rename session"
+          onClose={() => setRenaming(false)}
+          overlayClassName={styles.dialogOverlay}
+          panelClassName={styles.dialogModal}
+          initialFocusSelector="#rename-session-input"
+        >
+          <h2 className={styles.dialogTitle}>Rename session</h2>
+          <input
+            id="rename-session-input"
+            className={styles.renameInput}
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitRename();
+            }}
+          />
+          <div className={styles.dialogButtons}>
+            <button className={styles.dialogCancelBtn} onClick={() => setRenaming(false)} type="button">
+              Cancel
+            </button>
+            <button className={styles.dialogConfirmBtn} onClick={commitRename} type="button">
+              Save
+            </button>
+          </div>
+        </AccessibleDialog>
+      )}
+
+      {deleteCandidate && sessionToDelete && (
+        <AccessibleDialog
+          role="alertdialog"
+          labelledBy="toolbar-delete-title"
+          describedBy="toolbar-delete-desc"
+          onClose={() => setDeleteCandidate(null)}
+          overlayClassName={styles.dialogOverlay}
+          panelClassName={styles.dialogModal}
+          initialFocusSelector=".toolbar-delete-cancel"
+        >
+          <h2 id="toolbar-delete-title" className={styles.dialogTitle}>
+            Delete Session
+          </h2>
+          <p id="toolbar-delete-desc" className={styles.dialogDesc}>
+            Are you sure you want to delete the session "{sessionToDelete.name}"? This action cannot
+            be undone.
+          </p>
+          <div className={styles.dialogButtons}>
+            <button
+              className={`${styles.dialogCancelBtn} toolbar-delete-cancel`}
+              onClick={() => setDeleteCandidate(null)}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className={styles.dialogConfirmBtn}
+              onClick={() => {
+                remove(deleteCandidate);
+                setDeleteCandidate(null);
+                setOpen(false);
+              }}
+              type="button"
+            >
+              Delete
+            </button>
+          </div>
+        </AccessibleDialog>
+      )}
     </div>
   );
 }

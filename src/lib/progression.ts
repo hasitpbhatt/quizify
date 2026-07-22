@@ -18,14 +18,17 @@ export function getUnlockedConceptIndex(nodes: CanvasNode[]): number {
   }
 
   for (let i = 0; i < concepts.length; i++) {
+    const generationStatus = concepts[i].data.generationStatus;
+    if (generationStatus === 'skipped') continue;
+    if (generationStatus === 'failed' || generationStatus === 'generating') return i;
+
     const quizzes = quizzesByParent.get(concepts[i].id) ?? [];
-    if (quizzes.length === 0) return i;
-    const allCorrect = quizzes.every(
-      (q) =>
-        q.data.state === 'correct' ||
-        (q.data.attempts && q.data.attempts.some((att) => att.grade === 'correct')),
-    );
-    if (!allCorrect) return i;
+    // A ready concept without quizzes should never block the lesson. When
+    // quizzes exist, one meaningful attempt is enough to continue; incorrect
+    // answers remain scheduled for review instead of trapping the learner.
+    if (quizzes.length === 0) continue;
+    const allAttempted = quizzes.every((q) => q.data.attempts.length > 0);
+    if (!allAttempted) return i;
   }
   return concepts.length;
 }

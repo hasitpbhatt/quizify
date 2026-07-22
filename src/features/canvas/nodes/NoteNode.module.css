@@ -66,6 +66,20 @@
   color: var(--note-text);
 }
 
+.editBtn {
+  position: absolute;
+  left: var(--space-3);
+  bottom: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: var(--radius-ui);
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+
 .deleteBtn {
   position: absolute;
   top: var(--space-2);
@@ -89,7 +103,9 @@
     color var(--dur-fast) var(--ease-out);
 }
 
-.node:hover .deleteBtn {
+.node:hover .deleteBtn,
+.node:focus-within .deleteBtn,
+.deleteBtn:focus-visible {
   opacity: 1;
 }
 

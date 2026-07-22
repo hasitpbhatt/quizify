@@ -43,7 +43,7 @@ describe('CanvasPage', () => {
   it('shows empty state when no session exists', async () => {
     renderCanvas();
     await waitFor(() => {
-      expect(screen.getByText('No canvas data yet. Generate an outline first.')).toBeInTheDocument();
+      expect(screen.getByText('No lesson data yet.')).toBeInTheDocument();
     });
   });
 
@@ -62,7 +62,7 @@ describe('CanvasPage', () => {
       expect(screen.getByText('Building your canvas')).toBeInTheDocument();
       expect(screen.getByText('Generating content (0/3 done…)')).toBeInTheDocument();
     });
-    expect(screen.queryByText('No canvas data yet. Generate an outline first.')).not.toBeInTheDocument();
+    expect(screen.queryByText('No lesson data yet.')).not.toBeInTheDocument();
   });
 
   it('shows empty state when session has no nodes', async () => {
@@ -72,7 +72,7 @@ describe('CanvasPage', () => {
 
     renderCanvas();
     await waitFor(() => {
-      expect(screen.getByText('No canvas data yet. Generate an outline first.')).toBeInTheDocument();
+      expect(screen.getByText('No lesson data yet.')).toBeInTheDocument();
     });
   });
 
@@ -166,7 +166,21 @@ describe('CanvasPage', () => {
     }
 
     function buildSession() {
-      const session = factories.mockSession([factories.mockConceptNode()], []);
+      const concept = factories.mockConceptNode();
+      const quiz = factories.mockQuizNode(concept.id, {
+        data: {
+          kind: 'quiz',
+          parentConceptId: concept.id,
+          format: 'multipleChoice',
+          prompt: 'Q?',
+          options: ['A', 'B'],
+          correctAnswer: 'A',
+          rationale: 'R',
+          attempts: [],
+          state: 'untested',
+        } as import('@/shared/types').QuizData,
+      });
+      const session = factories.mockSession([concept, quiz], [factories.mockEdge(concept.id, quiz.id)]);
       return session;
     }
 
@@ -250,6 +264,7 @@ describe('CanvasPage', () => {
           data: { kind: 'concept', index: ci, title: `Concept ${ci}`, explanation: '', example: '' } as ConceptData,
         });
         nodes.push(c);
+        const isCompleted = completedConceptIndices.includes(ci);
         for (let qi = 0; qi < quizPerConcept; qi++) {
           const q = factories.mockQuizNode(c.id, {
             id: `q${ci}-${qi}`,
@@ -261,8 +276,8 @@ describe('CanvasPage', () => {
               options: ['A', 'B'],
               correctAnswer: 'A',
               rationale: 'R',
-              attempts: [],
-              state: completedConceptIndices.includes(ci) ? 'correct' : 'untested',
+              attempts: isCompleted ? [{ timestamp: 1, given: 'A', grade: 'correct' as const, rationale: 'R', idealAnswer: 'A' }] : [],
+              state: isCompleted ? 'correct' : 'untested',
             } as QuizData,
           });
           nodes.push(q);

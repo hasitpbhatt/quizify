@@ -13,6 +13,12 @@ import {
 import { PersonaCard } from './PersonaCard';
 import { useWelcomeState, EXAMPLE_CHIPS } from './useWelcomeState';
 import { useSessionStore } from '@/shared/stores/sessionStore';
+import { AccessibleDialog } from '@/lib/components/AccessibleDialog';
+import {
+  getNextLearningAction,
+  normalizeLearningProgress,
+  type NextLearningAction,
+} from '@/shared/learningProgress';
 import type { Persona, Session } from '@/shared/types';
 import styles from './WelcomeModal.module.css';
 
@@ -33,6 +39,47 @@ function relativeTime(date: Date): string {
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d ago`;
   return date.toLocaleDateString();
+}
+
+function getSessionNextAction(session: Session): NextLearningAction | null {
+  const conceptIds = session.nodes
+    .filter((node) => node.data.kind === 'concept')
+    .sort((a, b) => {
+      const ai = a.data.kind === 'concept' ? a.data.index : 0;
+      const bi = b.data.kind === 'concept' ? b.data.index : 0;
+      return ai - bi;
+    })
+    .map((node) => node.id);
+  if (conceptIds.length === 0) return null;
+  const progress = normalizeLearningProgress(
+    session.lastConceptId,
+    session.completedConceptIds,
+    session.nextReviewAtByConceptId,
+    session.lastActivityAt,
+  );
+  return getNextLearningAction(progress, conceptIds);
+}
+
+function actionLabel(action: NextLearningAction): string {
+  switch (action.kind) {
+    case 'complete':
+      return 'Review lesson';
+    case 'review':
+      return 'Review due';
+    case 'continue':
+      return 'Continue';
+    case 'start':
+      return 'Start';
+  }
+}
+
+function formatConceptProgress(session: Session): string {
+  const conceptIds = session.nodes.filter((node) => node.data.kind === 'concept').map((n) => n.id);
+  const total = conceptIds.length;
+  if (total === 0) return '';
+  const done = (session.completedConceptIds ?? []).filter((id) => conceptIds.includes(id)).length;
+  if (done >= total) return 'Completed';
+  return `${done} of ${total} concepts done`;
 }
 
 interface WelcomeModalProps {
@@ -95,23 +142,27 @@ export function WelcomeModal({
   const [showSessions, setShowSessions] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'name' | 'concepts'>('recent');
+  const [storageAcknowledged, setStorageAcknowledged] = useState(() => {
+    try {
+      return localStorage.getItem('quizify:storage-disclosure') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   const resumeSession = useMemo(() => {
-    const isComplete = (s: Session) => {
-      const quizNodes = s.nodes.filter((n) => n.data?.kind === 'quiz');
-      return (
-        quizNodes.length > 0 &&
-        quizNodes.every(
-          (n) => (n.data as any)?.state === 'correct' || (n.data as any)?.state === 'mastered',
-        )
-      );
-    };
-    const withContent = sessions.filter(
-      (s) => !isComplete(s) && s.nodes.some((n) => n.data?.kind === 'concept'),
+    const withContent = sessions.filter((session) =>
+      session.nodes.some((node) => node.data?.kind === 'concept'),
     );
-    withContent.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-    return withContent[0] ?? null;
+    withContent.sort((a, b) => b.updatedAt - a.updatedAt);
+    const incomplete = withContent.find((session) => {
+      const action = getSessionNextAction(session);
+      return action?.kind !== 'complete';
+    });
+    return incomplete ?? withContent[0] ?? null;
   }, [sessions]);
+
+  const resumeAction = resumeSession ? getSessionNextAction(resumeSession) : null;
 
   const filteredSessions = useMemo(() => {
     let result = [...sessions];
@@ -173,6 +224,14 @@ export function WelcomeModal({
 
   const handleSubmit = () => {
     if (!submitEnabled) return;
+    if (!storageAcknowledged) {
+      try {
+        localStorage.setItem('quizify:storage-disclosure', 'true');
+      } catch {
+        /* storage unavailable */
+      }
+      setStorageAcknowledged(true);
+    }
     onGenerate(url.trim());
   };
 
@@ -213,11 +272,49 @@ export function WelcomeModal({
             Turn any topic into a canvas you actually remember.
           </h1>
           <p className={styles.subheading}>
-            Paste a URL or type a topic and Quizify breaks it into concepts, quizzes, and a final
-            recap — laid out on an infinite canvas. It then reads them to you in a calm Notebook
-            view (press Esc anytime to switch to the canvas graph).
+            Paste a URL or type a topic and Quizify builds a guided tutor lesson — concepts,
+            quizzes, and a final recap. Tutor view is the default; switch to Map anytime to see
+            the full outline.
           </p>
         </header>
+
+        {resumeSession && (
+          <section className={styles.resumeSection}>
+            <div className={styles.resumeLabel}>Pick up where you left off</div>
+            <div
+              className={styles.resumeCard}
+              onClick={() => onSelectSession(resumeSession.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelectSession(resumeSession.id);
+                }
+              }}
+            >
+              <div className={styles.resumeBody}>
+                <span className={styles.resumeName}>{resumeSession.name}</span>
+                <span className={styles.resumeMeta}>
+                  {resumeSession.hostname && (
+                    <>
+                      <Globe size={11} />
+                      <span>{resumeSession.hostname}</span>
+                      <span className={styles.sessionDot}>·</span>
+                    </>
+                  )}
+                  {formatConceptProgress(resumeSession) || 'In progress'}
+                  {' · '}
+                  {relativeTime(new Date(resumeSession.updatedAt))}
+                </span>
+              </div>
+              <span className={styles.resumeAction}>
+                {resumeAction ? actionLabel(resumeAction) : 'Continue'}
+                <ArrowRight size={14} />
+              </span>
+            </div>
+          </section>
+        )}
 
         <section className={styles.section}>
           <label className={styles.label} htmlFor="url-input">
@@ -255,6 +352,12 @@ export function WelcomeModal({
           {persona && submitDisabledReason && (
             <p className={styles.generateHint}>{submitDisabledReason}</p>
           )}
+          {!storageAcknowledged && (
+            <p className={styles.storageNotice} role="note">
+              Lessons are saved locally in this browser (IndexedDB). They are not synced to the
+              cloud.
+            </p>
+          )}
           <div className={styles.chips}>
             {EXAMPLE_CHIPS.map((chip) => (
               <button
@@ -286,44 +389,6 @@ export function WelcomeModal({
             ))}
           </div>
         </div>
-
-        {resumeSession && (
-          <section className={styles.resumeSection}>
-            <div className={styles.resumeLabel}>Pick up where you left off</div>
-            <div
-              className={styles.resumeCard}
-              onClick={() => onSelectSession(resumeSession.id)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onSelectSession(resumeSession.id);
-                }
-              }}
-            >
-              <div className={styles.resumeBody}>
-                <span className={styles.resumeName}>{resumeSession.name}</span>
-                <span className={styles.resumeMeta}>
-                  {resumeSession.hostname && (
-                    <>
-                      <Globe size={11} />
-                      <span>{resumeSession.hostname}</span>
-                      <span className={styles.sessionDot}>·</span>
-                    </>
-                  )}
-                  {resumeSession.nodes.filter((n) => n.data?.kind === 'concept').length} concepts
-                  {' · '}
-                  {relativeTime(new Date(resumeSession.updatedAt))}
-                </span>
-              </div>
-              <span className={styles.resumeAction}>
-                Resume
-                <ArrowRight size={14} />
-              </span>
-            </div>
-          </section>
-        )}
 
         {sessions.length > 0 && (
           <>
@@ -362,19 +427,7 @@ export function WelcomeModal({
                     const Icon = PERSONA_ICONS[s.persona] ?? Sparkles;
                     const nodesList = s.nodes || [];
                     const conceptCount = nodesList.filter((n) => n.data?.kind === 'concept').length;
-                    const quizNodes = nodesList.filter((n) => n.data?.kind === 'quiz');
-                    const answeredQuizzes = quizNodes.filter(
-                      (n) => (n.data as any)?.state !== 'untested',
-                    );
-                    const masteredQuizzes = quizNodes.filter(
-                      (n) =>
-                        (n.data as any)?.state === 'correct' ||
-                        (n.data as any)?.state === 'mastered',
-                    );
-                    const masteryPct =
-                      quizNodes.length > 0
-                        ? Math.round((masteredQuizzes.length / quizNodes.length) * 100)
-                        : null;
+                    const progressLabel = formatConceptProgress(s);
                     return (
                       <div
                         key={s.id}
@@ -416,27 +469,21 @@ export function WelcomeModal({
                                 </span>
                               </>
                             )}
-                            {masteryPct !== null &&
-                              answeredQuizzes.length > 0 &&
-                              masteryPct > 0 && (
-                                <>
-                                  <span className={styles.sessionDot}>·</span>
-                                  <span
-                                    style={{
-                                      color:
-                                        masteryPct >= 100
-                                          ? 'var(--success)'
-                                          : masteryPct >= 80
-                                            ? 'var(--success)'
-                                            : masteryPct >= 50
-                                              ? 'var(--warning)'
-                                              : 'var(--text-tertiary)',
-                                    }}
-                                  >
-                                    {masteryPct >= 100 ? 'Completed' : `${masteryPct}% mastered`}
-                                  </span>
-                                </>
-                              )}
+                            {progressLabel && (
+                              <>
+                                <span className={styles.sessionDot}>·</span>
+                                <span
+                                  style={{
+                                    color:
+                                      progressLabel === 'Completed'
+                                        ? 'var(--success)'
+                                        : 'var(--text-secondary)',
+                                  }}
+                                >
+                                  {progressLabel}
+                                </span>
+                              </>
+                            )}
                           </span>
                         </div>
                         <button
@@ -460,51 +507,47 @@ export function WelcomeModal({
         )}
       </main>
 
-      {confirmingDelete &&
-        (() => {
-          const sessionToDelete = sessions.find((s) => s.id === confirmingDelete);
-          return (
-            <div className={styles.dialogOverlay} onClick={() => setConfirmingDelete(null)}>
-              <div
-                className={styles.dialogModal}
-                onClick={(e) => e.stopPropagation()}
-                role="alertdialog"
-                aria-modal="true"
-                aria-labelledby="delete-dialog-title"
-                aria-describedby="delete-dialog-desc"
-              >
-                <h2 id="delete-dialog-title" className={styles.dialogTitle}>
-                  Delete Session
-                </h2>
-                <p id="delete-dialog-desc" className={styles.dialogDesc}>
-                  Are you sure you want to delete the session "
-                  {sessionToDelete?.name || 'this session'}"? This action cannot be undone.
-                </p>
-                <div className={styles.dialogButtons}>
-                  <button
-                    className={styles.dialogCancelBtn}
-                    onClick={() => setConfirmingDelete(null)}
-                    type="button"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className={styles.dialogConfirmBtn}
-                    onClick={() => {
-                      if (confirmingDelete) {
-                        removeSession(confirmingDelete);
-                        setConfirmingDelete(null);
-                      }
-                    }}
-                    type="button"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+      {confirmingDelete && (
+        <AccessibleDialog
+          role="alertdialog"
+          labelledBy="delete-dialog-title"
+          describedBy="delete-dialog-desc"
+          onClose={() => setConfirmingDelete(null)}
+          overlayClassName={styles.dialogOverlay}
+          panelClassName={styles.dialogModal}
+          initialFocusSelector=".welcome-delete-cancel"
+        >
+          <h2 id="delete-dialog-title" className={styles.dialogTitle}>
+            Delete Session
+          </h2>
+          <p id="delete-dialog-desc" className={styles.dialogDesc}>
+            Are you sure you want to delete the session "
+            {sessions.find((s) => s.id === confirmingDelete)?.name || 'this session'}"? This action
+            cannot be undone.
+          </p>
+          <div className={styles.dialogButtons}>
+            <button
+              className={`${styles.dialogCancelBtn} welcome-delete-cancel`}
+              onClick={() => setConfirmingDelete(null)}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className={styles.dialogConfirmBtn}
+              onClick={() => {
+                if (confirmingDelete) {
+                  removeSession(confirmingDelete);
+                  setConfirmingDelete(null);
+                }
+              }}
+              type="button"
+            >
+              Delete
+            </button>
+          </div>
+        </AccessibleDialog>
+      )}
     </div>
   );
 }
