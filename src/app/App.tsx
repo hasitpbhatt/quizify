@@ -317,7 +317,12 @@ export function App() {
             <Plus size={14} />
             <span>New</span>
           </button>
-          <button className={styles.actionBtn} onClick={cycleTheme} title={'Theme: ' + theme} type="button">
+          <button
+            className={styles.actionBtn}
+            onClick={cycleTheme}
+            title={'Theme: ' + theme}
+            type="button"
+          >
             <ThemeIcon size={14} />
           </button>
         </div>

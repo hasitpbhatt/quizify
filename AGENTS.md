@@ -18,7 +18,7 @@ survive reloads.
 
 - **Runtime**: Vite 5 + React 18 + TypeScript 5.6, `"type": "module"`.
 - **State**: Zustand. Two stores:
-  - `src/shared/stores/settingsStore.ts` — `apiKey` / `jinaToken` / `persona` / `theme` / `provider`, mirrored to `localStorage` under `quizify:*` keys.
+  - `src/shared/stores/settingsStore.ts` — `persona` / `theme`, mirrored to `localStorage` under `quizify:*` keys.
   - `src/shared/stores/sessionStore.ts` — sessions list + `currentId`, backed by IndexedDB.
 - **Persistence**: IndexedDB via `idb`. DB name `quizify`, version 2, stores `source_cache` (keyPath `url`) and `sessions` (keyPath `id`). Entry point `src/lib/db/db.ts`.
 - **Canvas**: `@xyflow/react` (React Flow v12). Nodes in `src/features/canvas/nodes/`, edges in `src/features/canvas/edges/`. No separate layout module — positions are assigned inline in `pipeline.ts` using fixed estimated widths.
