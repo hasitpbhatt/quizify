@@ -1131,7 +1131,8 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
             <div className={styles.graphCueContent}>
               <span className={styles.graphCueTitle}>Your canvas is ready</span>
               <span className={styles.graphCueText}>
-                Click any node to explore. Switch to <strong>Notebook</strong> view for a guided reading experience with narration.
+                Click any node to explore. Switch to <strong>Notebook</strong> view for a guided
+                reading experience with narration.
               </span>
             </div>
             <button className={styles.graphCueClose} onClick={dismissGraphCue} type="button">
