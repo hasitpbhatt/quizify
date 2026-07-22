@@ -2,10 +2,14 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { readNotebookModePreference } from '@/shared/notebookModePreference';
-import { ChevronDown, X } from 'lucide-react';
+import { BookOpen, ChevronDown, X } from 'lucide-react';
 import styles from './Toolbar.module.css';
 
-export function Toolbar() {
+interface ToolbarProps {
+  canvasPage?: boolean;
+}
+
+export function Toolbar({ canvasPage }: ToolbarProps) {
   const { sessions, currentId, load, select, remove } = useSessionStore();
   const [open, setOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null);
@@ -127,6 +131,17 @@ export function Toolbar() {
       </span>
 
       <div className={styles.spacer} />
+
+      {canvasPage && (
+        <button
+          className={styles.notebookToggle}
+          onClick={useNotebookStore.getState().toggleNotebookMode}
+          title="Switch to notebook reading mode"
+          type="button"
+        >
+          <BookOpen size={14} />
+        </button>
+      )}
 
       <div className={styles.sessionSelect} ref={ref} onKeyDown={handleKeyDown}>
         <button

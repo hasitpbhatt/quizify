@@ -170,10 +170,10 @@ The character-by-character typewriter is charming. But it animates every time a 
 
 ## Summary: Actionable Priority Matrix
 
-| ID | Issue | Severity | Effort | Impact |
-|----|-------|----------|--------|--------|
-| D1 | Toolbar overload (brand + nav + actions crammed) | 🔴 Critical | Small | High |
-| D1 | Notebook toggle has no label/signifier | 🟡 Major | Trivial | High |
+| ID | Issue | Severity | Effort | Impact | Done |
+|----|-------|----------|--------|--------|------|
+| D1 | Toolbar overload (brand + nav + actions crammed) | 🔴 Critical | Small | High | ✅ |
+| D1 | Notebook toggle has no label/signifier | 🟡 Major | Trivial | High | ✅ |
 | D2 | Welcome modal decision overload | 🔴 Critical | Medium | High |
 | D2 | No "aha moment" on first canvas load | 🟡 Major | Medium | High |
 | D3 | Graph mode overwhelming without reading order | 🟡 Major | Medium | Medium |
@@ -185,22 +185,22 @@ The character-by-character typewriter is charming. But it animates every time a 
 | D6 | Three inconsistent visual modes | 🟡 Major | Large | Medium |
 | D6 | Escape key handler layering conflict | 🔵 Minor | Small | Medium |
 | D7 | Brand disappears inside product | ⚪ Enhancement | Small | Low |
-| D7 | Export dropdown opens upward, overlaps | 🔵 Minor | Trivial | Low |
+| D7 | Export dropdown opens upward, overlaps | 🔵 Minor | Trivial | Low | ✅ |
 | D8 | Session delete uses ambiguous "Confirm?" text | 🔵 Minor | Trivial | Medium |
-| D8 | No indication data is local-only | 🔵 Minor | Small | Medium |
-| D9 | Mobile view cannot answer quizzes | 🔴 Critical | Small | High |
-| D9 | No skeleton loading during generation on canvas | 🟡 Major | Medium | Medium |
-| D10 | Notebook mode is hidden superpower | 🔴 Critical | Small | High |
+| D8 | No indication data is local-only | 🔵 Minor | Small | Medium | ✅ |
+| D9 | Mobile view cannot answer quizzes | 🔴 Critical | Small | High | ✅ |
+| D9 | No skeleton loading during generation on canvas | 🟡 Major | Medium | Medium | ✅ |
+| D10 | Notebook mode is hidden superpower | 🔴 Critical | Small | High | ✅ |
 | D10 | Typewriter re-animates on re-visit | 🔵 Minor | Small | Low |
 
-### Quick Wins (Fix this week)
+### Quick Wins (Fix this week) — ✅ All Done
 
-1. Label the notebook toggle button ("Notebook view")
-2. Wire quiz interaction into MobileFocusView
-3. Split toolbar: identity in top-left, actions in context-adaptive bar
-4. Make notebook mode the default entry for new sessions
-5. Add skeleton nodes during generation
-6. Fix the export dropdown direction
+1. ~~Label the notebook toggle button ("Notebook view")~~ ✅
+2. ~~Wire quiz interaction into MobileFocusView~~ ✅
+3. ~~Split toolbar: identity in top-left, actions in context-adaptive bar~~ ✅
+4. ~~Make notebook mode the default entry for new sessions~~ ✅
+5. ~~Add skeleton nodes during generation~~ ✅
+6. ~~Fix the export dropdown direction~~ ✅
 
 ### Medium-term (Next sprint)
 
