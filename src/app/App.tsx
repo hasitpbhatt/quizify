@@ -335,7 +335,7 @@ export function App() {
       </div>
     ) : page === 'canvas' ? (
       <div key="canvas" className={isGenerating ? 'pageEnterInstant' : 'pageEnter'}>
-        <Toolbar />
+        <Toolbar canvasPage />
         <ReactFlowProvider>
           <CanvasPage progress={progress} isGenerating={isGenerating} onHome={goWelcome} />
         </ReactFlowProvider>

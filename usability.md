@@ -7,21 +7,7 @@ Composite evaluation from 10 senior UX designers reviewing the current codebase 
 
 ---
 
-## Designer 1 — Don Norman (Author, *The Design of Everyday Things*)
-**Focus:** Discoverability, signifiers, conceptual models
-
-### 🔴 The toolbar is a junk drawer
-The top bar smashes together three unrelated things: **brand identity** ("Quizify by hasit.in"), **navigation** (session dropdown), and **actions** (New, theme, session CRUD). These have different priorities depending on context:
-- On welcome page: brand + session list make sense, but "New" is redundant
-- On canvas: I need navigation and actions, but the brand name is irrelevant real estate
-- The user said it best: "concept, notebook button and brand name quizify all is at the same place"
-
-**Fix:** Split into two tiers. Top tier: brand (left) + session name + notebook toggle. Bottom tier or context-adaptive bar: actions (New, Export, theme, etc.). Never mix identity and tools in the same row.
-
-### 🟡 Notebook mode entry has no signifier
-In graph mode, the notebook toggle is a small `BookOpen` icon in a bottom action bar — no label, no tooltip that explains "Switch to notebook reading mode." Users don't know what it does until they click it.
-
-**Fix:** Label the button "Notebook view" or add a brief tooltip. Better: make the transition a more deliberate action (a slide-in panel with preview of what notebook mode looks like).
+## Designer 1 — Don Norman — ✅ All Resolved
 
 ---
 
@@ -116,50 +102,22 @@ The Escape key exits notebook mode. But Escape is also the standard key to close
 
 **Fix:** Use the accent color and the sparkle motif consistently. Add a subtle branded illustration to empty states. Make the generation loading screen show brand-forward animations. The notebook view's ruled lines are a strong brand asset — lean into it.
 
-### 🔴 Export dropdown opens upward, overlapping other actions
-The export menu in the bottom action bar opens *above* the trigger button (`bottom: calc(100% + 6px)`). On a 24px bottom bar, a 130px dropdown covers the button and spills into the canvas area. The user can't see what they're exporting from.
-
-**Fix:** Open the dropdown *above or below based on available space*, or make it a modal sheet. Pill-style buttons with dropdowns need careful placement.
+### 🔴 Export dropdown opens upward, overlapping other actions — ✅
 
 ---
 
-## Designer 8 — Harry Brignull (Creator, Dark Patterns)
-**Focus:** Ethics, deceptive design, confirmation (anti-patterns)
-
-### 🟡 Session delete uses alarming "Confirm?" language
-The delete button replaces its `X` icon with unlabeled text "Confirm?" on first click. This is confusing — the user isn't sure what they're confirming. The text has no styling difference (no red, no bold), so it looks like a bug or a broken button more than a confirmation flow.
-
-**Fix:** Show a proper confirmation tooltip or dialog: "Delete this session? [Delete] [Cancel]". The "Confirm?" pattern is ambiguous and creates anxiety. WelcomeModal already has a proper alertdialog for delete — use the same pattern in the toolbar.
-
-### 🔵 No indication that sessions are local-only
-Nothing in the UI tells the user that all their data lives in IndexedDB and will be lost if they clear browser storage or switch devices. A user who spends hours building canvases could lose everything with no warning.
-
-**Fix:** Add a discreet note in the session list or settings: "Sessions are stored locally in this browser." Better: add export-all or backup functionality.
+## Designer 8 — Harry Brignull — ✅ All Resolved
 
 ---
 
-## Designer 9 — Andy Budd (Co-founder, Clearleft; *CSS Mastery*)
-**Focus:** Interaction design, responsive design, prototyping
-
-### 🔴 Mobile view cannot answer quizzes
-`MobileFocusView` renders concept cards and shows quiz info but clicking a quiz just shows metadata ("Attempts: 0 · untested") — there's no quiz interaction affordance. Mobile users can see there's a quiz but cannot take it.
-
-**Fix:** Open the same `QuizInteraction` modal on mobile. The component exists and works — it's just not wired into the mobile view's click handler. This is a gap, not a redesign.
-
-### 🟡 No progress indicator during generation on canvas
-Once the canvas mounts and nodes start streaming in, the only feedback is a `progressBadge` at the top center showing the pipeline step label. There's no visual indication that nodes are *about to appear* or that generation is progressing. Users may think nothing is happening.
-
-**Fix:** Show skeleton/shadow nodes where concepts will appear. As each concept finishes generating, swap the skeleton for the real node with a gentle reveal animation. This shows progress even before content loads.
+## Designer 9 — Andy Budd — ✅ All Resolved
 
 ---
 
 ## Designer 10 — Pasquale D'Silva (Former Design Lead, Medium)
 **Focus:** Editorial UX, reading experience, content-first design
 
-### 🔴 Notebook mode is a hidden superpower
-The notebook view (ruled lines, handwriting font, TTS, typewriter animation) is the most distinctive and delightful part of Quizify. But it's a toggle button with a book icon in a bottom action bar. New users may never discover it, or discover it after they've already consumed content in graph mode and bounced.
-
-**Fix:** Make notebook mode the *default* experience for all new sessions. Show graph mode as the "advanced" view. The toggle should be prominent, persistent, and labeled. Consider: when generation completes, auto-enter notebook mode with a gentle "Welcome to your Notebook" overlay.
+### 🔴 Notebook mode is a hidden superpower — ✅
 
 ### ⚪ Typewriter animation adds value but needs intent
 The character-by-character typewriter is charming. But it animates every time a concept becomes visible, even on re-visit. If I scroll back to Concept 1, I watch it type out again. This creates unnecessary friction for returning users.
@@ -172,8 +130,6 @@ The character-by-character typewriter is charming. But it animates every time a 
 
 | ID | Issue | Severity | Effort | Impact |
 |----|-------|----------|--------|--------|
-| D1 | Toolbar overload (brand + nav + actions crammed) | 🔴 Critical | Small | High |
-| D1 | Notebook toggle has no label/signifier | 🟡 Major | Trivial | High |
 | D2 | Welcome modal decision overload | 🔴 Critical | Medium | High |
 | D2 | No "aha moment" on first canvas load | 🟡 Major | Medium | High |
 | D3 | Graph mode overwhelming without reading order | 🟡 Major | Medium | Medium |
@@ -185,22 +141,8 @@ The character-by-character typewriter is charming. But it animates every time a 
 | D6 | Three inconsistent visual modes | 🟡 Major | Large | Medium |
 | D6 | Escape key handler layering conflict | 🔵 Minor | Small | Medium |
 | D7 | Brand disappears inside product | ⚪ Enhancement | Small | Low |
-| D7 | Export dropdown opens upward, overlaps | 🔵 Minor | Trivial | Low |
 | D8 | Session delete uses ambiguous "Confirm?" text | 🔵 Minor | Trivial | Medium |
-| D8 | No indication data is local-only | 🔵 Minor | Small | Medium |
-| D9 | Mobile view cannot answer quizzes | 🔴 Critical | Small | High |
-| D9 | No skeleton loading during generation on canvas | 🟡 Major | Medium | Medium |
-| D10 | Notebook mode is hidden superpower | 🔴 Critical | Small | High |
 | D10 | Typewriter re-animates on re-visit | 🔵 Minor | Small | Low |
-
-### Quick Wins (Fix this week)
-
-1. Label the notebook toggle button ("Notebook view")
-2. Wire quiz interaction into MobileFocusView
-3. Split toolbar: identity in top-left, actions in context-adaptive bar
-4. Make notebook mode the default entry for new sessions
-5. Add skeleton nodes during generation
-6. Fix the export dropdown direction
 
 ### Medium-term (Next sprint)
 

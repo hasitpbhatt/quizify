@@ -112,6 +112,23 @@ export async function processOneConcept(
 
   const cursorX = 100 + index * PAIR_WIDTH;
 
+  // Stream raw tokens into the concept node so the user sees text appearing
+  // in real-time. Throttled to at most one persist every 200ms.
+  const streamingState = { raw: '', lastPersist: 0 };
+  const nodeIdx = nodeIndexById.get(concept.id);
+  const onToken = (delta: string) => {
+    streamingState.raw += delta;
+    const now = Date.now();
+    if (now - streamingState.lastPersist < 200) return;
+    streamingState.lastPersist = now;
+    if (nodeIdx === undefined || nodeIdx === -1) return;
+    nodes[nodeIdx] = {
+      ...nodes[nodeIdx],
+      data: { ...nodes[nodeIdx].data, explanation: streamingState.raw } as ConceptData,
+    };
+    persist();
+  };
+
   const conceptStart = performance.now();
   debugLog('log', 'pipeline', 'concept start id=%s title=%s', concept.id, concept.title);
 
@@ -122,6 +139,7 @@ export async function processOneConcept(
         persona,
         signal,
         context: { topic },
+        onToken,
         onRetry: (info) =>
           useToastStore
             .getState()
