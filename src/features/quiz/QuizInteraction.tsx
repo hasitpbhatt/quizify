@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import type { CSSProperties } from 'react';
 import type { QuizData } from '@/shared/types';
 import { MultipleChoice } from './formats/MultipleChoice';
 import { TrueFalse } from './formats/TrueFalse';
@@ -8,6 +9,15 @@ import { FillBlank } from './formats/FillBlank';
 import { Ordering } from './formats/Ordering';
 import type { SubmitResult } from './useQuizAnswer';
 import { useQuizAnswer } from './useQuizAnswer';
+import styles from './QuizInteraction.module.css';
+
+const badgeClasses: Record<string, string> = {
+  inProgress: styles.badgeInProgress,
+  correct: styles.badgeCorrect,
+  partial: styles.badgePartial,
+  incorrect: styles.badgeIncorrect,
+  mastered: styles.badgeMastered,
+};
 
 interface Props {
   quiz: QuizData;
@@ -16,14 +26,6 @@ interface Props {
   onClose: () => void;
   notebookMode?: boolean;
 }
-
-const badgeColors: Record<string, string> = {
-  untested: 'var(--text-secondary)',
-  inProgress: '#eab308',
-  correct: '#22c55e',
-  incorrect: '#ef4444',
-  mastered: '#22c55e',
-};
 
 /** Focus trap hook: keeps focus within the dialog and auto-focuses a target element on mount */
 function useFocusTrap(
@@ -93,7 +95,7 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose, notebookM
   const overlayRef = useRef<HTMLDivElement>(null);
   const promptId = 'quiz-prompt-' + quizId;
 
-  useFocusTrap(overlayRef, '.quiz-close-btn');
+  useFocusTrap(overlayRef, '[data-quiz-close]');
 
   const handleSubmit = useCallback(
     async (answer: string | string[]) => {
@@ -125,10 +127,18 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose, notebookM
     .replace(/([A-Z])/g, ' $1')
     .replace(/^./, (s) => s.toUpperCase())
     .trim();
+  const gradingMessage = retryInfo
+    ? `Grading timed out, retrying… (${retryInfo.attempt + 1}/${retryInfo.maxRetries + 1})`
+    : 'Grading…';
+  const resultMessage = result
+    ? `${result.grade === 'correct' ? 'Correct' : result.grade === 'partial' ? 'Almost there' : 'Not quite'}. ${result.rationale}`
+    : '';
+  const statusMessage = submitting ? gradingMessage : resultMessage;
 
   return (
     <div
       ref={overlayRef}
+      className={`${styles.overlay} ${notebookMode ? styles.notebookOverlay : ''}`}
       role="dialog"
       aria-modal="true"
       aria-labelledby={promptId}
@@ -139,84 +149,32 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose, notebookM
               if (e.target === overlayRef.current) onClose();
             }
       }
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        background: notebookMode ? 'transparent' : 'rgba(0,0,0,0.4)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backdropFilter: notebookMode ? 'none' : 'blur(4px)',
-        pointerEvents: notebookMode ? 'none' : 'auto',
-      }}
     >
-      <div
-        style={{
-          background: 'var(--bg-canvas)',
-          border: '1px solid var(--border)',
-          borderRadius: 12,
-          padding: 24,
-          maxWidth: 520,
-          width: '90%',
-          maxHeight: '80vh',
-          overflow: 'auto',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
-          pointerEvents: notebookMode ? 'auto' : undefined,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            marginBottom: 16,
-          }}
-        >
+      <div className={`${styles.dialog} ${notebookMode ? styles.notebookDialog : ''}`}>
+        <div className={styles.header}>
           <div>
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: 0.5,
-                color: 'var(--accent)',
-                fontFamily: 'var(--font-ui)',
-                marginBottom: 4,
-              }}
-            >
+            <div className={styles.metadata}>
               {formatLabel} &middot; {conceptTitle}
             </div>
-            <div
-              id={promptId}
-              style={{
-                fontSize: 15,
-                fontWeight: 500,
-                color: 'var(--text-primary)',
-                fontFamily: 'var(--font-ui)',
-                lineHeight: 1.4,
-              }}
-            >
+            <div id={promptId} className={styles.prompt}>
               {quiz.prompt}
             </div>
           </div>
           <button
             onClick={onClose}
-            className="quiz-close-btn"
+            className={styles.closeButton}
+            data-quiz-close
             aria-label="Close quiz"
-            style={{
-              padding: '4px 10px',
-              borderRadius: 4,
-              border: '1px solid var(--border)',
-              background: 'var(--bg-elevated)',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              fontFamily: 'var(--font-ui)',
-              fontSize: 12,
-            }}
           >
             ✕
           </button>
+        </div>
+
+        <div className={styles.srOnly} role="status" aria-live="polite" aria-atomic="true">
+          {statusMessage}
+        </div>
+        <div className={styles.srOnly} role="alert" aria-live="assertive" aria-atomic="true">
+          {error ?? ''}
         </div>
 
         {!submitted ? (
@@ -247,169 +205,59 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose, notebookM
             {quiz.format === 'ordering' && (
               <Ordering items={quiz.items ?? []} disabled={submitting} onSubmit={handleSubmit} />
             )}
-            {submitting && (
-              <div
-                style={{
-                  textAlign: 'center',
-                  padding: 16,
-                  color: 'var(--text-secondary)',
-                  fontSize: 13,
-                }}
-              >
-                {retryInfo
-                  ? 'Grading timed out, retrying\u2026 (' +
-                    (retryInfo.attempt + 1) +
-                    '/' +
-                    (retryInfo.maxRetries + 1) +
-                    ')'
-                  : 'Grading\u2026'}
-              </div>
-            )}
+            {submitting && <div className={styles.grading}>{gradingMessage}</div>}
           </div>
         ) : result && showRemediation && result.grade !== 'correct' ? (
           <div>
             <div
-              style={{
-                padding: 12,
-                borderRadius: 8,
-                marginBottom: 12,
-                background:
-                  result.grade === 'partial' ? 'rgba(234,179,8,0.1)' : 'rgba(239,68,68,0.1)',
-                border: result.grade === 'partial' ? '1px solid #eab308' : '1px solid #ef4444',
-              }}
+              className={`${styles.feedback} ${
+                result.grade === 'partial' ? styles.partial : styles.incorrect
+              }`}
             >
-              <div
-                style={{
-                  fontWeight: 600,
-                  fontSize: 13,
-                  marginBottom: 8,
-                  color: result.grade === 'partial' ? '#eab308' : '#ef4444',
-                  fontFamily: 'var(--font-ui)',
-                }}
-              >
+              <div className={`${styles.feedbackTitle} ${styles.remediationTitle}`}>
                 {result.grade === 'partial' ? '~ Almost there' : '\u2717 Not quite'}
               </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-ui)',
-                  lineHeight: 1.5,
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>What to notice</div>
-                <div style={{ marginBottom: 12 }}>{result.rationale}</div>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>The correct answer</div>
-                <div style={{ color: '#22c55e' }}>{quiz.correctAnswer}</div>
+              <div className={styles.feedbackBody}>
+                <div className={styles.sectionHeading}>What to notice</div>
+                <div className={styles.rationale}>{result.rationale}</div>
+                <div className={styles.sectionHeading}>The correct answer</div>
+                <div className={styles.correctAnswer}>{quiz.correctAnswer}</div>
               </div>
             </div>
-            <button
-              onClick={handleTryOnceMore}
-              style={{
-                padding: '8px 20px',
-                borderRadius: 6,
-                border: 'none',
-                background: 'var(--accent)',
-                color: '#fff',
-                cursor: 'pointer',
-                fontFamily: 'var(--font-ui)',
-                fontSize: 13,
-                fontWeight: 600,
-                width: '100%',
-              }}
-            >
+            <button onClick={handleTryOnceMore} className={styles.primaryButton}>
               Try once more
             </button>
           </div>
         ) : result ? (
-          <div style={{ position: 'relative' }}>
+          <div className={styles.result}>
             {result.grade === 'correct' && <ConfettiExplosion />}
             <div
-              style={{
-                padding: 12,
-                borderRadius: 8,
-                marginBottom: 12,
-                background:
-                  result.grade === 'correct' ? 'rgba(34,197,94,0.1)' : 'rgba(234,179,8,0.1)',
-                border: result.grade === 'correct' ? '1px solid #22c55e' : '1px solid #eab308',
-              }}
+              className={`${styles.feedback} ${
+                result.grade === 'correct' ? styles.correct : styles.partial
+              }`}
             >
-              <div
-                style={{
-                  fontWeight: 600,
-                  fontSize: 14,
-                  marginBottom: 4,
-                  color: result.grade === 'correct' ? '#22c55e' : '#eab308',
-                  fontFamily: 'var(--font-ui)',
-                }}
-              >
+              <div className={styles.feedbackTitle}>
                 {result.grade === 'correct' ? '\u2713 Correct' : '~ Partial'}
               </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-ui)',
-                  lineHeight: 1.5,
-                }}
-              >
-                {result.rationale}
-              </div>
+              <div className={styles.feedbackBody}>{result.rationale}</div>
             </div>
           </div>
         ) : null}
 
         {error && (
-          <div
-            style={{
-              padding: 8,
-              borderRadius: 6,
-              marginTop: 8,
-              background: 'rgba(239,68,68,0.1)',
-              border: '1px solid #ef4444',
-              color: '#ef4444',
-              fontSize: 12,
-              fontFamily: 'var(--font-ui)',
-            }}
-          >
+          <div className={styles.error} aria-hidden="true">
             {error}
           </div>
         )}
 
         {attempts.length > 0 && (
-          <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: 'var(--text-secondary)',
-                marginBottom: 8,
-                fontFamily: 'var(--font-ui)',
-              }}
-            >
-              Attempts ({attempts.length})
-            </div>
+          <div className={styles.attempts}>
+            <div className={styles.attemptsTitle}>Attempts ({attempts.length})</div>
             {attempts.map((a, i) => (
-              <div
-                key={i}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  fontSize: 12,
-                  color: 'var(--text-secondary)',
-                  fontFamily: 'var(--font-ui)',
-                  marginBottom: 4,
-                }}
-              >
+              <div key={i} className={styles.attempt}>
                 <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: badgeColors[a.grade],
-                    display: 'inline-block',
-                  }}
+                  className={`${styles.badge} ${badgeClasses[a.grade] ?? ''}`}
+                  aria-hidden="true"
                 />
                 #{i + 1}: {a.grade}
               </div>
@@ -421,33 +269,10 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose, notebookM
   );
 }
 
-const CONFETTI_STYLE = `
-@keyframes explode {
-  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-  100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0); opacity: 0; }
-}
-.confetti-container {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-  z-index: 1000;
-}
-.confetti-particle {
-  position: absolute;
-  border-radius: 50%;
-  background: var(--bg);
-  animation: explode 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-`;
-
 function ConfettiExplosion() {
   const particles = Array.from({ length: 45 });
   return (
-    <div className="confetti-container">
-      <style>{CONFETTI_STYLE}</style>
+    <div className={styles.confettiContainer} aria-hidden="true">
       {particles.map((_, i) => {
         const angle = Math.random() * Math.PI * 2;
         const velocity = 30 + Math.random() * 110;
@@ -469,16 +294,16 @@ function ConfettiExplosion() {
         return (
           <span
             key={i}
-            className="confetti-particle"
+            className={styles.confettiParticle}
             style={
               {
-                '--tx': tx + 'px',
-                '--ty': ty + 'px',
-                '--bg': color,
+                '--confetti-x': tx + 'px',
+                '--confetti-y': ty + 'px',
+                '--confetti-color': color,
                 width: size + 'px',
                 height: size + 'px',
                 animationDelay: delay + 's',
-              } as any
+              } as CSSProperties
             }
           />
         );

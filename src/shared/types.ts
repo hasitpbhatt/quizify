@@ -9,6 +9,8 @@ export type QuizState =
   'untested' | 'inProgress' | 'correct' | 'partial' | 'incorrect' | 'mastered';
 
 export type NodeKind = 'concept' | 'quiz' | 'note' | 'summary';
+export type SourceProvenance = 'fetched' | 'topic-generated' | 'legacy-unknown';
+export type ConceptGenerationStatus = 'generating' | 'ready' | 'failed' | 'skipped';
 
 export const SUMMARY_NODE_ID = '__summary__';
 
@@ -43,6 +45,8 @@ export interface ConceptData {
   explanation: string;
   example: string;
   streaming?: boolean;
+  generationStatus?: ConceptGenerationStatus;
+  generationError?: string;
   sourceReference?: string;
   sourceUrl?: string;
 }
@@ -96,6 +100,7 @@ export interface Session {
   name: string;
   url: string;
   hostname: string;
+  sourceProvenance?: SourceProvenance;
   persona: Persona;
   createdAt: number;
   updatedAt: number;

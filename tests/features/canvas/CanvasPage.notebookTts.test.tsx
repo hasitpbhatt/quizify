@@ -60,7 +60,20 @@ function renderCanvas() {
 
 async function seedSessionWithOneConcept() {
   const concept = factories.mockConceptNode();
-  const session = factories.mockSession([concept], []);
+  const quiz = factories.mockQuizNode(concept.id, {
+    data: {
+      kind: 'quiz',
+      parentConceptId: concept.id,
+      format: 'multipleChoice',
+      prompt: 'Q?',
+      options: ['A', 'B'],
+      correctAnswer: 'A',
+      rationale: 'R',
+      attempts: [],
+      state: 'untested',
+    } as import('@/shared/types').QuizData,
+  });
+  const session = factories.mockSession([concept, quiz], [factories.mockEdge(concept.id, quiz.id)]);
   await sessionsDb.putSession(session);
   useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
   return { session, concept };

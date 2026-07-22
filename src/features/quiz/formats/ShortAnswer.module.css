@@ -4,6 +4,13 @@
   gap: 8px;
 }
 
+.label {
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .input {
   padding: 10px 14px;
   border-radius: 6px;
@@ -13,6 +20,11 @@
   font-family: var(--font-ui);
   font-size: 14px;
   outline: none;
+}
+
+.input:focus-visible {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
 }
 
 .submitBtn {

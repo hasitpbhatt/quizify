@@ -27,6 +27,21 @@
   pointer-events: none;
 }
 
+.locked {
+  opacity: 0.72;
+}
+
+.lockedBadge {
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  color: var(--text-tertiary);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-caption);
+  vertical-align: middle;
+}
+
 .loading::after {
   content: '';
   position: absolute;
@@ -81,6 +96,17 @@
   color: var(--text-secondary);
   line-height: var(--lh-normal);
   margin-bottom: var(--space-4);
+}
+
+.generationError {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: var(--danger-subtle, rgba(185, 28, 28, 0.08));
+  color: var(--danger);
+  font-size: var(--fs-small);
+  line-height: 1.4;
 }
 
 .explanationPara {

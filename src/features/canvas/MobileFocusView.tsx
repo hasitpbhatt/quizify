@@ -1,19 +1,26 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { ReactFlow, Background, MiniMap, BackgroundVariant } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import type { CanvasNode, QuizData, ConceptData } from '@/shared/types';
+import type { CanvasNode, QuizData, ConceptData, NoteData, SummaryData } from '@/shared/types';
 import { QuizInteraction } from '@/features/quiz/QuizInteraction';
+import { SummaryQuizInteraction } from '@/features/quiz/SummaryQuizInteraction';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
+import { useSessionStore } from '@/shared/stores/sessionStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
 import { useTypingAnimation } from './useTypingAnimation';
-import { Play, Pause, Square, List } from 'lucide-react';
+import { Play, Pause, Square, List, Plus, Download, Volume2, VolumeX } from 'lucide-react';
+import { exportSessionJson } from '@/lib/export/json';
+import { downloadSessionMarkdown } from '@/lib/export/markdown';
+import { getNextLearningAction, normalizeLearningProgress } from '@/shared/learningProgress';
 import styles from './MobileFocusView.module.css';
 
 interface Props {
   nodes: CanvasNode[];
   progress?: { stage: string; label: string };
   isGenerating?: boolean;
+  onHome?: () => void;
+  onAddNote?: () => void;
 }
 
 function formatKind(node: CanvasNode): string {
@@ -49,7 +56,13 @@ function renderContent(node: CanvasNode): { title?: string; body: string } {
   return { body: '' };
 }
 
-export function MobileFocusView({ nodes, progress, isGenerating = false }: Props) {
+export function MobileFocusView({
+  nodes,
+  progress,
+  isGenerating = false,
+  onHome,
+  onAddNote,
+}: Props) {
   const [index, setIndex] = useState(0);
   const [showMinimap, setShowMinimap] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
@@ -58,6 +71,8 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
     quiz: QuizData;
     conceptTitle: string;
   } | null>(null);
+  const [summaryQuiz, setSummaryQuiz] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const prefersReducedMotion = useRef<boolean>(
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -90,6 +105,14 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
 
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
   const ttsRate = useSettingsStore((s) => s.ttsRate);
+  const setTtsEnabled = useSettingsStore((s) => s.setTtsEnabled);
+  const setTtsRate = useSettingsStore((s) => s.setTtsRate);
+  const theme = useSettingsStore((s) => s.theme);
+  const setTheme = useSettingsStore((s) => s.setTheme);
+  const session = useSessionStore((state) =>
+    state.currentId ? (state.sessions.find((item) => item.id === state.currentId) ?? null) : null,
+  );
+  const updateCurrent = useSessionStore((state) => state.updateCurrent);
 
   const handlePlayPause = useCallback(() => {
     if (ttsPaused) {
@@ -172,6 +195,45 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
     setActiveQuiz(null);
   }, []);
 
+  const updateNote = useCallback(
+    (noteId: string, text: string) => {
+      if (!session) return;
+      const updatedNodes = session.nodes.map((item) =>
+        item.id === noteId && item.data.kind === 'note'
+          ? { ...item, data: { ...item.data, text } as NoteData }
+          : item,
+      );
+      updateCurrent({ nodes: updatedNodes });
+    },
+    [session, updateCurrent],
+  );
+
+  const cycleTheme = useCallback(() => {
+    setTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light');
+  }, [theme, setTheme]);
+
+  const summaryData = node?.data.kind === 'summary' ? (node.data as SummaryData) : null;
+
+  const lessonComplete = useMemo(() => {
+    if (!session) return false;
+    const conceptIds = session.nodes
+      .filter((item) => item.data.kind === 'concept')
+      .sort((a, b) => {
+        const ai = a.data.kind === 'concept' ? a.data.index : 0;
+        const bi = b.data.kind === 'concept' ? b.data.index : 0;
+        return ai - bi;
+      })
+      .map((item) => item.id);
+    if (conceptIds.length === 0) return false;
+    const progressState = normalizeLearningProgress(
+      session.lastConceptId,
+      session.completedConceptIds,
+      session.nextReviewAtByConceptId,
+      session.lastActivityAt,
+    );
+    return getNextLearningAction(progressState, conceptIds).kind === 'complete';
+  }, [session]);
+
   const isGeneratingProgress = isGenerating || (progress != null && progress.stage !== 'done');
 
   const outlineItemClass = (isCurrent: boolean) => {
@@ -189,13 +251,29 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
         </div>
       )}
 
+      {lessonComplete && !isGeneratingProgress && (
+        <div className={styles.completionBanner} role="status">
+          <strong>Lesson complete!</strong> Take the final quiz or review any concept from the
+          outline.
+        </div>
+      )}
+
       <div className={styles.topActions}>
+        {onHome && (
+          <button className={styles.topActionBtn} onClick={onHome}>
+            <Plus size={14} />
+            <span>New</span>
+          </button>
+        )}
         <button className={styles.topActionBtn} onClick={() => setShowOutline((v) => !v)}>
           <List size={14} />
           <span>Outline</span>
         </button>
         <button className={styles.topActionBtn} onClick={() => setShowMinimap((v) => !v)}>
-          {showMinimap ? '\u2715 Map' : '\u2630 Map'}
+          {showMinimap ? '\u2715 Close map' : '\u2630 Open map'}
+        </button>
+        <button className={styles.topActionBtn} onClick={cycleTheme} aria-label={`Theme: ${theme}`}>
+          {theme}
         </button>
       </div>
 
@@ -219,6 +297,23 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
                 {(node.data as QuizData).attempts.length > 0 ? 'Answer again' : 'Answer quiz'}
               </button>
             )}
+            {node.data.kind === 'summary' && (
+              <button className={styles.answerBtn} onClick={() => setSummaryQuiz(true)}>
+                {session && Object.keys(session.scores).length > 0
+                  ? 'Review final results'
+                  : 'Take final quiz'}
+              </button>
+            )}
+            {node.data.kind === 'note' && (
+              <label className={styles.noteEditor}>
+                <span>Edit note</span>
+                <textarea
+                  value={(node.data as NoteData).text}
+                  onChange={(event) => updateNote(node.id, event.target.value)}
+                  rows={6}
+                />
+              </label>
+            )}
           </div>
         ) : (
           <div className={styles.emptyCard}>No content to display</div>
@@ -227,6 +322,13 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
 
       {notebookMode && (
         <div className={styles.mobileTtsControls}>
+          <button
+            onClick={() => setTtsEnabled(!ttsEnabled)}
+            title={ttsEnabled ? 'Mute narration' : 'Enable narration'}
+            aria-pressed={!ttsEnabled}
+          >
+            {ttsEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+          </button>
           <button onClick={handlePlayPause} className={styles.playPauseBtn} title="Play/Pause">
             {ttsPaused ? <Play size={14} /> : ttsPlaying ? <Pause size={14} /> : <Play size={14} />}
           </button>
@@ -241,8 +343,40 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
           <span className={styles.mobileTtsLabel}>
             {totalSegments > 0 ? segmentIndex + 1 + ' / ' + totalSegments : 'Queued'}
           </span>
+          <select
+            value={ttsRate}
+            onChange={(event) => setTtsRate(Number(event.target.value))}
+            aria-label="Narration speed"
+          >
+            <option value={0.75}>0.75×</option>
+            <option value={1}>1×</option>
+            <option value={1.25}>1.25×</option>
+            <option value={1.5}>1.5×</option>
+            <option value={2}>2×</option>
+          </select>
         </div>
       )}
+
+      <div className={styles.mobileActions}>
+        {onAddNote && (
+          <button type="button" onClick={onAddNote}>
+            <Plus size={14} /> Add note
+          </button>
+        )}
+        <button type="button" onClick={() => setShowExport((value) => !value)}>
+          <Download size={14} /> Export
+        </button>
+        {showExport && session && (
+          <div className={styles.mobileExportMenu}>
+            <button type="button" onClick={() => exportSessionJson(session)}>
+              JSON
+            </button>
+            <button type="button" onClick={() => downloadSessionMarkdown(session)}>
+              Markdown
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className={styles.nav}>
         <button
@@ -271,6 +405,16 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
           conceptTitle={activeQuiz.conceptTitle}
           onClose={closeQuiz}
           notebookMode={notebookMode}
+        />
+      )}
+
+      {summaryQuiz && summaryData && session && (
+        <SummaryQuizInteraction
+          quizData={summaryData.finalQuiz}
+          onClose={() => setSummaryQuiz(false)}
+          onRetake={() => setSummaryQuiz(true)}
+          initialScores={session.scores}
+          onUpdateScores={(scores) => updateCurrent({ scores })}
         />
       )}
 

@@ -40,7 +40,9 @@ function ConceptNodeInner(props: NodeProps) {
     prevExample.current = data.example;
   }, [data.example]);
 
-  const isShell = data.example === 'Loading...';
+  const isShell = data.generationStatus === 'generating';
+  const hasFailed = data.generationStatus === 'failed';
+  const isLocked = props.data.isLocked === true && !notebookMode;
 
   // Cleanup audio resources on unmount — only cancel speech if this node
   // was the one speaking (notebook narration uses ttsManager, not per-node).
@@ -121,7 +123,12 @@ function ConceptNodeInner(props: NodeProps) {
   const isExplanationAnimating =
     notebookMode && revealed >= titleText.length && revealed < textToRead.length;
 
-  const nodeClass = [styles.node, isShell ? styles.loading : '', entered ? styles.entered : '']
+  const nodeClass = [
+    styles.node,
+    isShell ? styles.loading : '',
+    entered ? styles.entered : '',
+    isLocked ? styles.locked : '',
+  ]
     .filter(Boolean)
     .join(' ');
 
@@ -135,22 +142,36 @@ function ConceptNodeInner(props: NodeProps) {
       <Handle type="target" position={Position.Left} />
       <div className={styles.title} data-typing={isTitleAnimating ? 'true' : undefined}>
         {notebookMode ? titleText.slice(0, titleRevealed) : titleText}
+        {isLocked && <span className={styles.lockedBadge}>Locked</span>}
       </div>
-      <div className={styles.explanation} data-typing={isExplanationAnimating ? 'true' : undefined}>
-        {explanationParagraphs.map((p, i) => (
-          <p
-            key={i}
-            className={styles.explanationPara}
-            data-typing={
-              notebookMode && isExplanationAnimating && i === explanationParagraphs.length - 1
-                ? 'true'
-                : undefined
-            }
-          >
-            {p}
-          </p>
-        ))}
+      <div
+        className={styles.explanation}
+        data-typing={isExplanationAnimating ? 'true' : undefined}
+        aria-hidden={isLocked ? true : undefined}
+      >
+        {isLocked ? (
+          <p className={styles.explanationPara}>Complete earlier concepts to unlock this one.</p>
+        ) : (
+          explanationParagraphs.map((p, i) => (
+            <p
+              key={i}
+              className={styles.explanationPara}
+              data-typing={
+                notebookMode && isExplanationAnimating && i === explanationParagraphs.length - 1
+                  ? 'true'
+                  : undefined
+              }
+            >
+              {p}
+            </p>
+          ))
+        )}
       </div>
+      {hasFailed && (
+        <div role="alert" className={styles.generationError}>
+          This concept could not be generated. Use Retry or Skip in the lesson recovery panel.
+        </div>
+      )}
       {!notebookMode && (
         <div className={styles.footer}>
           {data.streaming ? (

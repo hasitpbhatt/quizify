@@ -7,6 +7,27 @@ import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
 import * as sessionsDb from '@/lib/db/sessionsDb';
 
+let lastDeletedNote: {
+  sessionId: string;
+  node: CanvasNode;
+  edges: import('@/shared/types').CanvasEdge[];
+  index: number;
+} | null = null;
+
+export async function undoLastDeletedNote(): Promise<boolean> {
+  if (!lastDeletedNote) return false;
+  const snapshot = lastDeletedNote;
+  const session = await sessionsDb.getSession(snapshot.sessionId);
+  if (!session || session.nodes.some((node) => node.id === snapshot.node.id)) return false;
+  const nodes = [...session.nodes];
+  nodes.splice(Math.min(snapshot.index, nodes.length), 0, snapshot.node);
+  await useSessionStore
+    .getState()
+    .updateCurrent({ nodes, edges: [...session.edges, ...snapshot.edges] }, snapshot.sessionId);
+  lastDeletedNote = null;
+  return true;
+}
+
 function toNoteData(data: Record<string, unknown>): NoteData {
   if (data.kind !== 'note') throw new Error(`Expected note data, got ${String(data.kind)}`);
   return data as unknown as NoteData;
@@ -14,7 +35,7 @@ function toNoteData(data: Record<string, unknown>): NoteData {
 
 function NoteNodeInner(props: NodeProps) {
   const data = toNoteData(props.data);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(data.text.trim().length === 0);
   const [draft, setDraft] = useState(data.text);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const updateCurrent = useSessionStore((s) => s.updateCurrent);
@@ -77,9 +98,21 @@ function NoteNodeInner(props: NodeProps) {
     if (!authoritative) return;
 
     const updatedNodes = authoritative.nodes.filter((n) => n.id !== nodeId);
+    const deletedEdges = authoritative.edges.filter(
+      (e) => e.source === nodeId || e.target === nodeId,
+    );
     const updatedEdges = authoritative.edges.filter(
       (e) => e.source !== nodeId && e.target !== nodeId,
     );
+    const deletedNode = authoritative.nodes.find((node) => node.id === nodeId);
+    if (deletedNode) {
+      lastDeletedNote = {
+        sessionId: currentId,
+        node: deletedNode,
+        edges: deletedEdges,
+        index: authoritative.nodes.findIndex((node) => node.id === nodeId),
+      };
+    }
     await updateCurrent({ nodes: updatedNodes, edges: updatedEdges });
   }, [props, updateCurrent]);
 
@@ -100,12 +133,25 @@ function NoteNodeInner(props: NodeProps) {
           onKeyDown={handleKeyDown}
         />
       ) : (
-        <div className={styles.text}>{data.text}</div>
+        <>
+          <div className={styles.text}>{data.text || 'Empty note'}</div>
+          <button className={styles.editBtn} onClick={handleDoubleClick} type="button">
+            Edit
+          </button>
+        </>
       )}
-      <button className={styles.deleteBtn} onClick={handleDelete} title="Delete note">
+      <button
+        className={styles.deleteBtn}
+        onClick={handleDelete}
+        title="Delete note"
+        aria-label="Delete note"
+        type="button"
+      >
         ×
       </button>
-      {data.linkedConceptId && <div className={styles.linkBadge}>🔗 {data.linkedConceptId}</div>}
+      {data.linkedConceptId && (
+        <div className={styles.linkBadge}>Linked: {data.linkedConceptId}</div>
+      )}
       <Handle type="source" position={Position.Bottom} />
     </div>
   );

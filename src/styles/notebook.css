@@ -173,8 +173,12 @@
 }
 
 /* --- Title / header styling for notebook mode --- */
-[data-notebook='true'] [class*='title'],
-[data-notebook='true'] [class*='header'] {
+[data-notebook='true'] .react-flow__node-concept [class*='title'],
+[data-notebook='true'] .react-flow__node-quiz [class*='title'],
+[data-notebook='true'] .react-flow__node-summary [class*='title'],
+[data-notebook='true'] .react-flow__node-concept [class*='header'],
+[data-notebook='true'] .react-flow__node-quiz [class*='header'],
+[data-notebook='true'] .react-flow__node-summary [class*='header'] {
   font-family: var(--font-canvas), 'Caveat', cursive !important;
   font-size: 1.8rem !important;
   font-weight: 700 !important;

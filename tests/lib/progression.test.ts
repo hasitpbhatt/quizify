@@ -6,8 +6,9 @@ function conceptNode(id: string, index: number): CanvasNode {
   return { id, type: 'concept', position: { x: 0, y: 0 }, data: { kind: 'concept', index, title: `C${index}`, explanation: '', example: '' } };
 }
 
-function quizNode(id: string, parentConceptId: string, state: string): CanvasNode {
-  return { id, type: 'quiz', position: { x: 0, y: 0 }, data: { kind: 'quiz', parentConceptId, format: 'multipleChoice', prompt: '', options: [], correctAnswer: '', rationale: '', attempts: [], state } as any };
+function quizNode(id: string, parentConceptId: string, state: string, attempts: number = 0): CanvasNode {
+  const attemptArr = attempts > 0 ? [{ timestamp: 1, given: 'A', grade: 'correct' as const, rationale: 'R', idealAnswer: 'A' }] : [];
+  return { id, type: 'quiz', position: { x: 0, y: 0 }, data: { kind: 'quiz', parentConceptId, format: 'multipleChoice', prompt: '', options: [], correctAnswer: '', rationale: '', attempts: attemptArr, state } as any };
 }
 
 describe('getUnlockedConceptIndex', () => {
@@ -17,14 +18,15 @@ describe('getUnlockedConceptIndex', () => {
 
   it('returns 0 when first concept has no quizzes', () => {
     const nodes = [conceptNode('c1', 0), conceptNode('c2', 1)];
-    expect(getUnlockedConceptIndex(nodes)).toBe(0);
+    expect(getUnlockedConceptIndex(nodes)).toBe(2);
   });
 
   it('returns 1 when first concept quizzes are all correct', () => {
     const nodes = [
       conceptNode('c1', 0),
-      quizNode('q1', 'c1', 'correct'),
+      quizNode('q1', 'c1', 'correct', 1),
       conceptNode('c2', 1),
+      quizNode('q2', 'c2', 'untested'),
     ];
     expect(getUnlockedConceptIndex(nodes)).toBe(1);
   });
@@ -50,9 +52,9 @@ describe('getUnlockedConceptIndex', () => {
   it('returns concept count when all quizzes mastered', () => {
     const nodes = [
       conceptNode('c1', 0),
-      quizNode('q1', 'c1', 'correct'),
+      quizNode('q1', 'c1', 'correct', 1),
       conceptNode('c2', 1),
-      quizNode('q2', 'c2', 'correct'),
+      quizNode('q2', 'c2', 'correct', 1),
     ];
     expect(getUnlockedConceptIndex(nodes)).toBe(2);
   });
@@ -60,7 +62,7 @@ describe('getUnlockedConceptIndex', () => {
   it('stops at first concept with untested quiz', () => {
     const nodes = [
       conceptNode('c1', 0),
-      quizNode('q1', 'c1', 'correct'),
+      quizNode('q1', 'c1', 'correct', 1),
       conceptNode('c2', 1),
       quizNode('q2', 'c2', 'untested'),
       conceptNode('c3', 2),
@@ -82,8 +84,9 @@ describe('getUnlockedConceptIndex', () => {
     const nodes = [
       conceptNode('c3', 2),
       conceptNode('c1', 0),
-      quizNode('q1', 'c1', 'correct'),
+      quizNode('q1', 'c1', 'correct', 1),
       conceptNode('c2', 1),
+      quizNode('q2', 'c2', 'untested'),
     ];
     expect(getUnlockedConceptIndex(nodes)).toBe(1);
   });
@@ -93,7 +96,7 @@ describe('getUnlockedConceptIndex', () => {
       conceptNode('c1', 0),
       conceptNode('c2', 1),
     ];
-    expect(getUnlockedConceptIndex(nodes)).toBe(0);
+    expect(getUnlockedConceptIndex(nodes)).toBe(2);
   });
 });
 

@@ -1,5 +1,5 @@
 .wrapper {
-  height: calc(100vh - 48px);
+  height: calc(100dvh - 48px);
   display: flex;
   flex-direction: column;
   background: var(--bg-canvas);
@@ -56,7 +56,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 12px 16px max(12px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
   background: var(--bg-elevated);
 }
@@ -94,12 +94,16 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  max-width: calc(100% - 24px);
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .topActionBtn {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-height: 44px;
   padding: 6px 12px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--border);
@@ -160,6 +164,19 @@
   font-family: var(--font-ui);
   cursor: pointer;
   text-align: center;
+}
+
+.completionBanner {
+  margin: var(--space-2) var(--space-4) 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-ui);
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-normal);
+  flex-shrink: 0;
 }
 
 .progressBar {
@@ -248,14 +265,90 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 50%;
   background: var(--bg-subtle);
   color: var(--text-primary);
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease-out);
+}
+
+.mobileTtsControls select {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ui);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.mobileActions {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-2);
+}
+
+.mobileActions > button,
+.mobileExportMenu button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ui);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+}
+
+.mobileExportMenu {
+  position: absolute;
+  right: var(--space-4);
+  bottom: calc(100% + 4px);
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ui);
+  background: var(--bg-elevated);
+}
+
+.noteEditor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--fs-small);
+}
+
+.noteEditor textarea {
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ui);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font: inherit;
+  resize: vertical;
+}
+
+@supports not (height: 100dvh) {
+  .wrapper {
+    height: calc(100vh - 48px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .outlinePanel,
+  .progressDot {
+    animation: none;
+  }
 }
 
 .mobileTtsControls button:hover:not(:disabled) {

@@ -1,13 +1,14 @@
 import { truncateByParagraphs } from '@/lib/truncate';
-import { getCachedSource, setCachedSource } from '@/lib/db/sourceCache';
+import { getCachedSourceEntry, setCachedSource } from '@/lib/db/sourceCache';
 import { chat } from '@/lib/llm/chat';
 import { debugLog } from '@/lib/debug';
 import { anySignal } from '@/lib/llm/utils';
-import type { Persona } from '@/shared/types';
+import type { Persona, SourceProvenance } from '@/shared/types';
 
 export interface SourceResult {
   content: string;
   source: 'cache' | 'cfproxy' | 'llm';
+  provenance: SourceProvenance;
   url: string;
 }
 
@@ -128,10 +129,15 @@ export async function fetchSourceContent(
   input: string,
   opts: { persona: Persona; signal?: AbortSignal },
 ): Promise<SourceResult> {
-  const cached = await getCachedSource(input);
+  const cached = await getCachedSourceEntry(input);
   if (cached) {
-    debugLog('log', 'fetch', 'cache HIT url=%s len=%d', input, cached.length);
-    return { content: cached, source: 'cache', url: input };
+    debugLog('log', 'fetch', 'cache HIT url=%s len=%d', input, cached.content.length);
+    return {
+      content: cached.content,
+      source: 'cache',
+      provenance: cached.provenance ?? 'legacy-unknown',
+      url: input,
+    };
   }
 
   let content: string | null = null;
@@ -168,7 +174,8 @@ export async function fetchSourceContent(
 
   const truncated = truncateByParagraphs(content);
 
-  await setCachedSource(input, truncated);
+  const provenance: SourceProvenance = source === 'cfproxy' ? 'fetched' : 'topic-generated';
+  await setCachedSource(input, truncated, provenance);
 
-  return { content: truncated, source: source ?? 'llm', url: input };
+  return { content: truncated, source: source ?? 'llm', provenance, url: input };
 }

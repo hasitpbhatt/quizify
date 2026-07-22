@@ -314,7 +314,7 @@ describe('processOneConcept', () => {
     const tail = await processOneConcept(nodes, edges, generated, concept, 0, topic, persona, undefined, persist, notify);
 
     expect(tail).toBeNull();
-    expect(persist).not.toHaveBeenCalled();
+    expect(persist).toHaveBeenCalledTimes(1);
     expect(notify).toHaveBeenCalledWith('error', expect.stringContaining('Test Concept'), expect.any(String));
   });
 });

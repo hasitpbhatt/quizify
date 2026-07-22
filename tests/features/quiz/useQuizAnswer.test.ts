@@ -1,6 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { localGrade, computeState } from '@/features/quiz/useQuizAnswer';
+import { gradeQuizAnswer } from '@/features/quiz/quizGrading';
 import type { QuizData, Attempt } from '@/shared/types';
+
+const mockExecutePromptTask = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/llm/promptTask', () => ({
+  executePromptTask: mockExecutePromptTask,
+}));
 
 function makeQuiz(overrides?: Partial<QuizData>): QuizData {
   return {
@@ -60,6 +66,11 @@ describe('localGrade (fillBlank)', () => {
     const q = makeQuiz({ format: 'fillBlank', correctAnswer: 'the mitochondria', acceptableAnswers: ['mitochondria'] });
     expect(localGrade(q, 'the mitochondria is the powerhouse').grade).toBe('correct');
   });
+
+  it('does not treat an empty answer as acceptable', () => {
+    const q = makeQuiz({ format: 'fillBlank', correctAnswer: 'Paris', acceptableAnswers: ['Paris'] });
+    expect(localGrade(q, '').grade).toBe('incorrect');
+  });
 });
 
 describe('localGrade (ordering)', () => {
@@ -90,6 +101,22 @@ describe('localGrade (unknown format)', () => {
     const result = localGrade(q, 'anything');
     expect(result.grade).toBe('incorrect');
     expect(result.rationale).toBe('Cannot grade this format locally.');
+  });
+});
+
+describe('gradeQuizAnswer (semantic formats)', () => {
+  it('uses the existing grade prompt task for short answers', async () => {
+    mockExecutePromptTask.mockResolvedValueOnce({
+      grade: 'partial',
+      rationale: 'The main idea is present.',
+      idealAnswer: 'A complete explanation.',
+    });
+    const quiz = makeQuiz({ format: 'shortAnswer', correctAnswer: 'A complete explanation.' });
+
+    await expect(gradeQuizAnswer(quiz, 'A related explanation.')).resolves.toMatchObject({
+      grade: 'partial',
+    });
+    expect(mockExecutePromptTask).toHaveBeenCalledOnce();
   });
 });
 

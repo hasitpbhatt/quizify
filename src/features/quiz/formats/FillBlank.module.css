@@ -4,6 +4,13 @@
   gap: 8px;
 }
 
+.label {
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .sentence {
   font-size: 14px;
   line-height: 1.6;
@@ -22,6 +29,10 @@
   width: 160px;
   margin: 0 4px;
   outline: none;
+}
+
+.blankInput:focus-visible {
+  box-shadow: var(--shadow-focus);
 }
 
 .submitBtn {

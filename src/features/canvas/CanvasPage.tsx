@@ -48,6 +48,8 @@ import {
   Sun,
   Moon,
   Monitor,
+  RefreshCw,
+  AlertTriangle,
 } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { writeNotebookModePreference } from '@/shared/notebookModePreference';
@@ -60,6 +62,7 @@ import { downloadSessionMarkdown } from '@/lib/export/markdown';
 import { exportCanvasAsPng } from '@/lib/export/image';
 import { useToastStore } from '@/shared/stores/toastStore';
 import { useKeyboardShortcuts } from '@/shared/useKeyboardShortcuts';
+import { retryFailedConcept, skipFailedConcept } from '@/lib/pipeline';
 import {
   getNextLearningAction,
   normalizeLearningProgress,
@@ -82,10 +85,15 @@ function toReactFlowNodes(
     if (skipNotebookAnimation) {
       data.skipTyping = true;
     } else {
-      if (n.data.kind === 'concept' && (n.data as ConceptData).index < currentConceptIndex) {
-        data.skipTyping = true;
-      }
-      if (n.data.kind === 'quiz' && !revealedQuizIds.has(n.id)) {
+      if (n.data.kind === 'concept') {
+        const c = n.data as ConceptData;
+        if (c.index > currentConceptIndex) {
+          data.isLocked = true;
+        }
+        if (c.index < currentConceptIndex) {
+          data.skipTyping = true;
+        }
+      } else if (n.data.kind === 'quiz' && !revealedQuizIds.has(n.id)) {
         data.skipTyping = true;
       }
     }
@@ -142,7 +150,7 @@ function filterVisibleNodes(
     }
     if (n.data.kind === 'concept') {
       const c = n.data as ConceptData;
-      if (c.index <= currentConceptIndex) {
+      if (!notebookMode || c.index <= currentConceptIndex) {
         visibleNodeIds.add(n.id);
       }
       continue;
@@ -194,6 +202,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const [summaryQuiz, setSummaryQuiz] = useState<boolean>(false);
   const [revealedQuizIds, setRevealedQuizIds] = useState<Set<string>>(new Set());
   const [learningCueDismissed, setLearningCueDismissed] = useState(false);
+  const [retryingConceptIds, setRetryingConceptIds] = useState<Set<string>>(new Set());
   const updateCurrent = useSessionStore((s) => s.updateCurrent);
   const reactFlow = useReactFlow();
   const isMobile = useIsMobile();
@@ -347,6 +356,45 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     () => getUnlockedConceptIndex(session?.nodes ?? []),
     [session?.nodes],
   );
+  const currentConcept = useMemo(
+    () => concepts.find((concept) => concept.data.index === currentConceptIndex),
+    [concepts, currentConceptIndex],
+  );
+  const currentQuizIds = useMemo(() => {
+    if (!session || !currentConcept) return [];
+    return session.nodes
+      .filter(
+        (node) =>
+          node.data.kind === 'quiz' &&
+          (node.data as QuizData).parentConceptId === currentConcept.id,
+      )
+      .map((node) => node.id);
+  }, [session, currentConcept]);
+
+  const revealCurrentQuizzes = useCallback(() => {
+    if (currentQuizIds.length === 0) return;
+    setRevealedQuizIds((previous) => {
+      if (currentQuizIds.every((id) => previous.has(id))) return previous;
+      const next = new Set(previous);
+      currentQuizIds.forEach((id) => next.add(id));
+      return next;
+    });
+    if (currentConcept) focusOnActiveConcept(currentConcept.id, true);
+  }, [currentQuizIds, currentConcept, focusOnActiveConcept]);
+
+  // Audio is an enhancement, never a progression dependency.
+  useEffect(() => {
+    if (immersiveNotebook && !ttsEnabled) revealCurrentQuizzes();
+  }, [immersiveNotebook, ttsEnabled, revealCurrentQuizzes]);
+
+  const completedTypingNodeIds = useNotebookStore((s) => s.completedTypingNodeIds);
+
+  // Typing completion must unlock quizzes even when TTS is muted or unavailable.
+  useEffect(() => {
+    if (!immersiveNotebook || !currentConcept) return;
+    if (!completedTypingNodeIds[currentConcept.id]) return;
+    revealCurrentQuizzes();
+  }, [immersiveNotebook, currentConcept, completedTypingNodeIds, revealCurrentQuizzes]);
 
   const lastConceptIndexRef = useRef(currentConceptIndex);
   const orientedSessionRef = useRef<string | null>(null);
@@ -382,9 +430,11 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         setActiveQuiz({ quizId: canvasNode.id, quiz, conceptTitle });
       } else if (canvasNode.data.kind === 'summary') {
         setSummaryQuiz(true);
+      } else if (canvasNode.data.kind === 'concept') {
+        focusOnActiveConcept(canvasNode.id, true);
       }
     },
-    [session, conceptTitles, notebookMode],
+    [session, conceptTitles, notebookMode, focusOnActiveConcept],
   );
 
   const handleCloseQuiz = useCallback(() => {
@@ -417,6 +467,35 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     const updatedNodes = [...session.nodes, noteNode];
     updateCurrent({ nodes: updatedNodes });
   }, [session, reactFlow, updateCurrent]);
+
+  const handleRetryConcept = useCallback(
+    async (conceptId: string) => {
+      if (!currentId) return;
+      setRetryingConceptIds((previous) => new Set(previous).add(conceptId));
+      try {
+        const recovered = await retryFailedConcept(currentId, conceptId);
+        useToastStore
+          .getState()
+          .add(recovered ? 'Concept recovered' : 'Retry failed. You can try again or skip it.');
+      } finally {
+        setRetryingConceptIds((previous) => {
+          const next = new Set(previous);
+          next.delete(conceptId);
+          return next;
+        });
+      }
+    },
+    [currentId],
+  );
+
+  const handleSkipConcept = useCallback(
+    async (conceptId: string) => {
+      if (!currentId) return;
+      await skipFailedConcept(currentId, conceptId);
+      useToastStore.getState().add('Concept skipped. You can retry it later.');
+    },
+    [currentId],
+  );
 
   const [caption, setCaption] = useState<string>('');
   const [captionVisible, setCaptionVisible] = useState<boolean>(false);
@@ -965,7 +1044,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const handleKbHelp = useCallback(() => {
     useToastStore
       .getState()
-      .add('Shortcuts: N = Add note · ? = Show this · Esc = Close quiz / exit Notebook');
+      .add('Shortcuts: N = Add note · ? = Show this · Esc = Close quiz / exit Tutor');
   }, []);
 
   // Global keyboard shortcuts: N = add note, ? = help, Escape = close quiz
@@ -979,7 +1058,12 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   if (!session || (nodes.length === 0 && !isGenerating)) {
     return (
       <div className={styles.empty}>
-        <p>No canvas data yet. Generate an outline first.</p>
+        <p>No lesson data yet.</p>
+        {onHome && (
+          <button className={styles.emptyAction} onClick={onHome} type="button">
+            Start a new lesson
+          </button>
+        )}
       </div>
     );
   }
@@ -995,10 +1079,21 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   }
 
   const showProgress = isGenerating && progress && progress.stage !== 'done';
+  const failedConcepts = concepts.filter((concept) => concept.data.generationStatus === 'failed');
+  const hasHiddenCurrentQuizzes = currentQuizIds.some((id) => !revealedQuizIds.has(id));
+  const summaryAvailable =
+    currentConceptIndex >= concepts.length &&
+    (session?.nodes.some((node) => node.id === SUMMARY_NODE_ID) ?? false);
 
   if (isMobile && session) {
     return (
-      <MobileFocusView nodes={visibleData.nodes} progress={progress} isGenerating={isGenerating} />
+      <MobileFocusView
+        nodes={visibleData.nodes}
+        progress={progress}
+        isGenerating={isGenerating}
+        onHome={onHome}
+        onAddNote={handleAddNote}
+      />
     );
   }
 
@@ -1058,13 +1153,44 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
           </div>
         )}
 
+        {failedConcepts.length > 0 && (
+          <section className={styles.recoveryPanel} aria-label="Lesson generation issues">
+            <AlertTriangle size={16} aria-hidden />
+            <div className={styles.recoveryCopy}>
+              <strong>
+                {failedConcepts.length} concept{failedConcepts.length === 1 ? '' : 's'} need
+                attention
+              </strong>
+              <span>Retry now or skip to keep learning.</span>
+            </div>
+            <div className={styles.recoveryActions}>
+              {failedConcepts.map((concept) => (
+                <div key={concept.id} className={styles.recoveryItem}>
+                  <span>{concept.data.title}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRetryConcept(concept.id)}
+                    disabled={retryingConceptIds.has(concept.id)}
+                  >
+                    <RefreshCw size={12} aria-hidden />
+                    {retryingConceptIds.has(concept.id) ? 'Retrying' : 'Retry'}
+                  </button>
+                  <button type="button" onClick={() => handleSkipConcept(concept.id)}>
+                    Skip
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {!notebookMode && showGraphCue && (
           <div className={styles.graphCue} role="status" aria-live="polite">
             <div className={styles.graphCueContent}>
               <span className={styles.graphCueTitle}>Your canvas is ready</span>
               <span className={styles.graphCueText}>
-                Click any node to explore. Switch to <strong>Notebook</strong> view for a guided
-                reading experience with narration.
+                Explore the full outline here. Switch to <strong>Tutor</strong> for a guided lesson
+                with narration and quizzes.
               </span>
             </div>
             <button className={styles.graphCueClose} onClick={dismissGraphCue} type="button">
@@ -1189,6 +1315,24 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
           </div>
         )}
 
+        {notebookMode && hasHiddenCurrentQuizzes && currentQuizIds.length > 0 && (
+          <button className={styles.continueToQuiz} type="button" onClick={revealCurrentQuizzes}>
+            Continue to quiz
+          </button>
+        )}
+
+        {notebookMode && summaryAvailable && (
+          <button
+            className={styles.finalQuizAction}
+            type="button"
+            onClick={() => setSummaryQuiz(true)}
+          >
+            {Object.keys(session?.scores ?? {}).length > 0
+              ? 'Review final results'
+              : 'Take final quiz'}
+          </button>
+        )}
+
         {notebookMode && (
           <>
             <div
@@ -1201,6 +1345,15 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
             {concepts.length > 0 && (
               <div className="notebookConceptProgress">
                 Concept {currentConceptIndex + 1} of {concepts.length}
+              </div>
+            )}
+            {session?.sourceProvenance && (
+              <div className={styles.sourceBadge}>
+                {session.sourceProvenance === 'fetched'
+                  ? 'Based on fetched source'
+                  : session.sourceProvenance === 'topic-generated'
+                    ? 'Generated from topic'
+                    : 'Source not verified'}
               </div>
             )}
             <div className="notebookControls">
