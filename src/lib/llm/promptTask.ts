@@ -19,6 +19,7 @@ export interface TaskOptions {
   signal?: AbortSignal;
   onRetry?: (info: RetryInfo) => void;
   onParseRetry?: (raw: string, error: unknown) => void;
+  onToken?: (delta: string) => void;
   context?: Record<string, unknown>;
   model?: string;
 }
@@ -37,6 +38,7 @@ export async function executePromptTask<T>(
     responseFormat: task.responseFormat,
     signal: opts.signal,
     onRetry: opts.onRetry,
+    onToken: opts.onToken,
     maxTokens: task.maxTokens,
     temperature: task.temperature,
     timeoutMs: task.timeoutMs,
