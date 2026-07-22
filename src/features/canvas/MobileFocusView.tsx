@@ -1,13 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { ReactFlow, Background, MiniMap, BackgroundVariant } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import type {
-  CanvasNode,
-  QuizData,
-  ConceptData,
-  NoteData,
-  SummaryData,
-} from '@/shared/types';
+import type { CanvasNode, QuizData, ConceptData, NoteData, SummaryData } from '@/shared/types';
 import { QuizInteraction } from '@/features/quiz/QuizInteraction';
 import { SummaryQuizInteraction } from '@/features/quiz/SummaryQuizInteraction';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
@@ -18,10 +12,7 @@ import { useTypingAnimation } from './useTypingAnimation';
 import { Play, Pause, Square, List, Plus, Download, Volume2, VolumeX } from 'lucide-react';
 import { exportSessionJson } from '@/lib/export/json';
 import { downloadSessionMarkdown } from '@/lib/export/markdown';
-import {
-  getNextLearningAction,
-  normalizeLearningProgress,
-} from '@/shared/learningProgress';
+import { getNextLearningAction, normalizeLearningProgress } from '@/shared/learningProgress';
 import styles from './MobileFocusView.module.css';
 
 interface Props {
@@ -221,8 +212,7 @@ export function MobileFocusView({
     setTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light');
   }, [theme, setTheme]);
 
-  const summaryData =
-    node?.data.kind === 'summary' ? (node.data as SummaryData) : null;
+  const summaryData = node?.data.kind === 'summary' ? (node.data as SummaryData) : null;
 
   const lessonComplete = useMemo(() => {
     if (!session) return false;

@@ -7,14 +7,12 @@ import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
 import * as sessionsDb from '@/lib/db/sessionsDb';
 
-let lastDeletedNote:
-  | {
-      sessionId: string;
-      node: CanvasNode;
-      edges: import('@/shared/types').CanvasEdge[];
-      index: number;
-    }
-  | null = null;
+let lastDeletedNote: {
+  sessionId: string;
+  node: CanvasNode;
+  edges: import('@/shared/types').CanvasEdge[];
+  index: number;
+} | null = null;
 
 export async function undoLastDeletedNote(): Promise<boolean> {
   if (!lastDeletedNote) return false;
@@ -23,10 +21,9 @@ export async function undoLastDeletedNote(): Promise<boolean> {
   if (!session || session.nodes.some((node) => node.id === snapshot.node.id)) return false;
   const nodes = [...session.nodes];
   nodes.splice(Math.min(snapshot.index, nodes.length), 0, snapshot.node);
-  await useSessionStore.getState().updateCurrent(
-    { nodes, edges: [...session.edges, ...snapshot.edges] },
-    snapshot.sessionId,
-  );
+  await useSessionStore
+    .getState()
+    .updateCurrent({ nodes, edges: [...session.edges, ...snapshot.edges] }, snapshot.sessionId);
   lastDeletedNote = null;
   return true;
 }
@@ -152,7 +149,9 @@ function NoteNodeInner(props: NodeProps) {
       >
         ×
       </button>
-      {data.linkedConceptId && <div className={styles.linkBadge}>Linked: {data.linkedConceptId}</div>}
+      {data.linkedConceptId && (
+        <div className={styles.linkBadge}>Linked: {data.linkedConceptId}</div>
+      )}
       <Handle type="source" position={Position.Bottom} />
     </div>
   );

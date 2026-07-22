@@ -273,8 +273,8 @@ export function WelcomeModal({
           </h1>
           <p className={styles.subheading}>
             Paste a URL or type a topic and Quizify builds a guided tutor lesson — concepts,
-            quizzes, and a final recap. Tutor view is the default; switch to Map anytime to see
-            the full outline.
+            quizzes, and a final recap. Tutor view is the default; switch to Map anytime to see the
+            full outline.
           </p>
         </header>
 

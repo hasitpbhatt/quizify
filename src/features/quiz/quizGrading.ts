@@ -23,7 +23,8 @@ export function localGrade(quiz: QuizData, given: string | string[]): SubmitResu
   switch (quiz.format) {
     case 'multipleChoice':
     case 'trueFalse': {
-      const correct = typeof given === 'string' && normalize(given) === normalize(quiz.correctAnswer);
+      const correct =
+        typeof given === 'string' && normalize(given) === normalize(quiz.correctAnswer);
       return {
         grade: correct ? 'correct' : 'incorrect',
         rationale: correct
@@ -58,7 +59,9 @@ export function localGrade(quiz: QuizData, given: string | string[]): SubmitResu
           idealAnswer: expected.join(', '),
         };
       }
-      const correct = givenArr.every((item, index) => normalize(item) === normalize(expected[index]));
+      const correct = givenArr.every(
+        (item, index) => normalize(item) === normalize(expected[index]),
+      );
       return {
         grade: correct ? 'correct' : 'partial',
         rationale: correct

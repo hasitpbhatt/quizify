@@ -1079,9 +1079,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   }
 
   const showProgress = isGenerating && progress && progress.stage !== 'done';
-  const failedConcepts = concepts.filter(
-    (concept) => concept.data.generationStatus === 'failed',
-  );
+  const failedConcepts = concepts.filter((concept) => concept.data.generationStatus === 'failed');
   const hasHiddenCurrentQuizzes = currentQuizIds.some((id) => !revealedQuizIds.has(id));
   const summaryAvailable =
     currentConceptIndex >= concepts.length &&
@@ -1318,11 +1316,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         )}
 
         {notebookMode && hasHiddenCurrentQuizzes && currentQuizIds.length > 0 && (
-          <button
-            className={styles.continueToQuiz}
-            type="button"
-            onClick={revealCurrentQuizzes}
-          >
+          <button className={styles.continueToQuiz} type="button" onClick={revealCurrentQuizzes}>
             Continue to quiz
           </button>
         )}
@@ -1333,7 +1327,9 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
             type="button"
             onClick={() => setSummaryQuiz(true)}
           >
-            {Object.keys(session?.scores ?? {}).length > 0 ? 'Review final results' : 'Take final quiz'}
+            {Object.keys(session?.scores ?? {}).length > 0
+              ? 'Review final results'
+              : 'Take final quiz'}
           </button>
         )}
 

@@ -258,7 +258,11 @@ export function Toolbar({ canvasPage }: ToolbarProps) {
             }}
           />
           <div className={styles.dialogButtons}>
-            <button className={styles.dialogCancelBtn} onClick={() => setRenaming(false)} type="button">
+            <button
+              className={styles.dialogCancelBtn}
+              onClick={() => setRenaming(false)}
+              type="button"
+            >
               Cancel
             </button>
             <button className={styles.dialogConfirmBtn} onClick={commitRename} type="button">

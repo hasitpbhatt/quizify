@@ -593,7 +593,5 @@ export async function skipFailedConcept(sessionId: string, conceptId: string): P
         }
       : node,
   );
-  await useSessionStore
-    .getState()
-    .updateCurrent({ nodes, updatedAt: Date.now() }, sessionId);
+  await useSessionStore.getState().updateCurrent({ nodes, updatedAt: Date.now() }, sessionId);
 }

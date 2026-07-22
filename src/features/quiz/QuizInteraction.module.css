@@ -256,8 +256,7 @@
 
   100% {
     opacity: 0;
-    transform: translate(calc(-50% + var(--confetti-x)), calc(-50% + var(--confetti-y)))
-      scale(0);
+    transform: translate(calc(-50% + var(--confetti-x)), calc(-50% + var(--confetti-y))) scale(0);
   }
 }
 

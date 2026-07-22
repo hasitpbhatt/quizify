@@ -90,9 +90,7 @@ export function SummaryQuizInteraction({
   onUpdateScores,
 }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [results, setResults] = useState<Record<number, boolean>>(() =>
-    parseScores(initialScores),
-  );
+  const [results, setResults] = useState<Record<number, boolean>>(() => parseScores(initialScores));
   const [, setCumulativeScores] = useState(initialScores);
   const [showResults, setShowResults] = useState(false);
   const [grading, setGrading] = useState(false);
@@ -173,12 +171,7 @@ export function SummaryQuizInteraction({
         aria-label="Summary quiz results"
       >
         <div className={styles.panel} onClick={(e) => e.stopPropagation()}>
-          <div
-            className={styles.resultsPanel}
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          >
+          <div className={styles.resultsPanel} role="status" aria-live="polite" aria-atomic="true">
             <div className={styles.masteryPct}>{masteryPct}%</div>
             <div className={styles.masteryLabel}>Mastery</div>
             <div className={styles.breakdown}>
