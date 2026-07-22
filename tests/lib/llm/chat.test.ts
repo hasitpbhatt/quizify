@@ -180,6 +180,67 @@ describe('chat', () => {
     });
   });
 
+  describe('streaming (onToken)', () => {
+    function sseResponse(chunks: string[]) {
+      const encoder = new TextEncoder();
+      let i = 0;
+      return {
+        ok: true, status: 200,
+        body: {
+          getReader: () => ({
+            read: () => {
+              if (i >= chunks.length) return Promise.resolve({ done: true, value: undefined });
+              return Promise.resolve({ done: false, value: encoder.encode(chunks[i++]) });
+            },
+            cancel: () => {},
+            releaseLock: () => {},
+          }),
+        },
+      } as unknown as Response;
+    }
+
+    it('sets body.stream to true when onToken is provided', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true, status: 200,
+        body: undefined,
+        text: () => Promise.resolve('{"choices":[{"message":{"content":""}}]}'),
+      } as unknown as Response);
+      const onToken = vi.fn();
+      await chat(messages, { onToken });
+      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(opts.body as string);
+      expect(body.stream).toBe(true);
+    });
+
+    it('calls onToken with each SSE delta and returns full accumulated content', async () => {
+      const chunks = [
+        'data: {"choices":[{"index":0,"delta":{"content":"Hello "}}]}\n\n',
+        'data: {"choices":[{"index":0,"delta":{"content":"world"}}]}\n\n',
+        'data: [DONE]\n\n',
+      ];
+      mockFetch.mockResolvedValue(sseResponse(chunks));
+      const onToken = vi.fn();
+      const result = await chat(messages, { onToken });
+      expect(onToken).toHaveBeenCalledTimes(2);
+      expect(onToken).toHaveBeenNthCalledWith(1, 'Hello ');
+      expect(onToken).toHaveBeenNthCalledWith(2, 'world');
+      expect(result.content).toBe('Hello world');
+    });
+
+    it('falls back to res.text() when body has no reader and calls onToken once', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true, status: 200,
+        body: undefined,
+        text: () => Promise.resolve('{"choices":[{"message":{"content":"full text"}}]}'),
+      } as unknown as Response);
+      const onToken = vi.fn();
+      const result = await chat(messages, { onToken });
+      expect(onToken).toHaveBeenCalledOnce();
+      expect(onToken).toHaveBeenCalledWith('{"choices":[{"message":{"content":"full text"}}]}');
+      expect(result.content).toBe('{"choices":[{"message":{"content":"full text"}}]}');
+    });
+  });
+
   describe('fallback model', () => {
     it('tries fallback model after default model fails', async () => {
       mockFetch
