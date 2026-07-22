@@ -199,8 +199,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const isMobile = useIsMobile();
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const toggleNotebookMode = useNotebookStore((s) => s.toggleNotebookMode);
-  // During generation, stream content without notebook TTS gating or typewriter delays.
-  const immersiveNotebook = notebookMode && !isGenerating;
+  const immersiveNotebook = notebookMode;
   const theme = useSettingsStore((s) => s.theme);
   const setTheme = useSettingsStore((s) => s.setTheme);
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
