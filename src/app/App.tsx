@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTheme } from './useTheme';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useSessionStore } from '@/shared/stores/sessionStore';
+import { Plus, Sun, Moon, Monitor } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { readNotebookModePreference } from '@/shared/notebookModePreference';
 import { WelcomeModal } from '@/features/welcome/WelcomeModal';
@@ -20,6 +21,7 @@ import { useLatencyStore } from '@/shared/stores/latencyStore';
 import { LatencyPanel } from './LatencyPanel';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import '@/styles/global.css';
+import styles from './App.module.css';
 
 export type JourneyStage = 'fetch' | 'outline' | PipelineStep;
 export type JourneyState = 'pending' | 'active' | 'done' | 'error';
@@ -299,10 +301,31 @@ export function App() {
     }
   }, []);
 
+  const { theme, setTheme } = useSettingsStore();
+  const cycleTheme = () => {
+    const next = theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light';
+    setTheme(next);
+  };
+  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
+
   const main =
     page === 'progress' ? (
       <div key="progress" className="pageEnter">
-        <Toolbar onNewSession={goWelcome} />
+        <Toolbar />
+        <div className={styles.actionBar}>
+          <button className={styles.actionBtn} onClick={goWelcome} type="button">
+            <Plus size={14} />
+            <span>New</span>
+          </button>
+          <button
+            className={styles.actionBtn}
+            onClick={cycleTheme}
+            title={'Theme: ' + theme}
+            type="button"
+          >
+            <ThemeIcon size={14} />
+          </button>
+        </div>
         <ProgressScreen
           progress={progress}
           error={error}
@@ -312,7 +335,7 @@ export function App() {
       </div>
     ) : page === 'canvas' ? (
       <div key="canvas" className={isGenerating ? 'pageEnterInstant' : 'pageEnter'}>
-        <Toolbar onNewSession={goWelcome} />
+        <Toolbar />
         <ReactFlowProvider>
           <CanvasPage progress={progress} isGenerating={isGenerating} onHome={goWelcome} />
         </ReactFlowProvider>
