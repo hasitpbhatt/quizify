@@ -190,6 +190,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const [summaryQuiz, setSummaryQuiz] = useState<boolean>(false);
   const [revealedQuizIds, setRevealedQuizIds] = useState<Set<string>>(new Set());
   const [showOrientationCue, setShowOrientationCue] = useState(false);
+  const [showGraphCue, setShowGraphCue] = useState(false);
   const [showLearningCue, setShowLearningCue] = useState(false);
   const [learningCueDismissed, setLearningCueDismissed] = useState(false);
   const updateCurrent = useSessionStore((s) => s.updateCurrent);
@@ -235,6 +236,16 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     }
   }, [currentId]);
 
+  const dismissGraphCue = useCallback(() => {
+    setShowGraphCue(false);
+    if (!currentId) return;
+    try {
+      sessionStorage.setItem(`quizify:graphintro:${currentId}`, 'seen');
+    } catch {
+      // Non-fatal if session storage is unavailable.
+    }
+  }, [currentId]);
+
   useEffect(() => {
     const idx = getUnlockedConceptIndex(session?.nodes ?? []);
     if (!notebookMode || !session || !currentId || isGenerating || idx !== 0) {
@@ -252,6 +263,31 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     }
 
     const timer = setTimeout(() => setShowOrientationCue(true), 450);
+    return () => clearTimeout(timer);
+  }, [notebookMode, session, currentId, isGenerating]);
+
+  // Graph-mode orientation cue: shown once per session when canvas first loads with nodes.
+  useEffect(() => {
+    if (notebookMode || !session || !currentId || isGenerating) {
+      setShowGraphCue(false);
+      return;
+    }
+    const hasNodes = session.nodes.some((n) => n.data.kind === 'concept');
+    if (!hasNodes) {
+      setShowGraphCue(false);
+      return;
+    }
+
+    try {
+      if (sessionStorage.getItem(`quizify:graphintro:${currentId}`) === 'seen') {
+        setShowGraphCue(false);
+        return;
+      }
+    } catch {
+      // Fall through — show the cue.
+    }
+
+    const timer = setTimeout(() => setShowGraphCue(true), 600);
     return () => clearTimeout(timer);
   }, [notebookMode, session, currentId, isGenerating]);
 
@@ -1090,6 +1126,21 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
           </div>
         )}
 
+        {!notebookMode && showGraphCue && (
+          <div className={styles.graphCue} role="status" aria-live="polite">
+            <div className={styles.graphCueContent}>
+              <span className={styles.graphCueTitle}>Your canvas is ready</span>
+              <span className={styles.graphCueText}>
+                Click any node to explore. Switch to <strong>Notebook</strong> view for a guided
+                reading experience with narration.
+              </span>
+            </div>
+            <button className={styles.graphCueClose} onClick={dismissGraphCue} type="button">
+              Got it
+            </button>
+          </div>
+        )}
+
         {!notebookMode && (
           <div className={styles.actionsRow}>
             <>
@@ -1123,6 +1174,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                 title="Notebook view"
               >
                 <BookOpen size={14} />
+                <span>Notebook</span>
               </button>
             </>
           </div>
