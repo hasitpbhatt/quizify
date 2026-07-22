@@ -15,15 +15,8 @@
 Quizify is a **pure static SPA**. There is no server we own. The only network egress from the browser goes to:
 
 1. **LLM API** — Mistral, NVIDIA, or a Quizify-managed proxy (`/api/chat` on Cloudflare Pages). For Mistral/NVIDIA, the user supplies their own API key. The default provider proxies through a Pages Function using a server-side Mistral key (experimental; may not always be available).
-2. **r.jina.ai Reader** (`https://r.jina.ai/<url>`) — primary free service that fetches a URL server-side and returns cleaned, readable Markdown text (handles CORS, dynamic pages, and PDFs). Zero infrastructure on our side.
-3. **Fallback CORS proxies** (allorigins / corsproxy / cors.eu.org) — only used when Jina is rate-limited or down. Returns raw HTML which we strip in-browser (see §7).
-4. **Optional Jina bearer token** — Strategy B in §7.3. Lifts the anonymous 20 RPM cap for power users. Free, user-supplied, stored locally alongside the API key.
-
-**Note on rate limits in our architecture:** every request originates from the user's own browser (there is no backend). Public proxies apply their limit per-IP:
-- **Jina anonymous tier** (no token): request is bucketed by `<user's IP>`. On a home NAT this is fine (you alone). On corporate / dorm / shared Wi-Fi everyone on that IP shares the ~20 RPM pool — they can collide.
-- **Jina with free token** (Strategy B): Jina buckets by the *token*, not the IP. The user has their own private quota independent of who else shares their NAT. This is the only mode where "client-side" truly means "isolated limit."
-
-In practice, even the anonymous IP limit is rarely hit for v1: each generation is **1 fetch call per canvas** (the ~24 sequential calls are to the LLM provider, which doesn't touch the proxy tier). The fallback chain in §7.3 absorbs the rare anonymous-tier edge cases (NAT sharing, bursts); adding a free Jina token in Settings eliminates them entirely.
+2. **Server-side proxy** — Vite dev proxy or Cloudflare Function fetches the URL server-to-server, returns cleaned content with CORS headers.
+3. **LLM knowledge fallback** — when fetching fails, the LLM generates educational content from the topic name alone.
 
 Everything else runs in the browser: routing, state, persistence (IndexedDB), canvas rendering.
 
@@ -37,7 +30,7 @@ Everything else runs in the browser: routing, state, persistence (IndexedDB), ca
 │   ├─ Top toolbar (sessions, settings)                             │
 │   ├─ React Flow canvas (concepts, quizzes, notes, summary)        │
 │   ├─ Generation pipeline (orchestrator)                          │
-│   │    ├─ fetchSourceContent(url) → r.jina.ai Reader              │
+│   │    ├─ fetchSourceContent(url) → proxy / LLM knowledge         │
 │  │    ├─ chat(outline prompt) → LLM (default / Mistral / NVIDIA) │
 │  │    ├─ for each concept:                                       │
 │  │    │   └─ chat(content prompt, combined detail+quiz) → LLM    │
@@ -49,8 +42,8 @@ Everything else runs in the browser: routing, state, persistence (IndexedDB), ca
                                │ HTTPS
                 ┌────────────────┴────────────────────────────────────┐
                 ▼                                                   ▼
-       https://r.jina.ai/             Mistral / NVIDIA API / /api/chat
-       (free Reader proxy)            (selected by user or default proxy)
+        /api/fetch                      Mistral / NVIDIA API / /api/chat
+        (server-side proxy)             (selected by user or default proxy)
 ```
 
 ### 1.3 Why these choices
@@ -59,7 +52,7 @@ Everything else runs in the browser: routing, state, persistence (IndexedDB), ca
 |---|---|
 | **Vite + React + TS** | Spec-recommended; fast HMR; static build; matches React Flow ecosystem; huge hiring/learning surface. |
 | **React Flow (`@xyflow/react`)** | MIT, mature infinite pan/zoom, custom nodes, custom edges — exactly the spec's canvas model. |
-| **r.jina.ai Reader** | Free, no auth, fetches readable content + PDFs, returns Markdown pre-cleaned for LLMs, returns CORS-friendly headers — fits "zero infra" perfectly. |
+| **Server-side proxy** | Vite dev proxy / Cloudflare Function fetches server-to-server, returns content with CORS headers. Falls back to LLM knowledge generation. |
 | **LLM providers (default / Mistral / NVIDIA)** | Three providers via `providers.ts` config and provider-agnostic `chat()` in `chat.ts`. The default provider uses a server-side proxy (`/api/chat`) with no API key required; Mistral and NVIDIA use direct browser-to-API calls with user-supplied keys. |
 | **IndexedDB via `idb`** | Spec-mandated multi-session persistence with potentially large canvases; `idb` is 1kb Promises wrapper. |
 | **Cloudflare Pages** | Free unlimited static hosting on a global CDN, no build-minute caps that matter; one-command deploy. |
@@ -155,7 +148,7 @@ quizify/
 │  │  │     └─ Ordering.tsx
 │  ├─ lib/
 │  │  ├─ pipeline.ts               // orchestrator (see §4)
-│  │  ├─ fetchSourceContent.ts     // r.jina.ai Reader + fallbacks + LLM knowledge
+│  │  ├─ fetchSourceContent.ts     // proxy fetching + LLM knowledge fallback
 │  │  ├─ truncate.ts               // paragraph-aware content truncation
 │  │  ├─ db/
 │  │  │  ├─ db.ts                   // IndexedDB setup
@@ -179,7 +172,7 @@ quizify/
 │  │  ├─ types.ts                   // Session, NodeData, Persona, LlmProvider, etc.
 │  │  ├─ stores/
 │  │  │  ├─ sessionStore.ts         // sessions + currentId, backed by IDB
-│  │  │  └─ settingsStore.ts        // apiKey, jinaToken, persona, theme, provider
+│  │  │  └─ settingsStore.ts        // persona, theme, ttsEnabled, ttsRate
 │  │  ├─ Button.tsx / Input.tsx / etc.
 │  │  └─ useMediaQuery.ts
 │  ├─ styles/
@@ -229,8 +222,8 @@ input: { url, persona, apiKey, provider: 'default' | 'mistral' | 'nvidia' }
                 │
                 ▼
        ┌──────────────────┐
-       │ fetchSourceContent│  HTTP GET https://r.jina.ai/<url>
-       │   (Jina Reader)  │  → cleaned Markdown text (or fallback chain)
+        │ fetchSourceContent│  HTTP GET /api/fetch?url=<url>
+        │   (proxy/LM)     │  → cleaned content (or LLM knowledge)
        └────────┬─────────┘
                 │  { content, fetched: bool }
                 ▼
@@ -503,7 +496,7 @@ Helper functions `getApiBase(provider)` and `getGradingModel(provider)` allow th
 ### 6.4 Settings storage
 
 - `apiKey` — localStorage `quizify:apiKey` (plaintext, in browser only).
-- `jinaToken` — localStorage `quizify:jinaToken`.
+
 - `persona` — localStorage `quizify:persona`.
 - `provider` — localStorage `quizify:provider` (`'default' | 'mistral' | 'nvidia'`).
 - `theme` — localStorage `quizify:theme`.
@@ -607,17 +600,14 @@ Return STRICT JSON:
 
 ---
 
-## 7. URL fetching (r.jina.ai Reader)
+## 7. URL fetching
 
 ### 7.1 Resilience strategy
 
-For zero-cost + zero-infra we depend on free public proxies. They all rate-limit (mostly per-IP, anonymous tier). Our approach combines three mitigations:
-
-- **Strategy A — multi-proxy fallback chain**: try Jina first, silently fall back to allorigins → corsproxy → LLM-knowledge.
-- **Strategy B — optional Jina bearer token**: a free Jina API key (one click at `jina.ai/apikey`) lifts the 20 RPM anonymous cap. Surfaced as an optional Settings field.
-- **Strategy C — IndexedDB content cache** keyed by `sha256(url)`, TTL 24h. Repeat views of a saved canvas skip the network entirely.
-
-Each fetch costs ~1 Jina hit per canvas, and LLM calls (sequential, ~12 per canvas with combined detail+quiz) don't touch the proxy tier, so even the anonymous tier is well within limits for normal use. The fallback chain covers NAT-shared IPs and bursts.
+Three-tier strategy:
+- **Strategy A — server-side proxy**: Vite dev `/api/fetch` or Cloudflare Function fetches URL server-to-server with CORS headers.
+- **Strategy B — IndexedDB content cache** keyed by `sha256(url)`, TTL 24h. Repeat views of a saved canvas skip the network entirely.
+- **Strategy C — LLM knowledge generation**: when the proxy fails, generate educational content from the topic name alone.
 
 ### 7.2 IndexedDB source cache (new store)
 
@@ -638,13 +628,12 @@ export interface SourceResult {
   content: string;
   fetched: boolean;     // true if any real text came back
   hostname: string;
-  source: 'jina' | 'allorigins' | 'corsproxy' | 'cors-eu' | 'cache' | 'llm-knowledge';
+  source: 'proxy' | 'llm-knowledge' | 'cache';
 }
 
-const PROXY_TIMEOUT_MS = 5000;
+const PROXY_TIMEOUT_MS = 8000;
 
 interface FetchSourceOpts {
-  jinaToken?: string;            // optional, from settings
   signal?: AbortSignal;
   cache?: IDBSourceCache;        // injected; tests pass a fake
 }
@@ -662,23 +651,8 @@ export async function fetchSourceContent(
     return { ...cached, source: 'cache' };
   }
 
-  // 2. Jina (with optional bearer)
-  const jina = await tryJina(url, opts.jinaToken, opts.signal);
-  if (jina.fetched) {
-    await opts.cache?.set(sha256(url), { url, ...jina, fetchedAt: Date.now() });
-    return { ...jina, hostname, source: 'jina' };
-  }
-
-  // 3. allorigins (raw HTML) → readability-stripped in-browser
-  const ao = await tryAllOrigins(url, opts.signal);
-  if (ao.fetched) {
-    const stripped = stripHtml(ao.content);
-    await opts.cache?.set(sha256(url), { url, content: stripped, fetched: true, fetchedAt: Date.now() });
-    return { content: stripped, fetched: true, hostname, source: 'allorigins' };
-  }
-
-  // 4. corsproxy (raw HTML)
-  const cp = await tryCorsProxy(url, opts.signal);
+  // 2. Server-side proxy (/api/fetch on Cloudflare or /__proxy on Vite)
+  const proxy = await tryServerProxy(url, opts.signal);
   if (cp.fetched) {
     const stripped = stripHtml(cp.content);
     await opts.cache?.set(sha256(url), { url, content: stripped, fetched: true, fetchedAt: Date.now() });
@@ -698,58 +672,19 @@ export async function fetchSourceContent(
   return { content: '', fetched: false, hostname, source: 'llm-knowledge' };
 }
 
-const tryJina = async (url: string, token: string | undefined, signal?: AbortSignal) => {
-  try {
-    const res = await fetch(`https://r.jina.ai/${url}`, {
-      headers: {
-        'Accept': 'text/plain',
-        'X-Return-Format': 'markdown',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      },
-      signal: anySignal(signal, AbortSignal.timeout(PROXY_TIMEOUT_MS))
-    });
-    if (!res.ok) return { content: '', fetched: false };
-    const text = await res.text();
-    return { content: text ?? '', fetched: text.length > 200 };
-  } catch { return { content: '', fetched: false }; }
-};
-
-// tryAllOrigins, tryCorsProxy, tryCorsEu follow the same pattern
-// with their respective URL templates:
-//   allorigins: https://api.allorigins.win/raw?url=<encodeURIComponent(url)>
-//   corsproxy:  https://corsproxy.io/?url=<encodeURIComponent(url)>
-//   cors-eu:    https://cors.eu.org/<url>
 ```
 
 - `anySignal(...signals)` merges multiple AbortSignals into one (combine user-cancel with per-call timeout).
 - `stripHtml(html)` uses `DOMParser` to drop `<script>`, `<style>`, `<nav>`, `<header>`, `<footer>`, `<aside>`, then collapses whitespace and returns the body's `textContent`. ~30 lines. No readability-lib dependency (we'd rather have slightly noisy text than a 50kb dep).
 - The banner copy on the canvas depends on `result.source`:
   - `'cache'` → no banner (silent).
-  - `'jina'` → no banner.
-  - `'allorigins' | 'corsproxy' | 'cors-eu'` → subtle *"Source fetched via fallback proxy — content may be noisy."*
-  - `'llm-knowledge'` → *"Couldn't read the URL — concepts generated from model knowledge."* (already spec'd)
+  - `'proxy'` → no banner.
+  - `'llm-knowledge'` → *"Couldn't read the URL — concepts generated from model knowledge."*
 
-### 7.4 Settings sheet — optional Jina token
-
-Add a Jina API key field to `SettingsSheet.tsx`:
-
-```
-LLM API key       [ ******** ]  (show)   ← existing, required
-Provider          ○ Mistral  ● NVIDIA   ← existing
-Jina Reader key   [ optional ]  (show)  ← new, optional, lifts 20 RPM limit
-                                  "Get a free key at jina.ai/apikey"
-```
-
-- Stored in `localStorage` key `quizify:jinaToken` (parallel to `quizify:apiKey`).
-- Empty by default — anonymous tier is the baseline.
-- Sent as `Authorization: Bearer <token>` only when present.
-- The settings sheet explains in a single line: *"Falls back automatically if Jina is rate-limited."*
+### 7.4 (removed — Jina token no longer supported)
 
 ### 7.5 Privacy note for README (updated)
 
-Update the privacy section to:
-
-> - The URL you paste is sent to r.jina.ai (and, only on Jina failure, to one of allorigins / corsproxy / cors.eu.org) for content retrieval. These are third parties. If you provide a Jina API key it's sent only to Jina as a bearer token.
 > - Your API key is sent only to the selected provider's endpoint (api.mistral.ai or integrate.api.nvidia.com). It never touches any other service.
 > - All other data (your sessions, notes, quiz scores) lives only in your browser's IndexedDB.
 > - We have no server, no database, no analytics. Nothing leaves your browser except the two items above.
@@ -955,7 +890,7 @@ A `.env` file with `MISTRAL_API_KEY` is required to use the default provider via
 - Stack & rationale (one paragraph).
 - Local dev commands.
 - Build & deploy docs linking to Cloudflare Pages.
-- Privacy note: URL → r.jina.ai, API key → selected LLM provider (browser → provider direct for Mistral/NVIDIA; default provider proxies through `/api/chat` on Cloudflare Pages using a server-side key, so your prompts pass through our infrastructure).
+- Privacy note: API key → selected LLM provider (browser → provider direct for Mistral/NVIDIA; default provider proxies through `/api/chat` on Cloudflare Pages using a server-side key, so your prompts pass through our infrastructure).
 - Token-cost estimate per canvas (so users aren't surprised).
 - Troubleshooting: API key errors, fetch failures, partial node failures with retry.
 
@@ -1028,13 +963,13 @@ The implementation is intentionally staged to keep a buildable artifact end-to-e
 
 ## 16. Open questions / risk list
 
-- [ ] **r.jina.ai rate limits / uptime** — if Jina throttles, we silently fall back to LLM knowledge. We should add a fallback chain: Jina → if-other-public-proxy-configured-in-settings → LLM knowledge. Defer to v1.1.
+- [ ] (removed — Jina no longer used)
 - [ ] **LLM model availability** — model aliases update over time; consider freezing actual model tags on production builds to avoid behavior drift.
 - [ ] **Quiz format distribution** — currently random per node. After validation, we may want to bias the per-concept quiz to alternate formats to ensure variety (no canvas should have all `trueFalse`). Post-MVP.
 - [ ] **Token estimates for grading** — confirm the provider's designated grading model handles grade prompts reliably; if not, fall back to the main generation model.
 - [ ] **Cross-session alarm when localStorage API key cleared** — if user clears browser data, we should show the welcome modal on next launch. Already handled by "no apiKey → show welcome".
-- [ ] **PDF source UX** — r.jina.ai handles PDFs via inline extraction; verify output quality on a test set of 3 PDFs (research paper, white paper, e-book chapter) before launch.
-- [ ] **CSP** — set a strict Content-Security-Policy header in `_headers` (Cloudflare Pages supports per-path headers) allowing only the selected LLM provider endpoints and r.jina.ai as connect-src. **Strong recommendation for v1**, near-zero cost.
+- [ ] **PDF source UX** — verify the proxy handles PDFs correctly.
+- [ ] **CSP** — set a strict Content-Security-Policy header in `_headers` (Cloudflare Pages supports per-path headers) allowing only the selected LLM provider endpoints and the proxy as connect-src. **Strong recommendation for v1**, near-zero cost.
 - [ ] **Bundle size of roughjs** — confirm <40kb after gzip; if it balloons, hand-roll a simpler wiggly SVG path generator (a quadratic bezier with seeded pseudo-random control points).
 
 ---

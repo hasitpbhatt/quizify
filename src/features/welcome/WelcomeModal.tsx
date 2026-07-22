@@ -8,6 +8,7 @@ import {
   Globe,
   X,
   Clock,
+  ChevronDown,
 } from 'lucide-react';
 import { PersonaCard } from './PersonaCard';
 import { useWelcomeState, EXAMPLE_CHIPS } from './useWelcomeState';
@@ -91,8 +92,26 @@ export function WelcomeModal({
   const { remove: removeSession } = useSessionStore();
   const [exampleUrl, setExampleUrl] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [showSessions, setShowSessions] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'name' | 'concepts'>('recent');
+
+  const resumeSession = useMemo(() => {
+    const isComplete = (s: Session) => {
+      const quizNodes = s.nodes.filter((n) => n.data?.kind === 'quiz');
+      return (
+        quizNodes.length > 0 &&
+        quizNodes.every(
+          (n) => (n.data as any)?.state === 'correct' || (n.data as any)?.state === 'mastered',
+        )
+      );
+    };
+    const withContent = sessions.filter(
+      (s) => !isComplete(s) && s.nodes.some((n) => n.data?.kind === 'concept'),
+    );
+    withContent.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    return withContent[0] ?? null;
+  }, [sessions]);
 
   const filteredSessions = useMemo(() => {
     let result = [...sessions];
@@ -250,8 +269,8 @@ export function WelcomeModal({
           </div>
         </section>
 
-        <section className={styles.section}>
-          <label className={styles.label}>How should we teach you?</label>
+        <div className={styles.personaRow}>
+          <span className={styles.personaLabel}>Style:</span>
           <div className={styles.personaGrid} role="radiogroup" aria-label="Teaching style">
             {PERSONAS.map((p) => (
               <PersonaCard
@@ -266,129 +285,178 @@ export function WelcomeModal({
               />
             ))}
           </div>
-          <p className={styles.personaHint}>
-            {persona
-              ? `Depth & quiz difficulty tuned to the ${PERSONAS.find((p) => p.value === persona)?.label.toLowerCase()} in you.`
-              : 'We\u2019ll match the depth and quiz style to your pick.'}
-          </p>
-        </section>
+        </div>
 
-        {sessions.length > 0 && (
-          <section className={styles.sessionsSection}>
-            <div className={styles.sessionsHeader}>
-              <label className={styles.label}>Recent sessions</label>
-              <div className={styles.sessionControls}>
-                <input
-                  type="text"
-                  placeholder="Search sessions..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className={styles.searchBar}
-                />
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className={styles.sortSelect}
-                >
-                  <option value="recent">Recent</option>
-                  <option value="name">Name</option>
-                  <option value="concepts">Concepts</option>
-                </select>
+        {resumeSession && (
+          <section className={styles.resumeSection}>
+            <div className={styles.resumeLabel}>Pick up where you left off</div>
+            <div
+              className={styles.resumeCard}
+              onClick={() => onSelectSession(resumeSession.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelectSession(resumeSession.id);
+                }
+              }}
+            >
+              <div className={styles.resumeBody}>
+                <span className={styles.resumeName}>{resumeSession.name}</span>
+                <span className={styles.resumeMeta}>
+                  {resumeSession.hostname && (
+                    <>
+                      <Globe size={11} />
+                      <span>{resumeSession.hostname}</span>
+                      <span className={styles.sessionDot}>·</span>
+                    </>
+                  )}
+                  {resumeSession.nodes.filter((n) => n.data?.kind === 'concept').length} concepts
+                  {' · '}
+                  {relativeTime(new Date(resumeSession.updatedAt))}
+                </span>
               </div>
-            </div>
-            <div className={styles.sessionList}>
-              {filteredSessions.map((s, idx) => {
-                const Icon = PERSONA_ICONS[s.persona] ?? Sparkles;
-                const nodesList = s.nodes || [];
-                const conceptCount = nodesList.filter((n) => n.data?.kind === 'concept').length;
-                const quizNodes = nodesList.filter((n) => n.data?.kind === 'quiz');
-                const answeredQuizzes = quizNodes.filter(
-                  (n) => (n.data as any)?.state !== 'untested',
-                );
-                const masteredQuizzes = quizNodes.filter(
-                  (n) =>
-                    (n.data as any)?.state === 'correct' || (n.data as any)?.state === 'mastered',
-                );
-                const masteryPct =
-                  quizNodes.length > 0
-                    ? Math.round((masteredQuizzes.length / quizNodes.length) * 100)
-                    : null;
-                return (
-                  <div
-                    key={s.id}
-                    className={styles.sessionCard}
-                    onClick={() => {
-                      onSelectSession(s.id);
-                      setConfirmingDelete(null);
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        onSelectSession(s.id);
-                      }
-                    }}
-                  >
-                    {idx === 0 && sortBy === 'recent' && !searchQuery && (
-                      <span className={styles.resumeBadge}>Resume</span>
-                    )}
-                    <Icon size={16} />
-                    <div className={styles.sessionInfo}>
-                      <span className={styles.sessionName}>{s.name}</span>
-                      <span className={styles.sessionMeta}>
-                        {s.hostname && (
-                          <>
-                            <Globe size={11} />
-                            <span>{s.hostname}</span>
-                            <span className={styles.sessionDot}>·</span>
-                          </>
-                        )}
-                        <Clock size={11} />
-                        <span>{relativeTime(new Date(s.updatedAt))}</span>
-                        {conceptCount > 0 && (
-                          <>
-                            <span className={styles.sessionDot}>·</span>
-                            <span>
-                              {conceptCount} concept{conceptCount !== 1 ? 's' : ''}
-                            </span>
-                          </>
-                        )}
-                        {masteryPct !== null && answeredQuizzes.length > 0 && (
-                          <>
-                            <span className={styles.sessionDot}>·</span>
-                            <span
-                              style={{
-                                color:
-                                  masteryPct >= 80
-                                    ? 'var(--success)'
-                                    : masteryPct >= 50
-                                      ? 'var(--warning)'
-                                      : 'var(--text-tertiary)',
-                              }}
-                            >
-                              {masteryPct}% mastered
-                            </span>
-                          </>
-                        )}
-                      </span>
-                    </div>
-                    <button
-                      className={styles.sessionDelete}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConfirmingDelete(s.id);
-                      }}
-                      aria-label={`Delete session ${s.name}`}
-                      type="button"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                );
-              })}
+              <span className={styles.resumeAction}>
+                Resume
+                <ArrowRight size={14} />
+              </span>
             </div>
           </section>
+        )}
+
+        {sessions.length > 0 && (
+          <>
+            <button
+              className={styles.sessionToggle}
+              onClick={() => setShowSessions(!showSessions)}
+              type="button"
+            >
+              <span>Past sessions ({sessions.length})</span>
+              <ChevronDown size={14} className={showSessions ? styles.chevronOpen : undefined} />
+            </button>
+            {showSessions && (
+              <section className={styles.sessionsSection}>
+                <div className={styles.sessionsHeader}>
+                  <div className={styles.sessionControls}>
+                    <input
+                      type="text"
+                      placeholder="Search sessions..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className={styles.searchBar}
+                    />
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as any)}
+                      className={styles.sortSelect}
+                    >
+                      <option value="recent">Recent</option>
+                      <option value="name">Name</option>
+                      <option value="concepts">Concepts</option>
+                    </select>
+                  </div>
+                </div>
+                <div className={styles.sessionList}>
+                  {filteredSessions.map((s, idx) => {
+                    const Icon = PERSONA_ICONS[s.persona] ?? Sparkles;
+                    const nodesList = s.nodes || [];
+                    const conceptCount = nodesList.filter((n) => n.data?.kind === 'concept').length;
+                    const quizNodes = nodesList.filter((n) => n.data?.kind === 'quiz');
+                    const answeredQuizzes = quizNodes.filter(
+                      (n) => (n.data as any)?.state !== 'untested',
+                    );
+                    const masteredQuizzes = quizNodes.filter(
+                      (n) =>
+                        (n.data as any)?.state === 'correct' ||
+                        (n.data as any)?.state === 'mastered',
+                    );
+                    const masteryPct =
+                      quizNodes.length > 0
+                        ? Math.round((masteredQuizzes.length / quizNodes.length) * 100)
+                        : null;
+                    return (
+                      <div
+                        key={s.id}
+                        className={styles.sessionCard}
+                        onClick={() => {
+                          onSelectSession(s.id);
+                          setConfirmingDelete(null);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onSelectSession(s.id);
+                          }
+                        }}
+                      >
+                        {idx === 0 && sortBy === 'recent' && !searchQuery && (
+                          <span className={styles.resumeBadge}>Resume</span>
+                        )}
+                        <Icon size={16} />
+                        <div className={styles.sessionInfo}>
+                          <span className={styles.sessionName}>{s.name}</span>
+                          <span className={styles.sessionMeta}>
+                            {s.hostname && (
+                              <>
+                                <Globe size={11} />
+                                <span>{s.hostname}</span>
+                                <span className={styles.sessionDot}>·</span>
+                              </>
+                            )}
+                            <Clock size={11} />
+                            <span>{relativeTime(new Date(s.updatedAt))}</span>
+                            {conceptCount > 0 && (
+                              <>
+                                <span className={styles.sessionDot}>·</span>
+                                <span>
+                                  {conceptCount} concept{conceptCount !== 1 ? 's' : ''}
+                                </span>
+                              </>
+                            )}
+                            {masteryPct !== null &&
+                              answeredQuizzes.length > 0 &&
+                              masteryPct > 0 && (
+                                <>
+                                  <span className={styles.sessionDot}>·</span>
+                                  <span
+                                    style={{
+                                      color:
+                                        masteryPct >= 100
+                                          ? 'var(--success)'
+                                          : masteryPct >= 80
+                                            ? 'var(--success)'
+                                            : masteryPct >= 50
+                                              ? 'var(--warning)'
+                                              : 'var(--text-tertiary)',
+                                    }}
+                                  >
+                                    {masteryPct >= 100 ? 'Completed' : `${masteryPct}% mastered`}
+                                  </span>
+                                </>
+                              )}
+                          </span>
+                        </div>
+                        <button
+                          className={styles.sessionDelete}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmingDelete(s.id);
+                          }}
+                          aria-label={`Delete session ${s.name}`}
+                          type="button"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+          </>
         )}
       </main>
 
