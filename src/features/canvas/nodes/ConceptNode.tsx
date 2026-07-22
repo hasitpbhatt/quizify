@@ -153,7 +153,14 @@ function ConceptNodeInner(props: NodeProps) {
       </div>
       {!notebookMode && (
         <div className={styles.footer}>
-          <span className={styles.quizBadge}>Concepts</span>
+          {data.streaming ? (
+            <span className={styles.streamingBadge}>
+              <span className={styles.streamingDot} />
+              Receiving
+            </span>
+          ) : (
+            <span className={styles.quizBadge}>Concepts</span>
+          )}
           <button
             onClick={handlePlay}
             className={styles.playButton}

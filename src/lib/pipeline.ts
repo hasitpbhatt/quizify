@@ -112,19 +112,18 @@ export async function processOneConcept(
 
   const cursorX = 100 + index * PAIR_WIDTH;
 
-  // Stream raw tokens into the concept node so the user sees text appearing
-  // in real-time. Throttled to at most one persist every 200ms.
-  const streamingState = { raw: '', lastPersist: 0 };
+  // Flip the streaming flag on the concept node shell so the canvas shows a
+  // live progress animation. Throttled to at most one persist every 200ms.
+  const streamingState = { lastPersist: 0 };
   const nodeIdx = nodeIndexById.get(concept.id);
-  const onToken = (delta: string) => {
-    streamingState.raw += delta;
+  const onToken = () => {
     const now = Date.now();
     if (now - streamingState.lastPersist < 200) return;
     streamingState.lastPersist = now;
     if (nodeIdx === undefined || nodeIdx === -1) return;
     nodes[nodeIdx] = {
       ...nodes[nodeIdx],
-      data: { ...nodes[nodeIdx].data, explanation: streamingState.raw } as ConceptData,
+      data: { ...nodes[nodeIdx].data, streaming: true } as ConceptData,
     };
     persist();
   };
@@ -178,6 +177,7 @@ export async function processOneConcept(
           ...nodes[nodeIndex].data,
           explanation: content.detail.explanation,
           example: content.detail.example,
+          streaming: false,
         } as ConceptData,
       };
     }
