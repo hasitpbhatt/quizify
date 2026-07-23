@@ -1,31 +1,18 @@
 param(
   [Parameter(Mandatory, Position=0)]
-  [string]$Subcommand,
-
-  [Parameter(Mandatory, Position=1)]
-  [string]$JsonSelector,
-
-  [Parameter(Mandatory, Position=2)]
-  [string]$JqFilter
+  [string]$PrNumber
 )
 
 <#
 .SYNOPSIS
-  gh wrapper that passes jq filter safely — no PowerShell pipe conflicts.
+  Quick PR status summary — green/red per check, no shell quoting issues.
 .DESCRIPTION
-  `gh --jq` filters often contain `|` (jq pipe), which PowerShell interprets
-  as its own pipeline operator, mangling the argument. This helper writes the
-  filter to a temp file, reads it back as a variable (safe from parsing), and
-  passes it to gh.
+  PowerShell 5.1 misparses `|` inside `gh --jq` filters (treats it as its own
+  pipe operator). `gh pr checks` avoids this entirely because it doesn't need
+  a jq filter.
 
-  Usage: .\scripts\ghjq.ps1 "pr view 69" "statusCheckRollup" '.statusCheckRollup[] | .name + " " + .conclusion'
+  Usage: .\scripts\ghjq.ps1 69
+  Equivalent to: gh pr checks 69
 #>
 
-$tmp = [System.IO.Path]::GetTempFileName()
-try {
-  $JqFilter | Out-File -FilePath $tmp -Encoding ascii -NoNewline
-  $filter = Get-Content -Path $tmp -Raw -Encoding ascii
-  gh --jq $filter $Subcommand --json $JsonSelector
-} finally {
-  if (Test-Path $tmp) { Remove-Item $tmp -Force }
-}
+gh pr checks $PrNumber
