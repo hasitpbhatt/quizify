@@ -70,11 +70,11 @@
 
 .heading {
   margin: 0;
-  font-family: var(--font-ui);
+  font-family: var(--font-heading);
   font-size: var(--fs-display);
   font-weight: var(--fw-display);
   line-height: var(--lh-tight);
-  letter-spacing: -0.015em;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
 }
 
@@ -139,26 +139,29 @@
   padding: 0 var(--space-6);
   border: none;
   border-radius: var(--radius-ui);
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
   color: #fff;
   font-family: var(--font-ui);
   font-size: var(--fs-body);
   font-weight: var(--fw-h2);
   white-space: nowrap;
+  box-shadow: var(--shadow-sm);
   transition:
     background var(--dur-fast) var(--ease-out),
     opacity var(--dur-fast) var(--ease-out),
-    transform var(--dur-fast) var(--ease-out);
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .generateBtn:hover:not(:disabled) {
-  background: var(--accent-hover);
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, var(--accent-hover) 0%, var(--accent) 100%);
+  transform: translateY(-1px) scale(var(--hover-scale));
+  box-shadow: var(--shadow-md);
 }
 
 .generateBtn:active:not(:disabled) {
   background: var(--accent-pressed);
-  transform: translateY(0);
+  transform: translateY(0) scale(var(--hover-scale-active));
 }
 
 .generateBtn:disabled {
@@ -187,13 +190,19 @@
   transition:
     background var(--dur-fast) var(--ease-out),
     color var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out);
+    border-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .chip:hover {
   background: var(--accent-subtle);
   color: var(--accent-pressed);
   border-color: transparent;
+  transform: scale(var(--hover-scale));
+}
+
+.chip:active {
+  transform: scale(var(--hover-scale-active));
 }
 
 :root[data-theme='dark'] .chip:hover {
@@ -264,7 +273,8 @@
   cursor: pointer;
   transition:
     background var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out);
+    border-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
   color: var(--text-secondary);
 }
 
@@ -272,6 +282,8 @@
   background: var(--bg-elevated);
   border-color: var(--border);
   color: var(--text-primary);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
 }
 
 .sessionCard:focus-visible {
@@ -366,13 +378,17 @@
   cursor: pointer;
   transition:
     background var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out);
+    border-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
   color: var(--text-primary);
 }
 
 .resumeCard:hover {
   background: var(--accent-glass);
   border-color: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
 }
 
 .resumeCard:focus-visible {
@@ -442,13 +458,15 @@
   transition:
     background var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out),
-    color var(--dur-fast) var(--ease-out);
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .sessionToggle:hover {
   background: var(--bg-subtle);
   border-color: var(--border);
   color: var(--text-primary);
+  transform: translateY(-1px);
 }
 
 .chevronOpen {
@@ -533,7 +551,13 @@
   .modal {
     animation: none;
   }
-  .generateBtn:hover {
+  .generateBtn:hover,
+  .chip:hover,
+  .sessionCard:hover,
+  .resumeCard:hover,
+  .sessionToggle:hover,
+  .dialogCancelBtn:hover,
+  .dialogConfirmBtn:hover {
     transform: none;
   }
 }
@@ -614,7 +638,9 @@
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-ui);
   cursor: pointer;
-  transition: all var(--dur-fast) var(--ease-out);
+  transition:
+    all var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .dialogCancelBtn {
@@ -627,6 +653,7 @@
   background: var(--bg-subtle);
   color: var(--text-primary);
   border-color: var(--border-strong);
+  transform: translateY(-1px);
 }
 
 .dialogConfirmBtn {
@@ -637,6 +664,7 @@
 
 .dialogConfirmBtn:hover {
   background: #c92a2a;
+  transform: translateY(-1px);
 }
 
 .sessionsHeader {

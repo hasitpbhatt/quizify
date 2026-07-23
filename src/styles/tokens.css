@@ -19,6 +19,10 @@
   --accent-subtle: rgba(79, 82, 212, 0.1);
   --accent-glass: rgba(79, 82, 212, 0.14);
 
+  /* pastel accent palette — softer variations for premium feel */
+  --accent-light: #7c7ef5;
+  --accent-muted: rgba(79, 82, 212, 0.06);
+
   --success: #2e9e5b;
   --warning: #d9a441;
   --danger: #d14b4b;
@@ -70,6 +74,7 @@
 
   /* font families */
   --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-heading: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-canvas: 'Caveat', cursive;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
@@ -99,6 +104,13 @@
   --dur-fast: 120ms;
   --dur: 200ms;
   --dur-slow: 320ms;
+
+  /* hover animation tokens */
+  --hover-scale: 1.04;
+  --hover-scale-active: 0.97;
+
+  /* notebook layout */
+  --notebook-header-height: 48px;
 }
 
 [data-theme='dark'] {
@@ -119,6 +131,10 @@
   --accent-pressed: #6a6cec;
   --accent-subtle: rgba(126, 128, 240, 0.14);
   --accent-glass: rgba(126, 128, 240, 0.18);
+
+  /* pastel accent palette — softer variations for dark theme */
+  --accent-light: #a5a7f8;
+  --accent-muted: rgba(126, 128, 240, 0.08);
 
   --success: #3dbe73;
   --warning: #e6bb66;
