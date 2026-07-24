@@ -21,11 +21,7 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const textToRead = `${data.title}. ${data.explanation}`;
   const skipTyping = data.index < currentConceptIndex;
-  const { revealed, isAnimating, skipAnimation } = useTypingAnimation(
-    id,
-    textToRead,
-    skipTyping,
-  );
+  const { revealed, isAnimating, skipAnimation } = useTypingAnimation(id, textToRead, skipTyping);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -180,7 +176,10 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
           <span className={styles.quizBadge}>Concept {data.index + 1}</span>
         )}
         <button
-          onClick={(e) => { e.stopPropagation(); handlePlay(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            handlePlay();
+          }}
           className={styles.playButton}
           disabled={isLoading}
           title="Listen"

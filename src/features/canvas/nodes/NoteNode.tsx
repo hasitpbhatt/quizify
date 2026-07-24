@@ -97,12 +97,8 @@ function NoteNodeInner({ id, data }: NoteNodeProps) {
 
     const updatedNodes = authoritative.nodes.filter((n) => n.id !== id);
     const authEdges = authoritative.edges ?? [];
-    const deletedEdges = authEdges.filter(
-      (e) => e.source === id || e.target === id,
-    );
-    const updatedEdges = authEdges.filter(
-      (e) => e.source !== id && e.target !== id,
-    );
+    const deletedEdges = authEdges.filter((e) => e.source === id || e.target === id);
+    const updatedEdges = authEdges.filter((e) => e.source !== id && e.target !== id);
     const deletedNode = authoritative.nodes.find((node) => node.id === id);
     if (deletedNode) {
       lastDeletedNote = {

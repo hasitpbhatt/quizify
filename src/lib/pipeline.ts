@@ -383,15 +383,7 @@ export async function runPipeline(
 
   // --- Phase 2: Summary ---
   debugLog('log', 'pipeline', 'phase 2: summary start');
-  await pushSummary(
-    nodes,
-    generatedConcepts,
-    topic,
-    persona,
-    signal,
-    persist,
-    notify,
-  );
+  await pushSummary(nodes, generatedConcepts, topic, persona, signal, persist, notify);
 
   notify(
     'done',
@@ -436,8 +428,7 @@ export async function retryFailedConcept(sessionId: string, conceptId: string): 
     );
   const generatedConcepts: ConceptInfo[] = [];
   const { updateCurrent } = useSessionStore.getState();
-  const persist = () =>
-    updateCurrent({ nodes: [...nodes], updatedAt: Date.now() }, sessionId);
+  const persist = () => updateCurrent({ nodes: [...nodes], updatedAt: Date.now() }, sessionId);
 
   await persist();
   const success = await processOneConcept(

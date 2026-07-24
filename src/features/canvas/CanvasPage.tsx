@@ -201,15 +201,10 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     dismissLearningCue();
   }, [dismissLearningCue]);
 
-  const focusOnActiveConcept = useCallback(
-    (conceptId: string, _includeQuizzes?: boolean) => {
-      const el = containerRef.current?.querySelector(`[data-concept-id="${conceptId}"]`);
-      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    },
-    [],
-  );
-
-
+  const focusOnActiveConcept = useCallback((conceptId: string, _includeQuizzes?: boolean) => {
+    const el = containerRef.current?.querySelector(`[data-concept-id="${conceptId}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, []);
 
   const handleCueAction = useCallback(() => {
     if (!nextAction || nextAction.kind === 'complete') return;
@@ -453,13 +448,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     return () => {
       ttsManager.unsubscribe(subId);
     };
-  }, [
-    immersiveNotebook,
-    currentConceptIndex,
-    session,
-    concepts,
-    focusOnActiveConcept,
-  ]);
+  }, [immersiveNotebook, currentConceptIndex, session, concepts, focusOnActiveConcept]);
 
   // In notebook mode: enqueue TTS for the current concept when it becomes active.
   // Gated on !prefers-reduced-motion AND the user's TTS-enabled setting:
@@ -813,10 +802,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                   />
                 )}
                 {kind === 'note' && (
-                  <NoteNode
-                    id={canvasNode.id}
-                    data={canvasNode.data as NoteData}
-                  />
+                  <NoteNode id={canvasNode.id} data={canvasNode.data as NoteData} />
                 )}
               </div>
             );

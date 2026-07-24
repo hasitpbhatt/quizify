@@ -456,7 +456,6 @@ export function MobileFocusView({
           </div>
         </div>
       )}
-
     </div>
   );
 }

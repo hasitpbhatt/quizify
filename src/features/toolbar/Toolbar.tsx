@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 
-
 import { AccessibleDialog } from '@/lib/components/AccessibleDialog';
 import { ChevronDown, X } from 'lucide-react';
 import styles from './Toolbar.module.css';
