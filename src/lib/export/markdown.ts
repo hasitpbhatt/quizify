@@ -2,7 +2,7 @@ import type { Session, ConceptData, QuizData, SummaryData, NoteData } from '@/sh
 import { downloadBlob, sessionFilename, sortedNodes, formatDate } from './types';
 
 function escapeMd(text: string): string {
-  return text.replace(/([*_~`#])/g, '\\$1');
+  return text.replace(/([\\*_~`#])/g, '\\$1');
 }
 
 function formatQuiz(quiz: QuizData): string {
