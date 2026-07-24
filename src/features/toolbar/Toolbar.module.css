@@ -2,7 +2,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  height: 48px;
+  height: var(--notebook-header-height);
   padding: 0 var(--space-5);
   background: var(--bg-glass);
   backdrop-filter: saturate(180%) blur(20px);
@@ -10,7 +10,7 @@
   border-bottom: 1px solid var(--border-hairline);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 150;
   font-family: var(--font-ui);
 }
 
@@ -18,6 +18,7 @@
   display: inline-flex;
   align-items: baseline;
   gap: var(--space-2);
+  font-family: var(--font-heading);
   font-size: var(--fs-h2);
   font-weight: var(--fw-display);
   color: var(--text-primary);
@@ -55,15 +56,17 @@
   font-size: var(--fs-caption);
   font-family: var(--font-ui);
   transition:
-    border-color 0.15s,
-    background 0.15s,
-    color 0.15s;
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .newBtn:hover {
   border-color: var(--border-strong);
   background: var(--bg-elevated);
   color: var(--text-primary);
+  transform: translateY(-1px);
 }
 
 .newBtn:focus-visible {
@@ -82,15 +85,17 @@
   color: var(--text-secondary);
   cursor: pointer;
   transition:
-    border-color 0.15s,
-    background 0.15s,
-    color 0.15s;
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .themeToggle:hover {
   border-color: var(--border-strong);
   background: var(--bg-elevated);
   color: var(--text-primary);
+  transform: translateY(-1px);
 }
 
 .themeToggle:focus-visible {
@@ -117,13 +122,15 @@
   white-space: nowrap;
   max-width: 240px;
   transition:
-    border-color 0.15s,
-    background 0.15s;
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .sessionTrigger:hover {
   border-color: var(--border-strong);
   background: var(--bg-elevated);
+  transform: translateY(-1px);
 }
 
 .sessionTrigger:focus-visible {
@@ -145,9 +152,10 @@
   font-family: var(--font-ui);
   font-size: var(--fs-caption);
   transition:
-    border-color 0.15s,
-    background 0.15s,
-    color 0.15s;
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
   flex-shrink: 0;
 }
 
@@ -155,6 +163,7 @@
   border-color: var(--border-strong);
   background: var(--bg-elevated);
   color: var(--text-primary);
+  transform: translateY(-1px);
 }
 
 .viewToggleActive {

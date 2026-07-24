@@ -12,15 +12,12 @@ test.describe('Notebook mode', () => {
     await setupPage(page);
   });
 
-  test('renders notebook UI with typewriter animation and gated quizzes', async ({
-    page,
-  }) => {
+  test('renders notebook UI with typewriter animation and gated quizzes', async ({ page }) => {
     await setCanvasSession(page, SEED_SESSION_ID, true);
     await page.reload();
     await page.waitForSelector('.react-flow__renderer', { timeout: 15_000 });
 
     // Notebook-specific UI elements
-    await expect(page.locator('.notebookModePill')).toBeVisible();
     await expect(page.locator('.notebookControls')).toBeVisible();
     await expect(page.locator('.notebookConceptProgress')).toBeVisible();
 
@@ -45,23 +42,15 @@ test.describe('Notebook mode', () => {
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 
-  test('restores reading position and reveals quizzes from localStorage', async ({
-    page,
-  }) => {
+  test('restores reading position and reveals quizzes from localStorage', async ({ page }) => {
     await setCanvasSession(page, SEED_SESSION_ID, true);
 
-    const quizIds = [
-      `${SEED_SESSION_ID}-c1-quiz-0`,
-      `${SEED_SESSION_ID}-c1-quiz-1`,
-    ];
+    const quizIds = [`${SEED_SESSION_ID}-c1-quiz-0`, `${SEED_SESSION_ID}-c1-quiz-1`];
     const nbPosKey = `quizify:nbpos:${SEED_SESSION_ID}`;
-    await page.evaluate(
-      ({ key, value }) => localStorage.setItem(key, JSON.stringify(value)),
-      {
-        key: nbPosKey,
-        value: { revealedQuizIds: quizIds },
-      },
-    );
+    await page.evaluate(({ key, value }) => localStorage.setItem(key, JSON.stringify(value)), {
+      key: nbPosKey,
+      value: { revealedQuizIds: quizIds },
+    });
 
     await page.reload();
     await page.waitForSelector('.react-flow__renderer', { timeout: 15_000 });

@@ -34,7 +34,6 @@ import { useIsMobile } from '@/shared/useMediaQuery';
 import { useDismissibleCue } from '@/shared/useDismissibleCue';
 import {
   Plus,
-  BookOpen,
   Play,
   Pause,
   Square,
@@ -1335,18 +1334,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
 
         {notebookMode && (
           <>
-            <div
-              className="notebookModePill"
-              title="You're in Notebook view. Press Esc or the X to switch to the canvas graph."
-            >
-              <BookOpen size={12} />
-              <span>Notebook · Esc to exit</span>
-            </div>
-            {concepts.length > 0 && (
-              <div className="notebookConceptProgress">
-                Concept {currentConceptIndex + 1} of {concepts.length}
-              </div>
-            )}
             {session?.sourceProvenance && (
               <div className={styles.sourceBadge}>
                 {session.sourceProvenance === 'fetched'
@@ -1357,6 +1344,11 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
               </div>
             )}
             <div className="notebookControls">
+              {concepts.length > 0 && (
+                <span className="notebookConceptProgress">
+                  Concept {currentConceptIndex + 1} of {concepts.length}
+                </span>
+              )}
               <button onClick={toggleNotebookMode} title="Exit Notebook">
                 <X size={14} />
               </button>

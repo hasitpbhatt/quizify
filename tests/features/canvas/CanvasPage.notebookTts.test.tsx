@@ -290,7 +290,7 @@ describe('CanvasPage — narration counter when voice unavailable (NB-7)', () =>
 });
 
 describe('CanvasPage — notebook mode indicator (NB-8)', () => {
-  it('shows a Notebook mode pill so the active surface is discoverable', async () => {
+  it('shows concept progress in notebook controls', async () => {
     const concept = factories.mockConceptNode();
     const session = factories.mockSession([concept], []);
     await sessionsDb.putSession(session);
@@ -299,9 +299,9 @@ describe('CanvasPage — notebook mode indicator (NB-8)', () => {
 
     renderCanvas();
 
-    const pill = await screen.findByTitle(/You're in Notebook view/);
-    expect(pill).toBeInTheDocument();
-    expect(pill.textContent).toContain('Notebook');
+    const progress = await screen.findByText(/Concept/);
+    expect(progress).toBeInTheDocument();
+    expect(progress.textContent).toMatch(/Concept.*of.*1/);
   });
 });
 

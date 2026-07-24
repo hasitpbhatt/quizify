@@ -319,33 +319,9 @@
   }
 }
 
-/* --- Floating TTS controls bar --- */
+/* --- Notebook branding pill (hidden - toolbar has brand) --- */
 .notebookModePill {
-  position: fixed;
-  top: 16px;
-  left: 16px;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  background: var(--bg-glass);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-sm);
-  font-family: var(--font-ui), system-ui, sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  color: var(--accent);
-  cursor: default;
-}
-
-.notebookModePill span {
-  color: var(--text-primary);
-  font-weight: 600;
+  display: none;
 }
 
 .notebookControls {
@@ -388,12 +364,19 @@
   background: var(--bg-subtle);
   color: var(--text-primary);
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .notebookControls button:hover:not(:disabled) {
   background: var(--accent-subtle);
   color: var(--accent);
+  transform: scale(var(--hover-scale));
+}
+
+.notebookControls button:active:not(:disabled) {
+  transform: scale(var(--hover-scale-active));
 }
 
 .notebookControls button:disabled {
@@ -860,29 +843,27 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
-/* --- Concept progress indicator (notebook mode) --- */
+/* --- Concept progress indicator (notebook mode) - now part of controls area --- */
 .notebookConceptProgress {
-  position: fixed;
-  top: 20px;
-  left: 100px;
-  z-index: 100;
   font-family: var(--font-ui), system-ui, sans-serif;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.3px;
   color: var(--text-secondary);
-  padding: 5px 10px;
-  background: var(--bg-glass);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-sm);
+  padding: 0 var(--space-3);
   white-space: nowrap;
+  border-right: 1px solid var(--border);
+  margin-right: var(--space-2);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .notebookLearningCue {
     animation: none;
+  }
+  .notebookControls button {
+    transition: none;
+  }
+  .notebookControls button:hover {
+    transform: none;
   }
 }

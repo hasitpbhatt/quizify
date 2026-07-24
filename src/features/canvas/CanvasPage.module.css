@@ -70,13 +70,13 @@
 }
 
 .actionBtn:hover {
-  transform: scale(1.04);
+  transform: scale(var(--hover-scale));
   background: var(--bg-elevated);
   box-shadow: var(--shadow-lg);
 }
 
 .actionBtn:active {
-  transform: scale(0.97);
+  transform: scale(var(--hover-scale-active));
 }
 
 .exportWrapper {
@@ -435,5 +435,17 @@
   to {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .actionBtn {
+    transition: none;
+  }
+  .actionBtn:hover {
+    transform: none;
+  }
+  .actionBtn:active {
+    transform: none;
   }
 }
