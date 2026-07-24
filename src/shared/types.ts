@@ -77,10 +77,8 @@ export type NodeData = ConceptData | QuizData | NoteData | SummaryData;
 export interface CanvasNode {
   id: string;
   type: NodeKind;
-  position: { x: number; y: number };
+  position?: { x: number; y: number };
   data: NodeData;
-  draggable?: boolean;
-  selected?: boolean;
 }
 
 export interface CanvasEdge {
@@ -105,7 +103,7 @@ export interface Session {
   createdAt: number;
   updatedAt: number;
   nodes: CanvasNode[];
-  edges: CanvasEdge[];
+  edges?: CanvasEdge[];
   scores: Record<string, { best: number; attempts: number }>;
 }
 

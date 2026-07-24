@@ -8,7 +8,7 @@ import { readNotebookModePreference } from '@/shared/notebookModePreference';
 import { WelcomeModal } from '@/features/welcome/WelcomeModal';
 import { Toolbar } from '@/features/toolbar/Toolbar';
 import { CanvasPage } from '@/features/canvas/CanvasPage';
-import { ReactFlowProvider } from '@xyflow/react';
+
 import { ProgressScreen } from './ProgressScreen';
 import { Toaster } from './Toaster';
 import { fetchSourceContent } from '@/lib/fetchSourceContent';
@@ -336,10 +336,8 @@ export function App() {
       </div>
     ) : page === 'canvas' ? (
       <div key="canvas" className={isGenerating ? 'pageEnterInstant' : 'pageEnter'}>
-        <Toolbar canvasPage />
-        <ReactFlowProvider>
-          <CanvasPage progress={progress} isGenerating={isGenerating} onHome={goWelcome} />
-        </ReactFlowProvider>
+        <Toolbar />
+        <CanvasPage progress={progress} isGenerating={isGenerating} onHome={goWelcome} />
       </div>
     ) : (
       <div key="welcome" className="pageEnter">

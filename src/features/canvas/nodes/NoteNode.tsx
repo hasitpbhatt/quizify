@@ -1,11 +1,15 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import type { NoteData, CanvasNode } from '@/shared/types';
 import styles from './NoteNode.module.css';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
 import * as sessionsDb from '@/lib/db/sessionsDb';
+
+interface NoteNodeProps {
+  id: string;
+  data: NoteData;
+}
 
 let lastDeletedNote: {
   sessionId: string;
@@ -23,29 +27,24 @@ export async function undoLastDeletedNote(): Promise<boolean> {
   nodes.splice(Math.min(snapshot.index, nodes.length), 0, snapshot.node);
   await useSessionStore
     .getState()
-    .updateCurrent({ nodes, edges: [...session.edges, ...snapshot.edges] }, snapshot.sessionId);
+    .updateCurrent(
+      { nodes, edges: [...(session.edges ?? []), ...snapshot.edges] },
+      snapshot.sessionId,
+    );
   lastDeletedNote = null;
   return true;
 }
 
-function toNoteData(data: Record<string, unknown>): NoteData {
-  if (data.kind !== 'note') throw new Error(`Expected note data, got ${String(data.kind)}`);
-  return data as unknown as NoteData;
-}
-
-function NoteNodeInner(props: NodeProps) {
-  const data = toNoteData(props.data);
+function NoteNodeInner({ id, data }: NoteNodeProps) {
   const [editing, setEditing] = useState(data.text.trim().length === 0);
   const [draft, setDraft] = useState(data.text);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const updateCurrent = useSessionStore((s) => s.updateCurrent);
-  // Stable random rotation: computed once based on node id hash so it's consistent across renders
   const rotation = useRef<number | null>(null);
   if (rotation.current === null) {
-    // Simple deterministic hash of node ID → float in [-2, 2]
     let hash = 0;
-    for (let i = 0; i < props.id.length; i++) hash = (hash * 31 + props.id.charCodeAt(i)) >>> 0;
-    rotation.current = (hash % 400) / 100 - 2; // -2 to +2 deg
+    for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+    rotation.current = (hash % 400) / 100 - 2;
   }
 
   useEffect(() => {
@@ -71,10 +70,10 @@ function NoteNodeInner(props: NodeProps) {
     if (!authoritative) return;
 
     const updatedNodes: CanvasNode[] = authoritative.nodes.map((n) =>
-      n.id === props.id ? { ...n, data: { ...n.data, text: trimmed } as NoteData } : n,
+      n.id === id ? { ...n, data: { ...n.data, text: trimmed } as NoteData } : n,
     );
     await updateCurrent({ nodes: updatedNodes });
-  }, [draft, data.text, props, updateCurrent]);
+  }, [draft, data.text, id, updateCurrent]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -91,30 +90,30 @@ function NoteNodeInner(props: NodeProps) {
   );
 
   const handleDelete = useCallback(async () => {
-    const nodeId = props.id;
     const { currentId } = useSessionStore.getState();
     if (!currentId) return;
     const authoritative = await sessionsDb.getSession(currentId);
     if (!authoritative) return;
 
-    const updatedNodes = authoritative.nodes.filter((n) => n.id !== nodeId);
-    const deletedEdges = authoritative.edges.filter(
-      (e) => e.source === nodeId || e.target === nodeId,
+    const updatedNodes = authoritative.nodes.filter((n) => n.id !== id);
+    const authEdges = authoritative.edges ?? [];
+    const deletedEdges = authEdges.filter(
+      (e) => e.source === id || e.target === id,
     );
-    const updatedEdges = authoritative.edges.filter(
-      (e) => e.source !== nodeId && e.target !== nodeId,
+    const updatedEdges = authEdges.filter(
+      (e) => e.source !== id && e.target !== id,
     );
-    const deletedNode = authoritative.nodes.find((node) => node.id === nodeId);
+    const deletedNode = authoritative.nodes.find((node) => node.id === id);
     if (deletedNode) {
       lastDeletedNote = {
         sessionId: currentId,
         node: deletedNode,
         edges: deletedEdges,
-        index: authoritative.nodes.findIndex((node) => node.id === nodeId),
+        index: authoritative.nodes.findIndex((node) => node.id === id),
       };
     }
     await updateCurrent({ nodes: updatedNodes, edges: updatedEdges });
-  }, [props, updateCurrent]);
+  }, [id, updateCurrent]);
 
   return (
     <div
@@ -122,7 +121,6 @@ function NoteNodeInner(props: NodeProps) {
       onDoubleClick={handleDoubleClick}
       style={{ '--note-rotate': `${rotation.current}deg` } as React.CSSProperties}
     >
-      <Handle type="target" position={Position.Top} />
       {editing ? (
         <textarea
           ref={inputRef}
@@ -152,12 +150,11 @@ function NoteNodeInner(props: NodeProps) {
       {data.linkedConceptId && (
         <div className={styles.linkBadge}>Linked: {data.linkedConceptId}</div>
       )}
-      <Handle type="source" position={Position.Bottom} />
     </div>
   );
 }
 
-function NoteNodeWrapper(props: NodeProps) {
+function NoteNodeWrapper(props: NoteNodeProps) {
   return (
     <ErrorBoundary name="NoteNode" fallback={<NodeErrorFallback nodeId={props.id} type="note" />}>
       <NoteNodeInner {...props} />

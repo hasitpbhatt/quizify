@@ -1,6 +1,4 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { ReactFlow, Background, MiniMap, BackgroundVariant } from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
 import type { CanvasNode, QuizData, ConceptData, NoteData, SummaryData } from '@/shared/types';
 import { QuizInteraction } from '@/features/quiz/QuizInteraction';
 import { SummaryQuizInteraction } from '@/features/quiz/SummaryQuizInteraction';
@@ -64,7 +62,6 @@ export function MobileFocusView({
   onAddNote,
 }: Props) {
   const [index, setIndex] = useState(0);
-  const [showMinimap, setShowMinimap] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
   const [activeQuiz, setActiveQuiz] = useState<{
     quizId: string;
@@ -269,9 +266,6 @@ export function MobileFocusView({
           <List size={14} />
           <span>Outline</span>
         </button>
-        <button className={styles.topActionBtn} onClick={() => setShowMinimap((v) => !v)}>
-          {showMinimap ? '\u2715 Close map' : '\u2630 Open map'}
-        </button>
         <button className={styles.topActionBtn} onClick={cycleTheme} aria-label={`Theme: ${theme}`}>
           {theme}
         </button>
@@ -463,36 +457,6 @@ export function MobileFocusView({
         </div>
       )}
 
-      {showMinimap && (
-        <div className={styles.minimapOverlay} onClick={() => setShowMinimap(false)}>
-          <div className={styles.minimapPanel} onClick={(e) => e.stopPropagation()}>
-            <button className={styles.closeMinimapBtn} onClick={() => setShowMinimap(false)}>
-              \u2715
-            </button>
-            <ReactFlow
-              nodes={nodes.map((n) => ({
-                id: n.id,
-                type: n.type,
-                position: n.position,
-                data: n.data as unknown as Record<string, unknown>,
-              }))}
-              edges={[]}
-              fitView
-              panOnDrag={false}
-              zoomOnScroll={false}
-              nodesDraggable={false}
-              nodesConnectable={false}
-            >
-              <Background variant={BackgroundVariant.Dots} gap={16} size={0.5} />
-              <MiniMap
-                nodeColor="var(--accent)"
-                maskColor="rgba(0,0,0,0.1)"
-                style={{ width: '100%', height: '100%' }}
-              />
-            </ReactFlow>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -28,27 +28,6 @@ type ProgressCallback = (progress: PipelineProgress) => void;
 
 const CONCURRENCY = 3;
 
-const COL_WIDTH = 480;
-const GAP_COL = 80;
-const GAP_ROW = 85;
-const PAIR_WIDTH = 2 * COL_WIDTH + GAP_COL;
-const START_Y = 100;
-const CHARS_PER_LINE_QUIZ = 30;
-const CHARS_PER_LINE_CONCEPT = 35;
-const LINE_HEIGHT = 28;
-
-export function estimateQuizHeight(prompt: string): number {
-  const fixed = 130;
-  const lines = Math.max(1, Math.ceil(prompt.length / CHARS_PER_LINE_QUIZ));
-  return fixed + lines * LINE_HEIGHT;
-}
-
-export function estimateConceptHeight(explanation: string): number {
-  const fixed = 150;
-  const lines = Math.max(1, Math.ceil(explanation.length / CHARS_PER_LINE_CONCEPT));
-  return fixed + lines * LINE_HEIGHT;
-}
-
 export function quizItemToQuizData(item: QuizItem, conceptId: string): QuizData {
   return { kind: 'quiz', parentConceptId: conceptId, attempts: [], state: 'untested', ...item };
 }
@@ -75,11 +54,9 @@ export function pushConceptShells(
   sourceUrl?: string,
 ): void {
   concepts.forEach((concept, i) => {
-    const cursorX = 100 + i * PAIR_WIDTH;
     nodes.push({
       id: concept.id,
       type: 'concept',
-      position: { x: cursorX, y: START_Y + 100 },
       data: {
         kind: 'concept',
         index: i,
@@ -95,10 +72,10 @@ export function pushConceptShells(
 
 export async function processOneConcept(
   nodes: CanvasNode[],
-  edges: CanvasEdge[],
+  _edges: CanvasEdge[],
   generatedConcepts: ConceptInfo[],
   concept: { id: string; title: string; explanation: string },
-  index: number,
+  _index: number,
   topic: string,
   persona: Persona,
   signal: AbortSignal | undefined,
@@ -107,15 +84,9 @@ export async function processOneConcept(
 ): Promise<string | null> {
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
-  // Index the shell nodes once so per-concept lookups are O(1) instead of a
-  // linear findIndex inside each parallel worker (was O(N²) across N workers).
   const nodeIndexById = new Map<string, number>();
   for (let i = 0; i < nodes.length; i++) nodeIndexById.set(nodes[i].id, i);
 
-  const cursorX = 100 + index * PAIR_WIDTH;
-
-  // Flip the streaming flag on the concept node shell so the canvas shows a
-  // live progress animation. Throttled to at most one persist every 200ms.
   const streamingState = { lastPersist: 0 };
   const nodeIdx = nodeIndexById.get(concept.id);
   const onToken = () => {
@@ -160,21 +131,10 @@ export async function processOneConcept(
       example: content.detail.example,
     });
 
-    const n = content.quizzes.length;
-    const quizHeights = content.quizzes.map((q) => estimateQuizHeight(q.prompt));
-    const totalColumnHeight =
-      n > 0 ? quizHeights.reduce((a, b) => a + b + GAP_ROW, 0) - GAP_ROW : 0;
-    const conceptY =
-      n > 0
-        ? START_Y +
-          Math.floor((totalColumnHeight - estimateConceptHeight(content.detail.explanation)) / 2)
-        : START_Y;
-
     const nodeIndex = nodeIndexById.get(concept.id) ?? -1;
     if (nodeIndex !== -1) {
       nodes[nodeIndex] = {
         ...nodes[nodeIndex],
-        position: { x: cursorX, y: conceptY },
         data: {
           ...nodes[nodeIndex].data,
           explanation: content.detail.explanation,
@@ -186,26 +146,14 @@ export async function processOneConcept(
       };
     }
 
-    let currentTailId = concept.id;
-    let quizY = START_Y;
     content.quizzes.forEach((item, qi) => {
       const quizId = `${concept.id}-quiz-${qi}`;
       const quizData = quizItemToQuizData(item, concept.id);
       nodes.push({
         id: quizId,
         type: 'quiz',
-        position: { x: cursorX + COL_WIDTH + GAP_COL, y: quizY },
         data: quizData,
       });
-
-      edges.push({
-        id: `edge-${concept.id}-${quizId}`,
-        source: concept.id,
-        target: quizId,
-        type: 'wiggly',
-      });
-      currentTailId = quizId;
-      quizY += quizHeights[qi] + GAP_ROW;
     });
 
     persist();
@@ -218,7 +166,7 @@ export async function processOneConcept(
       content.quizzes.length,
       conceptElapsed,
     );
-    return currentTailId;
+    return concept.id;
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err;
     debugLog(
@@ -327,31 +275,9 @@ export async function runContentPhase(
   return failed;
 }
 
-export function pushChainEdges(
-  edges: CanvasEdge[],
-  concepts: Array<{ id: string }>,
-  conceptLastNodeIds: (string | null)[],
-): void {
-  for (let i = 0; i < concepts.length; i++) {
-    const lastId = conceptLastNodeIds[i];
-    if (lastId && i < concepts.length - 1) {
-      const nextId = concepts[i + 1].id;
-      edges.push({
-        id: `edge-${lastId}-${nextId}`,
-        source: lastId,
-        target: nextId,
-        type: 'wiggly',
-      });
-    }
-  }
-}
-
 export async function pushSummary(
   nodes: CanvasNode[],
-  edges: CanvasEdge[],
   generatedConcepts: ConceptInfo[],
-  conceptLastNodeIds: (string | null)[],
-  conceptsLength: number,
   topic: string,
   persona: Persona,
   signal: AbortSignal | undefined,
@@ -381,23 +307,11 @@ export async function pushSummary(
       finalQuiz: parsed.finalQuiz.map((item) => quizItemToQuizData(item, SUMMARY_NODE_ID)),
     };
 
-    const lastX = 100 + conceptsLength * PAIR_WIDTH;
     nodes.push({
       id: SUMMARY_NODE_ID,
       type: 'summary',
-      position: { x: lastX, y: START_Y },
       data: summaryData,
     });
-
-    const lastChainTail = [...conceptLastNodeIds].reverse().find((id) => id !== null);
-    if (lastChainTail) {
-      edges.push({
-        id: 'edge-summary',
-        source: lastChainTail,
-        target: SUMMARY_NODE_ID,
-        type: 'wiggly',
-      });
-    }
 
     await persist();
   } catch (err) {
@@ -434,15 +348,9 @@ export async function runPipeline(
   const withMutex = createMutex();
 
   const nodes: CanvasNode[] = [];
-  const edges: CanvasEdge[] = [];
 
-  // Bind the target session id at pipeline start so a concurrent session
-  // switch (currentId change) can never redirect a pipeline write to the
-  // wrong session. Falls back to the ambient currentId inside updateCurrent.
   const persist = () =>
-    withMutex(() =>
-      updateCurrent({ nodes: [...nodes], edges: [...edges], updatedAt: Date.now() }, sessionId),
-    );
+    withMutex(() => updateCurrent({ nodes: [...nodes], updatedAt: Date.now() }, sessionId));
 
   const generatedConcepts: ConceptInfo[] = [];
   const conceptLastNodeIds: (string | null)[] = [];
@@ -462,7 +370,7 @@ export async function runPipeline(
   );
   const failedConcepts = await runContentPhase(
     nodes,
-    edges,
+    [], // unused edges placeholder
     generatedConcepts,
     conceptLastNodeIds,
     concepts,
@@ -473,19 +381,11 @@ export async function runPipeline(
     notify,
   );
 
-  // --- Phase 2: Inter-concept chain edges ---
-  pushChainEdges(edges, concepts, conceptLastNodeIds);
-  await persist();
-  debugLog('log', 'pipeline', 'phase 2: %d chain edges', concepts.length - 1);
-
-  // --- Phase 3: Summary ---
-  debugLog('log', 'pipeline', 'phase 3: summary start');
+  // --- Phase 2: Summary ---
+  debugLog('log', 'pipeline', 'phase 2: summary start');
   await pushSummary(
     nodes,
-    edges,
     generatedConcepts,
-    conceptLastNodeIds,
-    concepts.length,
     topic,
     persona,
     signal,
@@ -497,9 +397,9 @@ export async function runPipeline(
     'done',
     failedConcepts > 0
       ? `Lesson ready with ${failedConcepts} issue${failedConcepts === 1 ? '' : 's'}`
-      : 'Canvas ready!',
+      : 'Lesson ready!',
   );
-  return { nodes, edges };
+  return { nodes, edges: [] };
 }
 
 export async function retryFailedConcept(sessionId: string, conceptId: string): Promise<boolean> {
@@ -534,18 +434,15 @@ export async function retryFailedConcept(sessionId: string, conceptId: string): 
           }
         : node,
     );
-  const edges = session.edges.filter(
-    (edge) => !quizIds.has(edge.source) && !quizIds.has(edge.target),
-  );
   const generatedConcepts: ConceptInfo[] = [];
   const { updateCurrent } = useSessionStore.getState();
   const persist = () =>
-    updateCurrent({ nodes: [...nodes], edges: [...edges], updatedAt: Date.now() }, sessionId);
+    updateCurrent({ nodes: [...nodes], updatedAt: Date.now() }, sessionId);
 
   await persist();
-  const tailId = await processOneConcept(
+  const success = await processOneConcept(
     nodes,
-    edges,
+    [],
     generatedConcepts,
     {
       id: sourceNode.id,
@@ -560,19 +457,7 @@ export async function retryFailedConcept(sessionId: string, conceptId: string): 
     (_step, label) => useToastStore.getState().add(label),
   );
 
-  if (!tailId) return false;
-  const nextConcept = session.nodes
-    .filter((node): node is CanvasNode & { data: ConceptData } => node.data.kind === 'concept')
-    .find((node) => node.data.index === sourceNode.data.index + 1);
-  if (nextConcept) {
-    edges.push({
-      id: `edge-${tailId}-${nextConcept.id}`,
-      source: tailId,
-      target: nextConcept.id,
-      type: 'wiggly',
-    });
-    await persist();
-  }
+  if (!success) return false;
   return true;
 }
 

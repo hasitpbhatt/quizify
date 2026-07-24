@@ -14,10 +14,9 @@
 }
 
 /* --- Ruled-line background (like a physical notebook) --- */
-[data-notebook='true'] .react-flow__pane {
+[data-notebook='true'] .nodeList {
   background-color: #faf8f5 !important;
   background-image:
-    /* Red margin line */
     linear-gradient(
       90deg,
       transparent 79px,
@@ -25,7 +24,6 @@
       rgba(239, 68, 68, 0.2) 80px,
       transparent 80px
     ),
-    /* Ruled lines */
     repeating-linear-gradient(
         transparent,
         transparent 27px,
@@ -37,10 +35,9 @@
     100% 28px;
 }
 
-[data-theme='dark'] [data-notebook='true'] .react-flow__pane {
+[data-theme='dark'] [data-notebook='true'] .nodeList {
   background-color: #12110e !important;
   background-image:
-    /* Soft pinkish margin line for dark theme */
     linear-gradient(
       90deg,
       transparent 79px,
@@ -48,7 +45,6 @@
       rgba(239, 68, 68, 0.15) 81px,
       transparent 81px
     ),
-    /* Light blue ruled lines for dark theme */
     repeating-linear-gradient(
         transparent,
         transparent 27px,
@@ -57,128 +53,24 @@
       ) !important;
 }
 
-/* --- Adjust widths of the outer node wrappers so React Flow layouts correctly --- */
-[data-notebook='true'] .react-flow__node-concept {
-  width: 420px !important;
-}
-[data-notebook='true'] .react-flow__node-quiz {
-  width: 380px !important;
-  z-index: 10 !important;
-  pointer-events: all !important;
-}
-[data-notebook='true'] .react-flow__node-summary {
-  width: 480px !important;
-}
-[data-notebook='true'] .react-flow__node-note {
-  width: 380px !important;
-}
-
-/* --- Strip card styling but maintain layout width --- */
-[data-notebook='true'] .react-flow__node-concept > div,
-[data-notebook='true'] .react-flow__node-summary > div {
-  background: transparent !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border: none !important;
-  box-shadow: none !important;
-  border-radius: 0 !important;
-  padding: 4px 0 !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-  color: var(--ink-color) !important;
-  overflow-wrap: anywhere;
-  min-width: 0;
-  transition: none !important;
-  /* subtle slant to feel organic and hand-written */
-  transform: rotate(-0.2deg);
-}
-
-[data-notebook='true'] .react-flow__node-concept > div:hover,
-[data-notebook='true'] .react-flow__node-summary > div:hover {
-  transform: rotate(-0.2deg) !important;
-  box-shadow: none !important;
-  border-color: transparent !important;
-}
-
-/* --- Style quiz nodes differently so they feel like distinct interactive cards --- */
-[data-notebook='true'] .react-flow__node-quiz > div {
-  background: var(--bg-glass) !important;
-  backdrop-filter: saturate(140%) blur(12px) !important;
-  -webkit-backdrop-filter: saturate(140%) blur(12px) !important;
-  border: 2px dashed rgba(84, 87, 232, 0.4) !important;
-  border-radius: var(--radius-sm) !important;
-  padding: var(--space-4) !important;
-  box-sizing: border-box !important;
-  box-shadow: var(--shadow-sm) !important;
-  transform: rotate(0.5deg);
-  overflow-wrap: anywhere;
-  min-width: 0;
-  transition: none !important;
-}
-
-[data-notebook='true'] .react-flow__node-quiz > div:hover {
-  transform: rotate(0.5deg) !important;
-  box-shadow: var(--shadow-md) !important;
-  border-color: var(--accent) !important;
-}
-
-/* --- Quiz state visual feedback --- */
-[data-notebook='true'] .react-flow__node-quiz[data-state='correct'] > div,
-[data-notebook='true'] .react-flow__node-quiz[data-state='mastered'] > div {
-  border-color: rgba(34, 197, 94, 0.5) !important;
-  border-style: solid !important;
-  background: rgba(34, 197, 94, 0.04) !important;
-}
-
-[data-notebook='true'] .react-flow__node-quiz[data-state='incorrect'] > div {
-  border-color: rgba(239, 68, 68, 0.5) !important;
-  border-style: solid !important;
-  background: rgba(239, 68, 68, 0.04) !important;
-}
-
-[data-notebook='true'] .react-flow__node-quiz[data-state='partial'] > div {
-  border-color: rgba(234, 179, 8, 0.5) !important;
-  border-style: solid !important;
-}
-
-/* --- Restore NoteNode sticky note container styling --- */
-[data-notebook='true'] .react-flow__node-note > div {
-  background: var(--note-bg) !important;
-  border: none !important;
-  border-radius: var(--radius-sm) !important;
-  box-shadow: var(--note-shadow) !important;
-  padding: var(--space-4) var(--space-5) !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-  transform: rotate(-1.5deg) !important;
-  color: var(--note-text) !important; /* keep original note text color */
-  overflow-wrap: anywhere;
-  min-width: 0;
-  transition: none !important;
-}
-
-[data-notebook='true'] .react-flow__node-note > div:hover {
-  transform: rotate(-1.5deg) !important;
-}
-
 /* Notebook text should never animate its position when the pointer crosses it. */
 [data-notebook='true'] .pulseHighlight {
   animation: none !important;
 }
 
-[data-notebook='true'] .react-flow__node-note [class*='text'],
-[data-notebook='true'] .react-flow__node-note textarea {
+[data-notebook='true'] [class*='noteText'],
+[data-notebook='true'] [class*='note'] textarea {
   font-family: var(--font-canvas), 'Caveat', cursive !important;
   color: var(--note-text) !important;
 }
 
 /* --- Title / header styling for notebook mode --- */
-[data-notebook='true'] .react-flow__node-concept [class*='title'],
-[data-notebook='true'] .react-flow__node-quiz [class*='title'],
-[data-notebook='true'] .react-flow__node-summary [class*='title'],
-[data-notebook='true'] .react-flow__node-concept [class*='header'],
-[data-notebook='true'] .react-flow__node-quiz [class*='header'],
-[data-notebook='true'] .react-flow__node-summary [class*='header'] {
+[data-notebook='true'] [class*='conceptTitle'],
+[data-notebook='true'] [class*='quizTitle'],
+[data-notebook='true'] [class*='summaryTitle'],
+[data-notebook='true'] [class*='conceptHeader'],
+[data-notebook='true'] [class*='quizHeader'],
+[data-notebook='true'] [class*='summaryHeader'] {
   font-family: var(--font-canvas), 'Caveat', cursive !important;
   font-size: 1.8rem !important;
   font-weight: 700 !important;
@@ -259,8 +151,7 @@
   margin-top: var(--space-3);
 }
 
-/* --- Focus ring on the canvas container for keyboard navigation --- */
-[data-notebook='true'] .react-flow:focus-visible,
+/* --- Focus ring for keyboard navigation --- */
 [data-notebook='true'] [tabindex]:focus-visible {
   outline: 2px solid var(--accent-subtle) !important;
   outline-offset: -2px;
@@ -283,22 +174,6 @@
 [data-notebook='true'] [data-node-type='quiz'] {
   cursor: pointer !important;
   pointer-events: all !important;
-}
-
-/* --- Handles (the React Flow connection dots) — hide in notebook --- */
-[data-notebook='true'] .react-flow__handle {
-  display: none !important;
-}
-
-/* --- React Flow controls — hide in notebook (zoom/pan not useful) --- */
-[data-notebook='true'] .react-flow__controls {
-  opacity: 0.2;
-  pointer-events: none;
-}
-
-/* --- Minimap — hide in notebook --- */
-[data-notebook='true'] .react-flow__minimap {
-  display: none !important;
 }
 
 /* --- Typing cursor animation --- */

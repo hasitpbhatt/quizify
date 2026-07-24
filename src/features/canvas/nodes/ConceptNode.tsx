@@ -1,5 +1,4 @@
 import { memo, useState, useRef, useEffect, useCallback } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Volume2, Loader2, Square } from 'lucide-react';
 import styles from './ConceptNode.module.css';
 import { fetchTtsBlob } from '@/lib/llm/tts';
@@ -10,18 +9,20 @@ import type { ConceptData } from '@/shared/types';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
 
-function toConceptData(data: Record<string, unknown>): ConceptData {
-  if (data.kind !== 'concept') throw new Error(`Expected concept data, got ${String(data.kind)}`);
-  return data as unknown as ConceptData;
+interface ConceptNodeProps {
+  id: string;
+  data: ConceptData;
+  currentConceptIndex: number;
+  isGenerating: boolean;
+  onClick: () => void;
 }
 
-function ConceptNodeInner(props: NodeProps) {
-  const data = toConceptData(props.data);
+function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNodeProps) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const textToRead = `${data.title}. ${data.explanation}`;
-  const skipTyping = props.data.skipTyping === true;
+  const skipTyping = data.index < currentConceptIndex;
   const { revealed, isAnimating, skipAnimation } = useTypingAnimation(
-    props.id,
+    id,
     textToRead,
     skipTyping,
   );
@@ -42,10 +43,8 @@ function ConceptNodeInner(props: NodeProps) {
 
   const isShell = data.generationStatus === 'generating';
   const hasFailed = data.generationStatus === 'failed';
-  const isLocked = props.data.isLocked === true && !notebookMode;
+  const isLocked = data.index > currentConceptIndex;
 
-  // Cleanup audio resources on unmount — only cancel speech if this node
-  // was the one speaking (notebook narration uses ttsManager, not per-node).
   useEffect(() => {
     return () => {
       if (audioRef.current) {
@@ -78,7 +77,6 @@ function ConceptNodeInner(props: NodeProps) {
     try {
       const blob = await fetchTtsBlob(textToRead);
       if (blob) {
-        // Revoke previous blob URL before creating a new one
         if (currentBlobUrlRef.current) {
           URL.revokeObjectURL(currentBlobUrlRef.current);
         }
@@ -137,9 +135,9 @@ function ConceptNodeInner(props: NodeProps) {
       className={nodeClass}
       onClick={() => {
         if (isAnimating) skipAnimation();
+        else onClick();
       }}
     >
-      <Handle type="target" position={Position.Left} />
       <div className={styles.title} data-typing={isTitleAnimating ? 'true' : undefined}>
         {notebookMode ? titleText.slice(0, titleRevealed) : titleText}
         {isLocked && <span className={styles.lockedBadge}>Locked</span>}
@@ -172,39 +170,36 @@ function ConceptNodeInner(props: NodeProps) {
           This concept could not be generated. Use Retry or Skip in the lesson recovery panel.
         </div>
       )}
-      {!notebookMode && (
-        <div className={styles.footer}>
-          {data.streaming ? (
-            <span className={styles.streamingBadge}>
-              <span className={styles.streamingDot} />
-              Receiving
-            </span>
+      <div className={styles.footer}>
+        {data.streaming ? (
+          <span className={styles.streamingBadge}>
+            <span className={styles.streamingDot} />
+            Receiving
+          </span>
+        ) : (
+          <span className={styles.quizBadge}>Concept {data.index + 1}</span>
+        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); handlePlay(); }}
+          className={styles.playButton}
+          disabled={isLoading}
+          title="Listen"
+        >
+          {isLoading ? (
+            <Loader2 size={14} className={styles.spin} />
+          ) : isPlaying ? (
+            <Square size={14} />
           ) : (
-            <span className={styles.quizBadge}>Concepts</span>
+            <Volume2 size={14} />
           )}
-          <button
-            onClick={handlePlay}
-            className={styles.playButton}
-            disabled={isLoading}
-            title="Listen"
-          >
-            {isLoading ? (
-              <Loader2 size={14} className={styles.spin} />
-            ) : isPlaying ? (
-              <Square size={14} />
-            ) : (
-              <Volume2 size={14} />
-            )}
-            {isPlaying ? 'Stop' : 'Listen'}
-          </button>
-        </div>
-      )}
-      <Handle type="source" position={Position.Right} />
+          {isPlaying ? 'Stop' : 'Listen'}
+        </button>
+      </div>
     </div>
   );
 }
 
-function ConceptNodeWrapper(props: NodeProps) {
+function ConceptNodeWrapper(props: ConceptNodeProps) {
   return (
     <ErrorBoundary
       name="ConceptNode"

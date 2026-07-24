@@ -21,12 +21,9 @@ vi.mock('@/shared/stores/toastStore', () => ({
 }));
 
 import {
-  estimateQuizHeight,
-  estimateConceptHeight,
   quizItemToQuizData,
   createMutex,
   pushConceptShells,
-  pushChainEdges,
   runWithConcurrency,
   processOneConcept,
   runContentPhase,
@@ -42,36 +39,6 @@ beforeEach(() => {
   mockExecute.mockReset();
   mockUpdateCurrent.mockReset();
   mockExecute.mockResolvedValue(makeContentResponse());
-});
-
-// ---------------------------------------------------------------------------
-// Pure helpers
-// ---------------------------------------------------------------------------
-
-describe('estimateQuizHeight', () => {
-  it('returns fixed height for short prompts', () => {
-    const h = estimateQuizHeight('');
-    expect(h).toBe(130 + 28);
-  });
-
-  it('scales with prompt length', () => {
-    const short = estimateQuizHeight('a'.repeat(30));
-    const long = estimateQuizHeight('a'.repeat(61));
-    expect(long).toBeGreaterThan(short);
-  });
-});
-
-describe('estimateConceptHeight', () => {
-  it('returns fixed height for short explanations', () => {
-    const h = estimateConceptHeight('');
-    expect(h).toBe(150 + 28);
-  });
-
-  it('scales with explanation length', () => {
-    const short = estimateConceptHeight('a'.repeat(35));
-    const long = estimateConceptHeight('a'.repeat(71));
-    expect(long).toBeGreaterThan(short);
-  });
 });
 
 describe('quizItemToQuizData', () => {
@@ -122,8 +89,6 @@ describe('pushConceptShells', () => {
     const n0 = nodes[0];
     expect(n0.id).toBe('c1');
     expect(n0.type).toBe('concept');
-    expect(n0.position.x).toBe(100);
-    expect(n0.position.y).toBe(200);
     expect(n0.data).toMatchObject({
       kind: 'concept',
       index: 0,
@@ -135,7 +100,6 @@ describe('pushConceptShells', () => {
 
     const n1 = nodes[1];
     expect(n1.id).toBe('c2');
-    expect(n1.position.x).toBe(100 + 1040);
     expect(n1.data).toMatchObject({ index: 1, title: 'Two' });
   });
 
@@ -146,53 +110,7 @@ describe('pushConceptShells', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// pushChainEdges
-// ---------------------------------------------------------------------------
 
-describe('pushChainEdges', () => {
-  it('connects last quiz of each concept to next concept', () => {
-    const edges: CanvasEdge[] = [];
-    const concepts = [{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }];
-    const tails: (string | null)[] = ['c1-q1', 'c2-q0', 'c3-q2'];
-
-    pushChainEdges(edges, concepts, tails);
-
-    expect(edges).toHaveLength(2);
-    expect(edges[0]).toMatchObject({ id: 'edge-c1-q1-c2', source: 'c1-q1', target: 'c2', type: 'wiggly' });
-    expect(edges[1]).toMatchObject({ id: 'edge-c2-q0-c3', source: 'c2-q0', target: 'c3', type: 'wiggly' });
-  });
-
-  it('skips when tail is null, still connects non-null tails forward', () => {
-    const edges: CanvasEdge[] = [];
-    const concepts = [{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }];
-    const tails: (string | null)[] = [null, 'c2-q0', null];
-
-    pushChainEdges(edges, concepts, tails);
-
-    // c2 has a tail and isn't last → edge from c2-q0 to c3
-    expect(edges).toHaveLength(1);
-    expect(edges[0]).toMatchObject({ id: 'edge-c2-q0-c3', source: 'c2-q0', target: 'c3' });
-  });
-
-  it('produces no edges when all tails are null', () => {
-    const edges: CanvasEdge[] = [];
-    const concepts = [{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }];
-    const tails: (string | null)[] = [null, null, null];
-
-    pushChainEdges(edges, concepts, tails);
-    expect(edges).toHaveLength(0);
-  });
-
-  it('does not create edge for last concept', () => {
-    const edges: CanvasEdge[] = [];
-    const concepts = [{ id: 'c1' }];
-    const tails: (string | null)[] = ['c1-q0'];
-
-    pushChainEdges(edges, concepts, tails);
-    expect(edges).toHaveLength(0);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // runWithConcurrency
@@ -280,7 +198,7 @@ describe('processOneConcept', () => {
     const { nodes, edges, generated, persist, notify } = setup();
     const tail = await processOneConcept(nodes, edges, generated, concept, 0, topic, persona, undefined, persist, notify);
 
-    expect(tail).toBe('c1-quiz-1');
+    expect(tail).toBe('c1');
     expect(generated).toEqual([{ id: 'c1', title: 'Test Concept', explanation: 'Deep explanation', example: 'Great example' }]);
     expect((nodes[0].data as unknown as Record<string, unknown>).explanation).toBe('Deep explanation');
     expect((nodes[0].data as unknown as Record<string, unknown>).example).toBe('Great example');
@@ -290,10 +208,6 @@ describe('processOneConcept', () => {
     expect(nodes[1].type).toBe('quiz');
     expect((nodes[1].data as unknown as Record<string, unknown>).kind).toBe('quiz');
     expect(nodes[2].id).toBe('c1-quiz-1');
-
-    expect(edges).toHaveLength(2);
-    expect(edges[0]).toMatchObject({ id: 'edge-c1-c1-quiz-0', source: 'c1', target: 'c1-quiz-0' });
-    expect(edges[1]).toMatchObject({ id: 'edge-c1-c1-quiz-1', source: 'c1', target: 'c1-quiz-1' });
 
     expect(persist).toHaveBeenCalledOnce();
   });
@@ -344,7 +258,7 @@ describe('runContentPhase', () => {
     await runContentPhase(nodes, edges, generated, tails, concepts, 'Topic', 'curious' as Persona, undefined, persist, notify);
 
     expect(generated).toHaveLength(2);
-    expect(tails).toEqual(['c1-quiz-0', 'c2-quiz-0']);
+    expect(tails).toEqual(['c1', 'c2']);
     expect(notify).toHaveBeenCalledWith('detail', expect.stringContaining('2/2'));
   });
 });
@@ -361,21 +275,15 @@ describe('pushSummary', () => {
     }));
 
     const nodes: CanvasNode[] = [];
-    const edges: CanvasEdge[] = [];
     const generated: ConceptInfo[] = [{ id: 'c1', title: 'T', explanation: 'E', example: 'Ex' }];
-    const tails: (string | null)[] = ['c1-quiz-0'];
     const persist = vi.fn().mockResolvedValue(undefined);
     const notify = vi.fn();
 
-    await pushSummary(nodes, edges, generated, tails, 1, 'Topic', 'curious' as Persona, undefined, persist, notify);
+    await pushSummary(nodes, generated, 'Topic', 'curious' as Persona, undefined, persist, notify);
 
     expect(nodes).toHaveLength(1);
     expect(nodes[0].id).toBe('__summary__');
     expect(nodes[0].type).toBe('summary');
-    expect(nodes[0].position.x).toBe(100 + 1040);
-
-    expect(edges).toHaveLength(1);
-    expect(edges[0]).toMatchObject({ id: 'edge-summary', source: 'c1-quiz-0', target: '__summary__' });
 
     const data = nodes[0].data as unknown as Record<string, unknown>;
     expect(data.kind).toBe('summary');
@@ -388,11 +296,10 @@ describe('pushSummary', () => {
 
   it('does nothing when no concepts generated', async () => {
     const nodes: CanvasNode[] = [];
-    const edges: CanvasEdge[] = [];
     const persist = vi.fn().mockResolvedValue(undefined);
     const notify = vi.fn();
 
-    await pushSummary(nodes, edges, [], [], 0, 'Topic', 'curious' as Persona, undefined, persist, notify);
+    await pushSummary(nodes, [], 'Topic', 'curious' as Persona, undefined, persist, notify);
 
     expect(nodes).toHaveLength(0);
     expect(persist).not.toHaveBeenCalled();
@@ -402,14 +309,12 @@ describe('pushSummary', () => {
     mockExecute.mockRejectedValueOnce(new Error('Summary API down'));
 
     const nodes: CanvasNode[] = [];
-    const edges: CanvasEdge[] = [];
     const generated: ConceptInfo[] = [{ id: 'c1', title: 'T', explanation: 'E', example: 'Ex' }];
-    const tails: (string | null)[] = ['c1-quiz-0'];
     const persist = vi.fn().mockResolvedValue(undefined);
     const notify = vi.fn();
 
     await expect(
-      pushSummary(nodes, edges, generated, tails, 1, 'Topic', 'curious' as Persona, undefined, persist, notify),
+      pushSummary(nodes, generated, 'Topic', 'curious' as Persona, undefined, persist, notify),
     ).resolves.toBeUndefined();
 
     expect(nodes).toHaveLength(0);
@@ -448,7 +353,6 @@ describe('runPipeline', () => {
     const result = await runPipeline('Test Title', concepts, 'curious' as Persona, 'https://example.com', onProgress);
 
     expect(result.nodes.length).toBeGreaterThan(0);
-    expect(result.edges.length).toBeGreaterThan(0);
 
     const shellIds = result.nodes.filter(n => n.type === 'concept').map(n => n.id);
     expect(shellIds).toEqual(['c1', 'c2']);
@@ -464,7 +368,7 @@ describe('runPipeline', () => {
     expect((summaryData as any).finalQuiz).toHaveLength(1);
 
     expect(onProgress).toHaveBeenCalledWith(
-      expect.objectContaining({ step: 'done', label: 'Canvas ready!' }),
+      expect.objectContaining({ step: 'done', label: 'Lesson ready!' }),
     );
   });
 
