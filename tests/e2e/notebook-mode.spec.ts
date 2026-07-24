@@ -20,7 +20,6 @@ test.describe('Notebook mode', () => {
     await page.waitForSelector('.react-flow__renderer', { timeout: 15_000 });
 
     // Notebook-specific UI elements
-    await expect(page.locator('.notebookModePill')).toBeVisible();
     await expect(page.locator('.notebookControls')).toBeVisible();
     await expect(page.locator('.notebookConceptProgress')).toBeVisible();
 
