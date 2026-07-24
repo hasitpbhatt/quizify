@@ -11,7 +11,10 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = 'secondary', size = 'md', iconOnly = false, className, children, ...props }, ref) => {
+  (
+    { variant = 'secondary', size = 'md', iconOnly = false, className, children, ...props },
+    ref,
+  ) => {
     const classes = [
       styles.button,
       styles[variant],

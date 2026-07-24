@@ -34,7 +34,6 @@ import { useIsMobile } from '@/shared/useMediaQuery';
 import { useDismissibleCue } from '@/shared/useDismissibleCue';
 import {
   Plus,
-  BookOpen,
   Play,
   Pause,
   Square,
