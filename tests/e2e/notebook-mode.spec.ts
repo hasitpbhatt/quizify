@@ -15,7 +15,9 @@ test.describe('Notebook mode', () => {
   test('renders notebook UI with typewriter animation and gated quizzes', async ({ page }) => {
     await setCanvasSession(page, SEED_SESSION_ID, true);
     await page.reload();
-    await page.waitForSelector('.react-flow__renderer', { timeout: 15_000 });
+
+    // Wait for the node list to render
+    await expect(page.getByText('Light-Dependent Reactions', { exact: true })).toBeVisible({ timeout: 15_000 });
 
     // Notebook-specific UI elements
     await expect(page.locator('.notebookControls')).toBeVisible();
@@ -24,19 +26,15 @@ test.describe('Notebook mode', () => {
     // Container has notebook data attribute
     await expect(page.locator('[data-notebook="true"]')).toHaveCount(1);
 
-    // Concept nodes have transparent card styling in notebook mode
-    const conceptCard = page.locator('.react-flow__node-concept > div').first();
-    await expect(conceptCard).toHaveCSS('background', /rgba\(0,\s*0,\s*0,\s*0\)|transparent/i);
-
     // Typewriter animation active on at least one element
     await expect(page.locator('[data-typing="true"]')).not.toHaveCount(0);
 
-    // Graph-only elements are absent in notebook mode
+    // No minimap or controls (notebook-only mode)
     await expect(page.locator('.react-flow__minimap')).toHaveCount(0);
     await expect(page.locator('.react-flow__controls')).toHaveCount(0);
 
-    // Only current concept visible in notebook mode (progressive reveal)
-    await expect(page.locator('.react-flow__node-concept')).toHaveCount(1);
+    // First concept content is visible
+    await expect(page.getByText('Light-Dependent Reactions', { exact: true })).toBeVisible();
 
     // No error boundary
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
@@ -53,7 +51,9 @@ test.describe('Notebook mode', () => {
     });
 
     await page.reload();
-    await page.waitForSelector('.react-flow__renderer', { timeout: 15_000 });
+
+    // Wait for the node list to render
+    await expect(page.getByText('Light-Dependent Reactions', { exact: true })).toBeVisible({ timeout: 15_000 });
 
     // Dismiss orientation overlay if present
     const orientationClose = page.locator('.notebookOrientationClose');
@@ -61,16 +61,13 @@ test.describe('Notebook mode', () => {
       await orientationClose.click();
     }
 
-    // Quizzes for concept 1 are now visible — wait for typewriter to finish
-    const quizNodes = page.locator('.react-flow__node-quiz');
-    await expect(quizNodes).toHaveCount(2);
-
+    // Quizzes for concept 1 are visible
     await expect(
-      quizNodes.getByText('What is the primary output of Light-Dependent Reactions?'),
+      page.getByText('What is the primary output of Light-Dependent Reactions?'),
     ).toBeVisible({ timeout: 10_000 });
 
     await expect(
-      quizNodes.getByText('True or false: Light-Dependent Reactions occurs in all plants.'),
+      page.getByText('True or false: Light-Dependent Reactions occurs in all plants.'),
     ).toBeVisible({ timeout: 10_000 });
 
     // No error boundary

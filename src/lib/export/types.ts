@@ -57,7 +57,11 @@ export function sortedNodes(session: Session): CanvasNode[] {
 
   for (const concept of concepts) {
     result.push(concept);
-    const quizzes = (quizMap.get(concept.id) ?? []).sort((a, b) => a.position.y - b.position.y);
+    const quizzes = (quizMap.get(concept.id) ?? []).sort((a, b) => {
+      const aIdx = parseInt(a.id.split('-quiz-').pop() ?? '0', 10);
+      const bIdx = parseInt(b.id.split('-quiz-').pop() ?? '0', 10);
+      return aIdx - bIdx;
+    });
     result.push(...quizzes);
     const notes = noteMap.get(concept.id) ?? [];
     result.push(...notes);

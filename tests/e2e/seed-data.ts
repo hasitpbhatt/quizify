@@ -1,14 +1,6 @@
 import type { Page } from '@playwright/test';
 
-// Must match src/lib/db/db.ts DB_VERSION
 const DB_VERSION = 2;
-
-// Pipeline position constants (mirrors src/lib/pipeline.ts)
-const COL_WIDTH = 480;
-const GAP_COL = 80;
-const GAP_ROW = 85;
-const PAIR_WIDTH = 1040;
-const START_Y = 100;
 
 export const SEED_SESSION_ID = 'e2e-canvas-restore';
 
@@ -43,7 +35,6 @@ export function createSeedSession() {
   const conceptNodes = concepts.map((c, i) => ({
     id: c.id,
     type: 'concept' as const,
-    position: { x: 100 + i * PAIR_WIDTH, y: START_Y + 100 },
     data: {
       kind: 'concept' as const,
       index: i,
@@ -52,13 +43,11 @@ export function createSeedSession() {
       example: c.example,
       generationStatus: 'ready' as const,
     },
-    draggable: true,
   }));
 
   const quizNodes: Array<{
     id: string;
     type: 'quiz';
-    position: { x: number; y: number };
     data: {
       kind: 'quiz';
       parentConceptId: string;
@@ -70,26 +59,15 @@ export function createSeedSession() {
       attempts: never[];
       state: 'untested';
     };
-    draggable: true;
   }> = [];
 
-  const edges: Array<{
-    id: string;
-    source: string;
-    target: string;
-    type: 'wiggly';
-  }> = [];
-
-  concepts.forEach((c, i) => {
-    const cursorX = 100 + i * PAIR_WIDTH;
-
+  concepts.forEach((c) => {
     for (let qi = 0; qi < 2; qi++) {
       const qId = `${c.id}-quiz-${qi}`;
       const isMcq = qi === 0;
       quizNodes.push({
         id: qId,
         type: 'quiz',
-        position: { x: cursorX + COL_WIDTH + GAP_COL, y: START_Y + qi * (130 + 28 + GAP_ROW) },
         data: {
           kind: 'quiz',
           parentConceptId: c.id,
@@ -103,29 +81,9 @@ export function createSeedSession() {
           attempts: [],
           state: 'untested',
         },
-        draggable: true,
-      });
-
-      edges.push({
-        id: `edge-${c.id}-${qId}`,
-        source: c.id,
-        target: qId,
-        type: 'wiggly',
       });
     }
   });
-
-  // Chain edges between concepts
-  for (let i = 0; i < concepts.length - 1; i++) {
-    const lastQuizId = `${concepts[i].id}-quiz-1`;
-    const nextConceptId = concepts[i + 1].id;
-    edges.push({
-      id: `edge-${lastQuizId}-${nextConceptId}`,
-      source: lastQuizId,
-      target: nextConceptId,
-      type: 'wiggly',
-    });
-  }
 
   const nodes = [...conceptNodes, ...quizNodes];
 
@@ -138,7 +96,6 @@ export function createSeedSession() {
     createdAt: now,
     updatedAt: now,
     nodes,
-    edges,
     scores: {} as Record<string, never>,
   };
 }
@@ -174,5 +131,3 @@ export async function seedDatabase(page: Page): Promise<void> {
     });
   }, { data: session, version: DB_VERSION });
 }
-
-

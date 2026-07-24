@@ -1,31 +1,15 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import {
-  ReactFlow,
-  Background,
-  Controls,
-  MiniMap,
-  BackgroundVariant,
-  useReactFlow,
-  type Node,
-  type Edge,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { getUnlockedConceptIndex, getConceptIndex } from '@/lib/progression';
 import {
   SUMMARY_NODE_ID,
   type CanvasNode,
-  type CanvasEdge,
   type QuizData,
   type NoteData,
   type ConceptData,
   type SummaryData,
 } from '@/shared/types';
-import { ConceptNode } from './nodes/ConceptNode';
-import { QuizNode } from './nodes/QuizNode';
-import { SummaryNode } from './nodes/SummaryNode';
-import { WigglyEdge } from './edges/WigglyEdge';
 import { QuizInteraction } from '@/features/quiz/QuizInteraction';
 import { SummaryQuizInteraction } from '@/features/quiz/SummaryQuizInteraction';
 import { NoteNode } from './nodes/NoteNode';
@@ -33,34 +17,27 @@ import { MobileFocusView } from './MobileFocusView';
 import { useIsMobile } from '@/shared/useMediaQuery';
 import { useDismissibleCue } from '@/shared/useDismissibleCue';
 import {
-  Plus,
   Play,
   Pause,
   Square,
-  Download,
-  ChevronDown,
   X,
   Volume2,
   VolumeX,
   List,
   SkipForward,
-  Sun,
-  Moon,
-  Monitor,
   RefreshCw,
   AlertTriangle,
 } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
-import { writeNotebookModePreference } from '@/shared/notebookModePreference';
 import { ttsManager } from '@/lib/llm/ttsManager';
-import { exportSessionJson } from '@/lib/export/json';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { CanvasErrorFallback } from '@/lib/components/CanvasErrorFallback';
 import { QuizErrorFallback } from '@/lib/components/QuizErrorFallback';
-import { downloadSessionMarkdown } from '@/lib/export/markdown';
-import { exportCanvasAsPng } from '@/lib/export/image';
-import { useToastStore } from '@/shared/stores/toastStore';
+import { ConceptNode } from './nodes/ConceptNode';
+import { QuizNode } from './nodes/QuizNode';
+import { SummaryNode } from './nodes/SummaryNode';
 import { useKeyboardShortcuts } from '@/shared/useKeyboardShortcuts';
+import { useToastStore } from '@/shared/stores/toastStore';
 import { retryFailedConcept, skipFailedConcept } from '@/lib/pipeline';
 import {
   getNextLearningAction,
@@ -70,59 +47,12 @@ import {
 import '@/styles/notebook.css';
 import styles from './CanvasPage.module.css';
 
-const nodeTypes = { concept: ConceptNode, quiz: QuizNode, summary: SummaryNode, note: NoteNode };
-const edgeTypes = { wiggly: WigglyEdge };
-
-function toReactFlowNodes(
-  canvasNodes: CanvasNode[],
-  currentConceptIndex: number,
-  revealedQuizIds: Set<string>,
-  skipNotebookAnimation = false,
-): Node[] {
-  return canvasNodes.map((n) => {
-    const data: Record<string, unknown> = { ...n.data };
-    if (skipNotebookAnimation) {
-      data.skipTyping = true;
-    } else {
-      if (n.data.kind === 'concept') {
-        const c = n.data as ConceptData;
-        if (c.index > currentConceptIndex) {
-          data.isLocked = true;
-        }
-        if (c.index < currentConceptIndex) {
-          data.skipTyping = true;
-        }
-      } else if (n.data.kind === 'quiz' && !revealedQuizIds.has(n.id)) {
-        data.skipTyping = true;
-      }
-    }
-    return {
-      id: n.id,
-      type: n.type,
-      position: n.position,
-      data,
-      draggable: n.draggable,
-      selected: n.selected,
-    } as Node;
-  });
-}
-
-function toReactFlowEdges(canvasEdges: CanvasEdge[]): Edge[] {
-  return canvasEdges.map((e) => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    type: e.type ?? 'wiggly',
-  }));
-}
-
 function filterVisibleNodes(
   nodes: CanvasNode[],
-  edges: CanvasEdge[],
   currentConceptIndex: number,
   revealedQuizIds: Set<string>,
   notebookMode: boolean,
-): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
+): CanvasNode[] {
   // Build concept-index lookups once (O(N)) instead of calling
   // getConceptIndex (a linear find) per quiz — was O(N²).
   const conceptIndexMap = new Map<string, number>();
@@ -172,13 +102,7 @@ function filterVisibleNodes(
     }
   }
 
-  const filteredNodes = nodes.filter((n) => visibleNodeIds.has(n.id));
-  if (notebookMode) return { nodes: filteredNodes, edges: [] };
-  const filteredEdges = edges.filter(
-    (e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target),
-  );
-
-  return { nodes: filteredNodes, edges: filteredEdges };
+  return nodes.filter((n) => visibleNodeIds.has(n.id));
 }
 
 interface CanvasPageProps {
@@ -203,13 +127,10 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const [learningCueDismissed, setLearningCueDismissed] = useState(false);
   const [retryingConceptIds, setRetryingConceptIds] = useState<Set<string>>(new Set());
   const updateCurrent = useSessionStore((s) => s.updateCurrent);
-  const reactFlow = useReactFlow();
   const isMobile = useIsMobile();
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const toggleNotebookMode = useNotebookStore((s) => s.toggleNotebookMode);
   const immersiveNotebook = notebookMode;
-  const theme = useSettingsStore((s) => s.theme);
-  const setTheme = useSettingsStore((s) => s.setTheme);
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
   const ttsRate = useSettingsStore((s) => s.ttsRate);
   const setTtsEnabled = useSettingsStore((s) => s.setTtsEnabled);
@@ -218,23 +139,10 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const ttsPaused = useNotebookStore((s) => s.ttsPaused);
   const segmentIndex = useNotebookStore((s) => s.segmentIndex);
   const totalSegments = useNotebookStore((s) => s.totalSegments);
-  const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const liveFitZoomRef = useRef<number | null>(null);
-  const liveFitBottomRef = useRef<number | null>(null);
-  const pendingFitRafRef = useRef<number | null>(null);
-  const inFlightTweenUntilRef = useRef<number>(0);
-  const liveFitEnabledRef = useRef<boolean>(true);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const prefersReducedMotion = useRef<boolean>(
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   );
-
-  // Remember the user's chosen view for each session so graph mode only comes
-  // back when they explicitly selected it.
-  useEffect(() => {
-    if (!currentId) return;
-    writeNotebookModePreference(currentId, notebookMode);
-  }, [currentId, notebookMode]);
 
   const conceptTitles = useMemo(() => {
     const map = new Map<string, string>();
@@ -268,18 +176,11 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   }, [session, concepts]);
 
   const currentIdx = getUnlockedConceptIndex(session?.nodes ?? []);
-  const hasConceptNodes = session?.nodes.some((n) => n.data.kind === 'concept') ?? false;
 
   const { show: showOrientationCue, dismiss: dismissOrientationCue } = useDismissibleCue({
     storageKey: currentId ? `quizify:nbintro:${currentId}` : '',
     delay: 450,
     enabled: !!notebookMode && !!session && !!currentId && !isGenerating && currentIdx === 0,
-  });
-
-  const { show: showGraphCue, dismiss: dismissGraphCue } = useDismissibleCue({
-    storageKey: currentId ? `quizify:graphintro:${currentId}` : '',
-    delay: 600,
-    enabled: !notebookMode && !!session && !!currentId && !isGenerating && hasConceptNodes,
   });
 
   const { show: showLearningCue, dismiss: dismissLearningCue } = useDismissibleCue({
@@ -300,50 +201,10 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     dismissLearningCue();
   }, [dismissLearningCue]);
 
-  const focusOnActiveConcept = useCallback(
-    (conceptId: string, includeQuizzes = false) => {
-      if (!session) return;
-      const nodesToFocus = [conceptId];
-      if (includeQuizzes) {
-        const quizIds = session.nodes
-          .filter(
-            (n) => n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === conceptId,
-          )
-          .map((n) => n.id);
-        nodesToFocus.push(...quizIds);
-      }
-
-      // Coalesce focus requests made while the restored node tree is mounting.
-      if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
-      focusTimeoutRef.current = setTimeout(() => {
-        focusTimeoutRef.current = null;
-        reactFlow.fitView({
-          nodes: nodesToFocus.map((id) => ({ id })),
-          duration: immersiveNotebook ? 0 : 800,
-          padding: 0.25,
-          minZoom: immersiveNotebook ? 0.5 : 0.7,
-          maxZoom: 0.95,
-        });
-        // Lock the zoom chosen by the initial fit; live refits use translation only.
-        if (immersiveNotebook) {
-          const vp = reactFlow.getViewport();
-          liveFitZoomRef.current = vp.zoom;
-        }
-        liveFitBottomRef.current = null;
-      }, 100);
-    },
-    [session, reactFlow, immersiveNotebook],
-  );
-
-  useEffect(
-    () => () => {
-      if (focusTimeoutRef.current) {
-        clearTimeout(focusTimeoutRef.current);
-        focusTimeoutRef.current = null;
-      }
-    },
-    [],
-  );
+  const focusOnActiveConcept = useCallback((conceptId: string, _includeQuizzes?: boolean) => {
+    const el = containerRef.current?.querySelector(`[data-concept-id="${conceptId}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, []);
 
   const handleCueAction = useCallback(() => {
     if (!nextAction || nextAction.kind === 'complete') return;
@@ -398,34 +259,23 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const lastConceptIndexRef = useRef(currentConceptIndex);
   const orientedSessionRef = useRef<string | null>(null);
 
-  const visibleData = useMemo(() => {
-    if (!session) return { nodes: [], edges: [] };
+  const visibleNodes = useMemo(() => {
+    if (!session) return [];
     return filterVisibleNodes(
       session.nodes,
-      session.edges,
       currentConceptIndex,
       revealedQuizIds,
       immersiveNotebook,
     );
   }, [session, currentConceptIndex, revealedQuizIds, immersiveNotebook]);
 
-  const nodes: Node[] = useMemo(
-    () => toReactFlowNodes(visibleData.nodes, currentConceptIndex, revealedQuizIds, isGenerating),
-    [visibleData.nodes, currentConceptIndex, revealedQuizIds, isGenerating],
-  );
-  const edges: Edge[] = useMemo(() => toReactFlowEdges(visibleData.edges), [visibleData.edges]);
-
   const handleNodeClick = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
-      const canvasNode = session?.nodes.find((n) => n.id === node.id);
-      if (!canvasNode) return;
+    (canvasNode: CanvasNode) => {
       if (canvasNode.data.kind === 'quiz') {
         const quiz = canvasNode.data as QuizData;
         const parentId = quiz.parentConceptId;
         const conceptTitle = conceptTitles.get(parentId) ?? 'Concept';
-        if (notebookMode) {
-          useNotebookStore.getState().markTypingComplete(canvasNode.id);
-        }
+        useNotebookStore.getState().markTypingComplete(canvasNode.id);
         setActiveQuiz({ quizId: canvasNode.id, quiz, conceptTitle });
       } else if (canvasNode.data.kind === 'summary') {
         setSummaryQuiz(true);
@@ -433,7 +283,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         focusOnActiveConcept(canvasNode.id, true);
       }
     },
-    [session, conceptTitles, notebookMode, focusOnActiveConcept],
+    [conceptTitles, focusOnActiveConcept],
   );
 
   const handleCloseQuiz = useCallback(() => {
@@ -451,21 +301,16 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const handleAddNote = useCallback(() => {
     if (!session) return;
 
-    const viewport = reactFlow.getViewport();
-    const centerX = (window.innerWidth / 2 - viewport.x) / viewport.zoom;
-    const centerY = (window.innerHeight / 2 - viewport.y) / viewport.zoom;
-
     const noteId = `note-${Date.now()}`;
     const noteNode: CanvasNode = {
       id: noteId,
       type: 'note',
-      position: { x: centerX - 110, y: centerY - 50 },
       data: { kind: 'note', text: '' } as NoteData,
     };
 
     const updatedNodes = [...session.nodes, noteNode];
     updateCurrent({ nodes: updatedNodes });
-  }, [session, reactFlow, updateCurrent]);
+  }, [session, updateCurrent]);
 
   const handleRetryConcept = useCallback(
     async (conceptId: string) => {
@@ -499,10 +344,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const [caption, setCaption] = useState<string>('');
   const [captionVisible, setCaptionVisible] = useState<boolean>(false);
 
-  const [showExport, setShowExport] = useState(false);
-  const [exportOpenUp, setExportOpenUp] = useState(true);
-  const exportRef = useRef<HTMLDivElement>(null);
-
   const [showOutline, setShowOutline] = useState(false);
   const outlineRef = useRef<HTMLDivElement>(null);
 
@@ -530,29 +371,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   );
 
   useEffect(() => {
-    if (!showExport) return;
-
-    // Measure available space and flip dropdown direction accordingly.
-    const wrapper = exportRef.current;
-    if (wrapper) {
-      const rect = wrapper.getBoundingClientRect();
-      const spaceAbove = rect.top;
-      setExportOpenUp(spaceAbove > 140);
-    }
-
-    const handler = (e: MouseEvent) => {
-      if (
-        exportRef.current &&
-        !(e.target instanceof Node && exportRef.current.contains(e.target))
-      ) {
-        setShowExport(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showExport]);
-
-  useEffect(() => {
     if (!showOutline) return;
     const handler = (e: MouseEvent) => {
       if (
@@ -565,24 +383,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showOutline]);
-
-  const handleExportJson = useCallback(() => {
-    if (!session) return;
-    exportSessionJson(session);
-    setShowExport(false);
-  }, [session]);
-
-  const handleExportMarkdown = useCallback(() => {
-    if (!session) return;
-    downloadSessionMarkdown(session);
-    setShowExport(false);
-  }, [session]);
-
-  const handleExportPng = useCallback(() => {
-    if (!session) return;
-    exportCanvasAsPng(reactFlow, session);
-    setShowExport(false);
-  }, [session, reactFlow]);
 
   const handlePlayPause = useCallback(() => {
     if (ttsPaused) {
@@ -599,36 +399,12 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   }, []);
 
   // In notebook mode: subscribe to TTS for the current concept — segment end
-  // reveals its quizzes; char progress drives the boundary-based viewport refit.
+  // reveals its quizzes; char progress keeps the concept visible.
   useEffect(() => {
     if (!immersiveNotebook || !session) return;
 
     const currentConcept = concepts.find((c) => c.data.index === currentConceptIndex);
     if (!currentConcept) return;
-
-    const margin = 80;
-    const scheduleRefit = (targetBottom: number) => {
-      if (liveFitEnabledRef.current === false) return;
-      if (liveFitZoomRef.current == null) return;
-      if (performance.now() < inFlightTweenUntilRef.current) return;
-      const vp = reactFlow.getViewport();
-      const zoom = liveFitZoomRef.current;
-      const targetY = window.innerHeight - margin - targetBottom * zoom;
-      inFlightTweenUntilRef.current = performance.now() + 280;
-      reactFlow.setViewport({ x: vp.x, y: targetY, zoom }, { duration: 250 });
-    };
-
-    const computeCurrentBottom = (): number | null => {
-      let maxBottom = -Infinity;
-      const trackedIds = [currentConcept.id, ...Array.from(revealedQuizIds)];
-      for (const id of trackedIds) {
-        const n = reactFlow.getNode(id);
-        if (!n?.measured?.height) continue;
-        const bottom = (n.position?.y ?? 0) + n.measured.height;
-        if (bottom > maxBottom) maxBottom = bottom;
-      }
-      return maxBottom === -Infinity ? null : maxBottom;
-    };
 
     const onSegmentEnd = (nodeId: string) => {
       if (nodeId === currentConcept.id) {
@@ -650,23 +426,18 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     };
 
     const onCharProgress = (_nodeId: string, _charIndex: number) => {
-      // Boundary-driven, translation-only refit. Skip if the active tween
-      // hasn't finished (inFlightTweenUntilRef gates new refits).
-      const bottom = computeCurrentBottom();
-      if (bottom == null) return;
-      if (liveFitBottomRef.current === bottom) return;
-      liveFitBottomRef.current = bottom;
-
-      if (pendingFitRafRef.current != null) return;
-      pendingFitRafRef.current = requestAnimationFrame(() => {
-        pendingFitRafRef.current = null;
-        if (liveFitZoomRef.current == null) return;
-        const vp = reactFlow.getViewport();
-        const viewportBottomFlow = (-vp.y + window.innerHeight) / vp.zoom;
-        if (bottom > viewportBottomFlow - margin) {
-          scheduleRefit(bottom);
+      // Scroll the concept into view as typing progresses.
+      if (containerRef.current) {
+        const conceptEl = containerRef.current.querySelector(
+          `[data-concept-id="${currentConcept.id}"]`,
+        );
+        if (conceptEl) {
+          const rect = conceptEl.getBoundingClientRect();
+          if (rect.bottom > window.innerHeight - 80 || rect.top < 0) {
+            conceptEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
         }
-      });
+      }
     };
 
     const subId = ttsManager.subscribe(currentConcept.id, {
@@ -676,22 +447,8 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
 
     return () => {
       ttsManager.unsubscribe(subId);
-      if (pendingFitRafRef.current != null) {
-        cancelAnimationFrame(pendingFitRafRef.current);
-        pendingFitRafRef.current = null;
-      }
-      liveFitZoomRef.current = null;
-      liveFitBottomRef.current = null;
     };
-  }, [
-    immersiveNotebook,
-    currentConceptIndex,
-    session,
-    concepts,
-    revealedQuizIds,
-    reactFlow,
-    focusOnActiveConcept,
-  ]);
+  }, [immersiveNotebook, currentConceptIndex, session, concepts, focusOnActiveConcept]);
 
   // In notebook mode: enqueue TTS for the current concept when it becomes active.
   // Gated on !prefers-reduced-motion AND the user's TTS-enabled setting:
@@ -822,26 +579,8 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     }
   }, [ttsPlaying, ttsPaused]);
 
-  // Kill switch for the live char-progress viewport refit (dev only).
-  // URL: ?nbFit=0  |  localStorage: nbFit=0
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    const readFlag = () => {
-      const url = new URLSearchParams(window.location.search);
-      const fromUrl = url.get('nbFit');
-      const fromLs = localStorage.getItem('nbFit');
-      liveFitEnabledRef.current = !(fromUrl === '0' || fromLs === '0');
-    };
-    readFlag();
-    window.addEventListener('storage', readFlag);
-    return () => {
-      window.removeEventListener('storage', readFlag);
-    };
-  }, []);
-
-  // On TTS stop transition (playing|paused -> idle|stopped), drop the
-  // locked zoom so a final fit can re-zoom to include any newly-revealed
-  // quizzes. Without this, stale zoom leaves a half-fit viewport.
+  // On TTS stop (playing/paused -> idle/stopped), refocus the active concept
+  // so the user returns to it after narration ends.
   useEffect(() => {
     let prev: string | null = null;
     const unsub = ttsManager.subscribeState((state) => {
@@ -850,96 +589,19 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       if (!fireFinalFit || !immersiveNotebook || !session) return;
       const active = concepts.find((c) => c.data.index === currentConceptIndex);
       if (!active) return;
-      liveFitZoomRef.current = null;
-      liveFitEnabledRef.current = useNotebookStore.getState().notebookMode
-        ? !(
-            import.meta.env.DEV &&
-            (new URLSearchParams(window.location.search).get('nbFit') === '0' ||
-              localStorage.getItem('nbFit') === '0')
-          )
-        : true;
       focusOnActiveConcept(active.id, true);
     });
     return unsub;
   }, [immersiveNotebook, session, concepts, currentConceptIndex, focusOnActiveConcept]);
 
-  // Window resize invalidates the locked zoom and last-known bottom so the
-  // next char-progress event recomputes translation for the new viewport.
-  useEffect(() => {
-    if (!immersiveNotebook) return;
-    const onResize = () => {
-      liveFitZoomRef.current = null;
-      liveFitBottomRef.current = null;
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [immersiveNotebook]);
-
-  // Keyboard navigation in notebook mode: arrows + PageUp/PageDown + Space
-  // translate the viewport by fixed steps. Gated on no modal open.
-  useEffect(() => {
-    if (!immersiveNotebook) return;
-    const handler = (e: KeyboardEvent) => {
-      if (activeQuiz || summaryQuiz) return;
-      const target = e.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
-      ) {
-        return;
-      }
-      const vp = reactFlow.getViewport();
-      const STEP = 60;
-      let dx = 0;
-      let dy = 0;
-      switch (e.key) {
-        case 'ArrowUp':
-          dy = STEP;
-          break;
-        case 'ArrowDown':
-          dy = -STEP;
-          break;
-        case 'ArrowLeft':
-          dx = STEP;
-          break;
-        case 'ArrowRight':
-          dx = -STEP;
-          break;
-        case 'PageDown':
-          dy = -window.innerHeight * 0.5;
-          break;
-        case 'PageUp':
-          dy = window.innerHeight * 0.5;
-          break;
-        case ' ':
-          if (e.shiftKey) dy = window.innerHeight * 0.5;
-          else dy = -window.innerHeight * 0.5;
-          break;
-        default:
-          return;
-      }
-      e.preventDefault();
-      reactFlow.setViewport({ x: vp.x + dx, y: vp.y + dy, zoom: vp.zoom }, { duration: 150 });
-    };
-    const container = containerRef.current;
-    container?.addEventListener('keydown', handler);
-    return () => container?.removeEventListener('keydown', handler);
-  }, [immersiveNotebook, activeQuiz, summaryQuiz, reactFlow]);
-
-  // Persist + restore notebook reading position per session so a mid-notebook
-  // reload resumes at the same concept, viewport, and revealed quizzes instead
-  // of dropping the user back to concept 0.
-  const nbPosKey = currentId ? `quizify:nbpos:${currentId}` : null;
-
-  // Focus the first concept once when restoring a session. If a saved reading
-  // position exists, restore it (viewport + revealed quizzes) instead of
-  // snapping to concept 0. The narration effect may request the same focus, so
-  // both paths intentionally use the same fit.
+  // Focus the first concept when restoring a session, restoring any previously
+  // revealed quizzes from the reading position so the user picks up where they left off.
   useEffect(() => {
     if (!immersiveNotebook || !session || orientedSessionRef.current === session.id) return;
 
     orientedSessionRef.current = session.id;
 
+    const nbPosKey = currentId ? `quizify:nbpos:${currentId}` : null;
     let restored = false;
     if (nbPosKey) {
       try {
@@ -947,7 +609,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         if (raw) {
           const pos = JSON.parse(raw) as {
             conceptIndex?: number;
-            viewport?: { x: number; y: number; zoom: number };
             revealedQuizIds?: string[];
           };
           if (
@@ -959,10 +620,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
           }
           const target = concepts.find((c) => c.data.index === (pos.conceptIndex ?? 0));
           if (target) {
-            // Defer viewport apply until after the initial mount/fit settles.
-            if (pos.viewport) {
-              requestAnimationFrame(() => reactFlow.setViewport(pos.viewport!, { duration: 0 }));
-            }
             focusOnActiveConcept(target.id, pos.revealedQuizIds?.length ? true : false);
             restored = true;
           }
@@ -976,16 +633,16 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       const firstConcept = concepts.find((c) => c.data.index === 0);
       if (firstConcept) focusOnActiveConcept(firstConcept.id);
     }
-  }, [immersiveNotebook, session, concepts, focusOnActiveConcept, nbPosKey, reactFlow]);
+  }, [immersiveNotebook, session, concepts, focusOnActiveConcept, currentId]);
 
   // Debounced save of the reading position whenever it changes.
   useEffect(() => {
-    if (!immersiveNotebook || !nbPosKey) return;
+    if (!immersiveNotebook || !currentId) return;
+    const nbPosKey = `quizify:nbpos:${currentId}`;
     const handle = setTimeout(() => {
       try {
         const payload = {
           conceptIndex: currentConceptIndex,
-          viewport: reactFlow.getViewport(),
           revealedQuizIds: Array.from(revealedQuizIds),
         };
         localStorage.setItem(nbPosKey, JSON.stringify(payload));
@@ -994,7 +651,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       }
     }, 600);
     return () => clearTimeout(handle);
-  }, [immersiveNotebook, nbPosKey, currentConceptIndex, revealedQuizIds, reactFlow]);
+  }, [immersiveNotebook, currentId, currentConceptIndex, revealedQuizIds]);
 
   // Migration: sessionStorage summary quiz results → Session.scores (IndexedDB)
   const scoreMigratedRef = useRef(false);
@@ -1054,7 +711,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     onShowHelp: handleKbHelp,
   });
 
-  if (!session || (nodes.length === 0 && !isGenerating)) {
+  if (!session || (visibleNodes.length === 0 && !isGenerating)) {
     return (
       <div className={styles.empty}>
         <p>No lesson data yet.</p>
@@ -1067,11 +724,11 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     );
   }
 
-  if (nodes.length === 0 && isGenerating) {
+  if (visibleNodes.length === 0 && isGenerating) {
     return (
       <div className={styles.buildingState}>
         <div className={styles.buildingOrb} aria-hidden />
-        <p className={styles.buildingLabel}>Building your canvas</p>
+        <p className={styles.buildingLabel}>Building your lesson</p>
         {progress?.label && <p>{progress.label}</p>}
       </div>
     );
@@ -1087,7 +744,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   if (isMobile && session) {
     return (
       <MobileFocusView
-        nodes={visibleData.nodes}
+        nodes={visibleNodes}
         progress={progress}
         isGenerating={isGenerating}
         onHome={onHome}
@@ -1106,44 +763,51 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       <div
         ref={containerRef}
         className={styles.container}
-        data-notebook={notebookMode ? 'true' : undefined}
+        data-notebook="true"
         data-generating={isGenerating ? 'true' : undefined}
-        tabIndex={immersiveNotebook ? 0 : undefined}
       >
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          fitView={!immersiveNotebook}
-          minZoom={0.3}
-          maxZoom={2}
-          panOnDrag={immersiveNotebook ? [1, 2] : true}
-          selectionOnDrag={!immersiveNotebook}
-          panOnScroll={true}
-          nodesConnectable={false}
-          nodesDraggable={!immersiveNotebook}
-          onNodeClick={handleNodeClick}
-          proOptions={{ hideAttribution: true }}
-        >
-          {!notebookMode && (
-            <Background
-              variant={BackgroundVariant.Dots}
-              gap={24}
-              size={1.5}
-              color="var(--border-strong)"
-              style={{ opacity: 0.6 }}
-            />
-          )}
-          {!notebookMode && <Controls showInteractive={false} />}
-          {!notebookMode && (
-            <MiniMap
-              nodeColor="var(--accent)"
-              maskColor="rgba(0,0,0,0.1)"
-              style={{ background: 'var(--bg-elevated)', pointerEvents: 'none' }}
-            />
-          )}
-        </ReactFlow>
+        <div className={styles.nodeList}>
+          {visibleNodes.map((canvasNode) => {
+            const kind = canvasNode.data.kind;
+            return (
+              <div
+                key={canvasNode.id}
+                className={styles.nodeItem}
+                data-concept-id={kind === 'concept' ? canvasNode.id : undefined}
+                onClick={() => kind !== 'note' && handleNodeClick(canvasNode)}
+              >
+                {kind === 'concept' && (
+                  <ConceptNode
+                    id={canvasNode.id}
+                    data={canvasNode.data as ConceptData}
+                    currentConceptIndex={currentConceptIndex}
+                    isGenerating={isGenerating}
+                    onClick={() => handleNodeClick(canvasNode)}
+                  />
+                )}
+                {kind === 'quiz' && (
+                  <QuizNode
+                    id={canvasNode.id}
+                    data={canvasNode.data as QuizData}
+                    currentConceptIndex={currentConceptIndex}
+                    revealed={revealedQuizIds.has(canvasNode.id)}
+                    onClick={() => handleNodeClick(canvasNode)}
+                  />
+                )}
+                {kind === 'summary' && (
+                  <SummaryNode
+                    id={canvasNode.id}
+                    data={canvasNode.data as SummaryData}
+                    onClick={() => handleNodeClick(canvasNode)}
+                  />
+                )}
+                {kind === 'note' && (
+                  <NoteNode id={canvasNode.id} data={canvasNode.data as NoteData} />
+                )}
+              </div>
+            );
+          })}
+        </div>
 
         {showProgress && (
           <div className={styles.progressBadge}>
@@ -1181,79 +845,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
               ))}
             </div>
           </section>
-        )}
-
-        {!notebookMode && showGraphCue && (
-          <div className={styles.graphCue} role="status" aria-live="polite">
-            <div className={styles.graphCueContent}>
-              <span className={styles.graphCueTitle}>Your canvas is ready</span>
-              <span className={styles.graphCueText}>
-                Explore the full outline here. Switch to <strong>Tutor</strong> for a guided lesson
-                with narration and quizzes.
-              </span>
-            </div>
-            <button className={styles.graphCueClose} onClick={dismissGraphCue} type="button">
-              Got it
-            </button>
-          </div>
-        )}
-
-        {!notebookMode && (
-          <div className={styles.actionsRow}>
-            {onHome && (
-              <button
-                className={styles.actionBtn}
-                onClick={onHome}
-                title="New session"
-                type="button"
-              >
-                <Plus size={14} />
-                <span>New</span>
-              </button>
-            )}
-
-            {(() => {
-              const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
-              const cycleTheme = () => {
-                const next = theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light';
-                setTheme(next);
-              };
-              return (
-                <button
-                  className={styles.actionBtn}
-                  onClick={cycleTheme}
-                  title={'Theme: ' + theme}
-                  type="button"
-                >
-                  <ThemeIcon size={14} />
-                </button>
-              );
-            })()}
-
-            <div className={styles.exportWrapper} ref={exportRef}>
-              <button
-                className={styles.actionBtn}
-                onClick={() => setShowExport((v) => !v)}
-                title="Export"
-              >
-                <Download size={14} />
-                <span>Export</span>
-                <ChevronDown size={12} />
-              </button>
-              {showExport && (
-                <div className={styles.exportDropdown} data-open-up={exportOpenUp}>
-                  <button onClick={handleExportJson}>JSON</button>
-                  <button onClick={handleExportMarkdown}>Markdown</button>
-                  <button onClick={handleExportPng}>PNG</button>
-                </div>
-              )}
-            </div>
-
-            <button className={styles.actionBtn} onClick={handleAddNote} title="Add note">
-              <Plus size={14} />
-              <span>Add note</span>
-            </button>
-          </div>
         )}
 
         {notebookMode && captionVisible && caption && (
@@ -1440,7 +1031,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                 </button>
               </div>
               <div className="notebookOutlineList">
-                {visibleData.nodes.map((n) => {
+                {visibleNodes.map((n) => {
                   const kind = n.data.kind;
                   const kindLabel = kind.charAt(0).toUpperCase() + kind.slice(1);
                   const title =

@@ -1,11 +1,18 @@
 import { memo, useEffect, useRef } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
 import styles from './QuizNode.module.css';
 import type { QuizData } from '@/shared/types';
 import { useTypingAnimation } from '@/features/canvas/useTypingAnimation';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
+
+interface QuizNodeProps {
+  id: string;
+  data: QuizData;
+  currentConceptIndex: number;
+  revealed: boolean;
+  onClick: () => void;
+}
 
 const badgeColors: Record<string, { bg: string; text: string }> = {
   untested: { bg: 'var(--bg-elevated)', text: 'var(--text-secondary)' },
@@ -25,13 +32,7 @@ const formatColors: Record<string, string> = {
   ordering: '#4BAE6F',
 };
 
-function toQuizData(data: Record<string, unknown>): QuizData {
-  if (data.kind !== 'quiz') throw new Error(`Expected quiz data, got ${String(data.kind)}`);
-  return data as unknown as QuizData;
-}
-
-function QuizNodeInner(props: NodeProps) {
-  const data = toQuizData(props.data);
+function QuizNodeInner({ id, data, revealed, onClick }: QuizNodeProps) {
   const formatLabel = data.format
     .replace(/([A-Z])/g, ' $1')
     .replace(/^./, (s) => s.toUpperCase())
@@ -42,14 +43,17 @@ function QuizNodeInner(props: NodeProps) {
   const prevStateRef = useRef(data.state);
 
   const notebookMode = useNotebookStore((s) => s.notebookMode);
-  const skipTyping = props.data.skipTyping === true;
-  const { revealed, skipAnimation } = useTypingAnimation(props.id, data.prompt, skipTyping, 80);
-  const promptText = notebookMode ? data.prompt.slice(0, revealed) : data.prompt;
+  const { revealed: typingRevealed, skipAnimation } = useTypingAnimation(
+    id,
+    data.prompt,
+    !revealed,
+    80,
+  );
+  const promptText = notebookMode ? data.prompt.slice(0, typingRevealed) : data.prompt;
   const promptParagraphs =
     notebookMode && promptText.length > 0 ? promptText.split(/\n+/) : [data.prompt];
-  const isAnimating = notebookMode && !skipTyping && revealed < data.prompt.length;
+  const isAnimating = notebookMode && revealed && typingRevealed < data.prompt.length;
 
-  // Replay animation when state changes to correct/mastered/incorrect
   useEffect(() => {
     const prev = prevStateRef.current;
     prevStateRef.current = data.state;
@@ -58,7 +62,7 @@ function QuizNodeInner(props: NodeProps) {
     if (!el) return;
     if (data.state === 'correct' || data.state === 'mastered') {
       el.classList.remove(styles.animateCorrect, styles.animateIncorrect);
-      void el.offsetWidth; // force reflow
+      void el.offsetWidth;
       el.classList.add(styles.animateCorrect);
     } else if (data.state === 'incorrect') {
       el.classList.remove(styles.animateCorrect, styles.animateIncorrect);
@@ -75,9 +79,9 @@ function QuizNodeInner(props: NodeProps) {
       data-state={data.state}
       onClick={() => {
         if (isAnimating) skipAnimation();
+        else onClick();
       }}
     >
-      <Handle type="target" position={Position.Left} />
       <div className={styles.format}>
         <span
           className={styles.formatDot}
@@ -109,12 +113,11 @@ function QuizNodeInner(props: NodeProps) {
             : 'click to answer'}
         </span>
       </div>
-      <Handle type="source" position={Position.Right} />
     </div>
   );
 }
 
-function QuizNodeWrapper(props: NodeProps) {
+function QuizNodeWrapper(props: QuizNodeProps) {
   return (
     <ErrorBoundary name="QuizNode" fallback={<NodeErrorFallback nodeId={props.id} type="quiz" />}>
       <QuizNodeInner {...props} />

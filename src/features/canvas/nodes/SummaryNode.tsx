@@ -1,5 +1,4 @@
 import { memo, useMemo } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
 import styles from './SummaryNode.module.css';
 import { useTypingAnimation } from '@/features/canvas/useTypingAnimation';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
@@ -7,33 +6,30 @@ import type { SummaryData } from '@/shared/types';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
 
-function toSummaryData(data: Record<string, unknown>): SummaryData {
-  if (data.kind !== 'summary') throw new Error(`Expected summary data, got ${String(data.kind)}`);
-  return data as unknown as SummaryData;
+interface SummaryNodeProps {
+  id: string;
+  data: SummaryData;
+  onClick: () => void;
 }
 
-function SummaryNodeInner(props: NodeProps) {
-  const data = toSummaryData(props.data);
+function SummaryNodeInner({ id, data }: SummaryNodeProps) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
 
-  // Build cumulative character offsets for each recap bullet
   const { fullText, bulletOffsets } = useMemo(() => {
     const offsets: number[] = [];
     let total = 0;
     for (const item of data.recap) {
       offsets.push(total);
-      total += item.length + 2; // +2 for ". " separator (not added after last)
+      total += item.length + 2;
     }
-    // Remove trailing ". " from the final calculation
     const ft = data.recap.join('. ');
     return { fullText: ft, bulletOffsets: offsets };
   }, [data.recap]);
 
-  const { revealed, isAnimating } = useTypingAnimation(props.id, fullText);
+  const { revealed, isAnimating } = useTypingAnimation(id, fullText);
 
   const renderRecap = () => {
     if (!notebookMode || !isAnimating) {
-      // Default: render as full bullet list
       return data.recap.map((item, i) => (
         <div key={i} className={styles.recapItem}>
           {item}
@@ -41,21 +37,18 @@ function SummaryNodeInner(props: NodeProps) {
       ));
     }
 
-    // Notebook mode + animating: render completed bullets + partial current
     const items: React.ReactNode[] = [];
     for (let i = 0; i < data.recap.length; i++) {
       const bulletStart = bulletOffsets[i];
       const bulletEnd = bulletStart + data.recap[i].length;
 
       if (revealed >= bulletEnd) {
-        // This bullet is fully revealed
         items.push(
           <div key={i} className={styles.recapItem}>
             {data.recap[i]}
           </div>,
         );
       } else if (revealed > bulletStart) {
-        // This bullet is partially revealed
         const partialText = fullText.slice(bulletStart, revealed);
         items.push(
           <div key={i} className={styles.recapItem}>
@@ -63,10 +56,8 @@ function SummaryNodeInner(props: NodeProps) {
             <span className="notebookCursor" />
           </div>,
         );
-        // Remaining bullets are hidden
         break;
       } else {
-        // This bullet hasn't started yet — stop rendering
         break;
       }
     }
@@ -76,30 +67,22 @@ function SummaryNodeInner(props: NodeProps) {
 
   return (
     <div className={styles.node}>
-      <Handle type="target" position={Position.Left} />
       <div className={styles.header}>Summary</div>
       <div className={styles.recap}>{renderRecap()}</div>
-      {!notebookMode && (
-        <>
-          <div className={styles.quizCount}>
-            {data.finalQuiz.length} final quiz question{data.finalQuiz.length !== 1 ? 's' : ''}
-          </div>
-          {data.results ? (
-            <div className={styles.results}>
-              <div className={styles.resultsPct}>{data.results.masteryPct}%</div>
-              <div>Mastery</div>
-            </div>
-          ) : (
-            <button className={styles.launchBtn}>Take Final Quiz</button>
-          )}
-        </>
-      )}
-      <Handle type="source" position={Position.Right} />
+      <div className={styles.quizCount}>
+        {data.finalQuiz.length} final quiz question{data.finalQuiz.length !== 1 ? 's' : ''}
+      </div>
+      {data.results ? (
+        <div className={styles.results}>
+          <div className={styles.resultsPct}>{data.results.masteryPct}%</div>
+          <div>Mastery</div>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function SummaryNodeWrapper(props: NodeProps) {
+function SummaryNodeWrapper(props: SummaryNodeProps) {
   return (
     <ErrorBoundary
       name="SummaryNode"
