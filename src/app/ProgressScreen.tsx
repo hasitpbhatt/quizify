@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { JourneyProgress, JourneyStage, JourneyState } from './App';
 import { SnakeGame } from './SnakeGame';
 import type { SourceProvenance } from '@/shared/types';
@@ -11,9 +11,17 @@ interface DisplayStage {
 }
 
 const DISPLAY_STAGES: DisplayStage[] = [
-  { id: 'reading', label: 'Reading source', hint: 'Fetching and analyzing the article' },
-  { id: 'building', label: 'Building lesson', hint: 'Creating concepts, quizzes, and summary' },
-  { id: 'ready', label: 'Ready', hint: 'Almost there\u2026' },
+  {
+    id: 'reading',
+    label: 'Preparing first concept',
+    hint: 'Reading the source and sketching the lesson outline',
+  },
+  {
+    id: 'building',
+    label: 'Lesson open',
+    hint: 'The lesson is visible while the rest keeps building',
+  },
+  { id: 'ready', label: 'Ready to learn', hint: 'You can start reviewing now' },
 ];
 
 const STAGE_MAP: Record<string, string> = {
@@ -40,6 +48,7 @@ interface ProgressScreenProps {
     title: string;
     snippet: string;
     provenance: SourceProvenance;
+    url: string;
     onConfirm: () => void;
     onCancel: () => void;
   } | null;
@@ -49,11 +58,16 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
   const activeIndex = progress.stage === 'error' ? 0 : stageIndex(progress.stage);
   const [mounted, setMounted] = useState(false);
   const [showGame, setShowGame] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setMounted(true));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  useEffect(() => {
+    cardRef.current?.focus({ preventScroll: true });
+  }, [progress.stage, error, previewData, showGame]);
 
   function getState(i: number): JourneyState {
     return progress.stage === 'error' && i <= activeIndex
@@ -70,7 +84,7 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
   if (previewData && !error) {
     return (
       <div className={styles.screen}>
-        <div className={styles.card}>
+        <div className={styles.card} ref={cardRef} tabIndex={-1}>
           <div className={styles.header}>
             <div className={styles.orb} aria-hidden>
               <span className={styles.orbCore} />
@@ -88,6 +102,7 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
           <div className={styles.previewBox}>
             <h3 className={styles.previewTitle}>{previewData.title}</h3>
             <p className={styles.previewSnippet}>{previewData.snippet}</p>
+            <p className={styles.previewSource}>{previewData.url}</p>
           </div>
 
           <div className={styles.previewFooter}>
@@ -115,7 +130,7 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
   if (showGame && !error) {
     return (
       <div className={styles.screen}>
-        <div className={styles.card}>
+        <div className={styles.card} ref={cardRef} tabIndex={-1}>
           <div className={styles.compactBar}>
             {DISPLAY_STAGES.map((s, i) => {
               const state = getState(i);
@@ -149,7 +164,7 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
 
   return (
     <div className={styles.screen}>
-      <div className={styles.card}>
+      <div className={styles.card} ref={cardRef} tabIndex={-1}>
         <div className={styles.header}>
           <div className={styles.orb} aria-hidden>
             <span className={styles.orbCore} />
@@ -157,7 +172,7 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
             <span className={styles.orbRing2} />
           </div>
           <h1 className={styles.title}>
-            {progress.stage === 'done' ? 'Almost ready' : 'Building your lesson'}
+            {progress.stage === 'done' ? 'Lesson ready' : 'Opening lesson'}
           </h1>
           <p className={styles.subtitle} aria-live="polite">
             {progress.label}

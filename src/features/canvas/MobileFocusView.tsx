@@ -24,6 +24,7 @@ import {
 import { exportSessionJson } from '@/lib/export/json';
 import { downloadSessionMarkdown } from '@/lib/export/markdown';
 import { getNextLearningAction, normalizeLearningProgress } from '@/shared/learningProgress';
+import { AccessibleDialog } from '@/lib/components/AccessibleDialog';
 import styles from './MobileFocusView.module.css';
 
 interface Props {
@@ -83,8 +84,15 @@ export function MobileFocusView({
   } | null>(null);
   const [summaryQuiz, setSummaryQuiz] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [caption, setCaption] = useState('');
+  const [captionVisible, setCaptionVisible] = useState(false);
+  const [captionAnnouncement, setCaptionAnnouncement] = useState('');
   const cardRef = useRef<HTMLDivElement>(null);
   const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+
+  useEffect(() => {
+    cardRef.current?.focus({ preventScroll: true });
+  }, [index, nodes.length, isGenerating]);
 
   // Clamp index when nodes shrink
   useEffect(() => {
@@ -117,6 +125,8 @@ export function MobileFocusView({
   const setTtsRate = useSettingsStore((s) => s.setTtsRate);
   const theme = useSettingsStore((s) => s.theme);
   const setTheme = useSettingsStore((s) => s.setTheme);
+  const showFullText = useNotebookStore((s) => s.showFullText);
+  const setShowFullText = useNotebookStore((s) => s.setShowFullText);
   const session = useSessionStore((state) =>
     state.currentId ? (state.sessions.find((item) => item.id === state.currentId) ?? null) : null,
   );
@@ -166,6 +176,38 @@ export function MobileFocusView({
       ttsManager.start();
     }
   }, [notebookMode, node, prefersReducedMotion, ttsEnabled]);
+
+  useEffect(() => {
+    if (!notebookMode) {
+      setCaption('');
+      setCaptionVisible(false);
+      setCaptionAnnouncement('');
+      return;
+    }
+
+    const subId = ttsManager.subscribe('__caption__', {
+      onSegmentStart: () => {
+        setCaptionVisible(true);
+        setCaptionAnnouncement('Narration started.');
+      },
+      onCharProgress: (_nodeId, _charIndex, text?: string) => {
+        if (text != null) {
+          setCaption(text);
+          setCaptionVisible(true);
+        }
+      },
+      onSegmentEnd: () => {
+        setCaptionVisible(false);
+        setCaptionAnnouncement('Narration finished.');
+      },
+    });
+
+    return () => {
+      ttsManager.unsubscribe(subId);
+      setCaptionVisible(false);
+      setCaptionAnnouncement('');
+    };
+  }, [notebookMode]);
 
   const conceptTitles = useMemo(() => {
     const map = new Map<string, string>();
@@ -240,6 +282,17 @@ export function MobileFocusView({
     return conceptIndex >= 0 ? `Concept ${conceptIndex + 1} of ${conceptNodes.length}` : null;
   }, [node, nodes]);
 
+  const navigationCue = useMemo(() => {
+    const prevNode = index > 0 ? nodes[index - 1] : null;
+    const nextNode = index < nodes.length - 1 ? nodes[index + 1] : null;
+    const summarize = (item: CanvasNode | null) => {
+      if (!item) return 'Start';
+      const kind = formatKind(item).toLowerCase();
+      return `${kind}${item.data.kind === 'concept' ? `: ${(item.data as ConceptData).title}` : ''}`;
+    };
+    return `Prev: ${summarize(prevNode)} · Next: ${summarize(nextNode)}`;
+  }, [index, nodes]);
+
   const summaryData = node?.data.kind === 'summary' ? (node.data as SummaryData) : null;
 
   const lessonComplete = useMemo(() => {
@@ -288,9 +341,9 @@ export function MobileFocusView({
 
       <div className={styles.topActions}>
         {onHome && (
-          <button className={styles.topActionBtn} onClick={onHome}>
+          <button className={styles.topActionBtn} onClick={onHome} type="button">
             <Plus size={14} />
-            <span>New</span>
+            <span>New lesson</span>
           </button>
         )}
         <button
@@ -301,15 +354,21 @@ export function MobileFocusView({
           type="button"
         >
           <List size={14} />
-          <span>Outline</span>
+          <span>Table of contents</span>
         </button>
-        <button className={styles.topActionBtn} onClick={cycleTheme} aria-label={`Theme: ${theme}`}>
+        <button
+          className={styles.topActionBtn}
+          onClick={cycleTheme}
+          aria-label={`Theme: ${theme}`}
+          type="button"
+        >
           <ThemeIcon size={14} />
+          <span>Theme: {theme}</span>
         </button>
         {conceptProgress && <span className={styles.lessonProgress}>{conceptProgress}</span>}
       </div>
 
-      <div className={styles.card} ref={cardRef}>
+      <div className={styles.card} ref={cardRef} tabIndex={-1}>
         {node ? (
           <div className={styles.nodeContent}>
             <div className={styles.kindTag}>{kindLabel}</div>
@@ -356,8 +415,8 @@ export function MobileFocusView({
         <div className={styles.mobileTtsControls}>
           <button
             onClick={() => setTtsEnabled(!ttsEnabled)}
-            title={ttsEnabled ? 'Mute narration' : 'Enable narration'}
-            aria-label="Narration"
+            title={ttsEnabled ? 'Disable narration' : 'Enable narration'}
+            aria-label={ttsEnabled ? 'Disable narration' : 'Enable narration'}
             aria-pressed={ttsEnabled}
             type="button"
           >
@@ -403,6 +462,31 @@ export function MobileFocusView({
         </div>
       )}
 
+      {notebookMode && (
+        <div className={styles.mobilePacingBar}>
+          <button
+            className={styles.pacingToggle}
+            onClick={() => setShowFullText(!showFullText)}
+            type="button"
+          >
+            {showFullText ? 'Hide full text' : 'Show full text'}
+          </button>
+          <span className={styles.pacingCue}>{navigationCue}</span>
+        </div>
+      )}
+
+      {notebookMode && captionVisible && caption && (
+        <div className={styles.mobileCaption} aria-hidden="true">
+          {caption}
+        </div>
+      )}
+
+      {notebookMode && (
+        <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {captionAnnouncement}
+        </div>
+      )}
+
       <div className={styles.mobileActions}>
         {onAddNote && (
           <button type="button" onClick={onAddNote}>
@@ -429,16 +513,18 @@ export function MobileFocusView({
           className={styles.navBtn}
           onClick={goPrev}
           disabled={index === 0 || total === 0}
-          aria-label="Previous node"
+          aria-label="Previous concept"
+          title="Previous concept"
         >
           &lsaquo;
         </button>
-        <span className={styles.counter}>{total > 0 ? index + 1 + ' / ' + total : '0 / 0'}</span>
+        <span className={styles.counter}>{navigationCue}</span>
         <button
           className={styles.navBtn}
           onClick={goNext}
           disabled={index === total - 1 || total === 0}
-          aria-label="Next node"
+          aria-label="Next concept"
+          title="Next concept"
         >
           &rsaquo;
         </button>
@@ -465,52 +551,48 @@ export function MobileFocusView({
       )}
 
       {showOutline && (
-        <div
-          className={styles.outlineOverlay}
-          onClick={() => setShowOutline(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Outline"
+        <AccessibleDialog
+          label="Outline"
+          onClose={() => setShowOutline(false)}
+          overlayClassName={styles.outlineOverlay}
+          panelClassName={styles.outlinePanel}
+          initialFocusSelector=".closeOutlineBtn"
         >
-          <div
-            className={styles.outlinePanel}
-            id="mobile-outline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={styles.outlineHeader}>
-              <span className={styles.outlineHeaderTitle}>Outline</span>
-              <button
-                className={styles.closeOutlineBtn}
-                onClick={() => setShowOutline(false)}
-                aria-label="Close outline"
-              >
-                \u2715
-              </button>
-            </div>
-            <div className={styles.outlineList}>
-              {nodes.map((n, i) => {
-                const isCurrent = i === index;
-                const kind = formatKind(n);
-                const { title: nodeTitle } = renderContent(n);
-                const displayTitle =
-                  nodeTitle || (n.data.kind === 'note' ? n.data.text.slice(0, 30) + '...' : kind);
-                return (
-                  <button
-                    key={n.id}
-                    className={outlineItemClass(isCurrent)}
-                    onClick={() => {
-                      setIndex(i);
-                      setShowOutline(false);
-                    }}
-                  >
-                    <span className={styles.outlineKind}>{kind}</span>
-                    <span className={styles.outlineTitle}>{displayTitle}</span>
-                  </button>
-                );
-              })}
-            </div>
+          <div className={styles.outlineHeader}>
+            <span className={styles.outlineHeaderTitle}>Outline</span>
+            <button
+              className={styles.closeOutlineBtn}
+              onClick={() => setShowOutline(false)}
+              aria-label="Close outline"
+              type="button"
+            >
+              ✕
+            </button>
           </div>
-        </div>
+          <div className={styles.outlineList}>
+            {nodes.map((n, i) => {
+              const isCurrent = i === index;
+              const kind = formatKind(n);
+              const { title: nodeTitle } = renderContent(n);
+              const displayTitle =
+                nodeTitle || (n.data.kind === 'note' ? n.data.text.slice(0, 30) + '...' : kind);
+              return (
+                <button
+                  key={n.id}
+                  className={outlineItemClass(isCurrent)}
+                  onClick={() => {
+                    setIndex(i);
+                    setShowOutline(false);
+                  }}
+                  type="button"
+                >
+                  <span className={styles.outlineKind}>{kind}</span>
+                  <span className={styles.outlineTitle}>{displayTitle}</span>
+                </button>
+              );
+            })}
+          </div>
+        </AccessibleDialog>
       )}
     </div>
   );

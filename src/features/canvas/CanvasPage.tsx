@@ -37,6 +37,7 @@ import { ttsManager } from '@/lib/llm/ttsManager';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { CanvasErrorFallback } from '@/lib/components/CanvasErrorFallback';
 import { QuizErrorFallback } from '@/lib/components/QuizErrorFallback';
+import { AccessibleDialog } from '@/lib/components/AccessibleDialog';
 import { ConceptNode } from './nodes/ConceptNode';
 import { QuizNode } from './nodes/QuizNode';
 import { SummaryNode } from './nodes/SummaryNode';
@@ -133,6 +134,8 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const updateCurrent = useSessionStore((s) => s.updateCurrent);
   const isMobile = useIsMobile();
   const notebookMode = useNotebookStore((s) => s.notebookMode);
+  const showFullText = useNotebookStore((s) => s.showFullText);
+  const setShowFullText = useNotebookStore((s) => s.setShowFullText);
   const immersiveNotebook = notebookMode;
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
   const ttsRate = useSettingsStore((s) => s.ttsRate);
@@ -146,6 +149,10 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const totalSegments = useNotebookStore((s) => s.totalSegments);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+
+  useEffect(() => {
+    containerRef.current?.focus({ preventScroll: true });
+  }, [currentId, isGenerating]);
 
   const conceptTitles = useMemo(() => {
     const map = new Map<string, string>();
@@ -249,6 +256,10 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   useEffect(() => {
     if (immersiveNotebook && !ttsEnabled) revealCurrentQuizzes();
   }, [immersiveNotebook, ttsEnabled, revealCurrentQuizzes]);
+
+  useEffect(() => {
+    if (immersiveNotebook && showFullText) revealCurrentQuizzes();
+  }, [immersiveNotebook, showFullText, revealCurrentQuizzes]);
 
   const completedTypingNodeIds = useNotebookStore((s) => s.completedTypingNodeIds);
 
@@ -417,9 +428,10 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
 
   const [caption, setCaption] = useState<string>('');
   const [captionVisible, setCaptionVisible] = useState<boolean>(false);
+  const [captionAnnouncement, setCaptionAnnouncement] = useState<string>('');
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   const [showOutline, setShowOutline] = useState(false);
-  const outlineRef = useRef<HTMLDivElement>(null);
 
   // Jump to a node in notebook mode: concepts focus directly; quizzes/notes/
   // summary jump to their parent concept so the reading position follows.
@@ -443,20 +455,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     },
     [session, focusOnActiveConcept],
   );
-
-  useEffect(() => {
-    if (!showOutline) return;
-    const handler = (e: MouseEvent) => {
-      if (
-        outlineRef.current &&
-        !(e.target instanceof Node && outlineRef.current.contains(e.target))
-      ) {
-        setShowOutline(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showOutline]);
 
   const handlePlayPause = useCallback(() => {
     if (ttsPaused) {
@@ -500,6 +498,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     };
 
     const onCharProgress = (_nodeId: string, _charIndex: number) => {
+      if (showFullText) return;
       // Scroll the concept into view as typing progresses.
       if (containerRef.current) {
         const conceptEl = containerRef.current.querySelector(
@@ -629,11 +628,13 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     if (!notebookMode) {
       setCaptionVisible(false);
       setCaption('');
+      setCaptionAnnouncement('');
       return;
     }
 
     const subId = ttsManager.subscribe('__caption__', {
       onSegmentStart: () => {
+        setCaptionAnnouncement('Narration started.');
         // text arrives via onCharProgress; show the bar immediately.
         setCaptionVisible(true);
       },
@@ -645,12 +646,14 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       },
       onSegmentEnd: (_nodeId) => {
         setCaptionVisible(false);
+        setCaptionAnnouncement('Narration finished.');
       },
     });
 
     return () => {
       ttsManager.unsubscribe(subId);
       setCaptionVisible(false);
+      setCaptionAnnouncement('');
     };
   }, [notebookMode]);
 
@@ -779,7 +782,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   }, [activeQuiz, summaryQuiz]);
 
   const handleKbHelp = useCallback(() => {
-    useToastStore.getState().add('Shortcuts: N = Add note · ? = Show this · Esc = Close quiz');
+    setShowShortcuts(true);
   }, []);
 
   const cycleTheme = useCallback(() => {
@@ -825,6 +828,30 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const summaryAvailable =
     currentConceptIndex >= concepts.length &&
     (session?.nodes.some((node) => node.id === SUMMARY_NODE_ID) ?? false);
+  const completionCopy = summaryAvailable
+    ? "You reviewed every concept. Take the final quiz whenever you're ready."
+    : 'You reviewed every concept, but the final quiz was not generated. Review concepts or try generating it again later.';
+  const sourceExplanation =
+    session?.sourceProvenance === 'fetched'
+      ? 'Fetched directly from the source URL and cached locally.'
+      : session?.sourceProvenance === 'topic-generated'
+        ? 'Generated from the topic because the source could not be read.'
+        : 'Source provenance has not been fully verified.';
+  const saveStatusLabel = isGenerating ? 'Updating lesson…' : 'Saved locally';
+  const sourceLabel = session?.sourceProvenance
+    ? session.sourceProvenance === 'fetched'
+      ? 'Source: fetched source'
+      : session.sourceProvenance === 'topic-generated'
+        ? 'Source: generated from topic'
+        : 'Source: not verified'
+    : '';
+  const sourceTooltip = session
+    ? [
+        sourceLabel,
+        `Lesson URL: ${session.url}`,
+        `Stored locally in IndexedDB`,
+      ].join('\n')
+    : undefined;
 
   const renderNode = (canvasNode: CanvasNode) => {
     const kind = canvasNode.data.kind;
@@ -922,6 +949,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         data-notebook="true"
         data-generating={isGenerating ? 'true' : undefined}
         aria-label="Lesson"
+        tabIndex={-1}
       >
         <a className={styles.skipLink} href="#quizify-first-concept">
           Skip to lesson
@@ -929,7 +957,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         {nextAction?.kind === 'complete' && (
           <section className={styles.completionBanner} aria-label="Lesson complete">
             <strong>Lesson complete</strong>
-            <span>You reviewed every concept. Take the final quiz whenever you&apos;re ready.</span>
+            <span>{completionCopy}</span>
           </section>
         )}
         <div className={styles.nodeList}>{orderedVisibleNodes.map(renderNode)}</div>
@@ -979,8 +1007,14 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         )}
 
         {notebookMode && captionVisible && caption && (
-          <div className="notebookCaption" role="status" aria-live="polite">
+          <div className="notebookCaption" aria-hidden="true">
             {caption}
+          </div>
+        )}
+
+        {notebookMode && (
+          <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+            {captionAnnouncement}
           </div>
         )}
 
@@ -1056,15 +1090,23 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
 
         {notebookMode && (
           <>
-            {session?.sourceProvenance && (
-              <div className={styles.sourceBadge}>
-                {session.sourceProvenance === 'fetched'
-                  ? 'Based on fetched source'
-                  : session.sourceProvenance === 'topic-generated'
-                    ? 'Generated from topic'
-                    : 'Source not verified'}
-              </div>
-            )}
+            <div className={styles.lessonMetaRow}>
+              {session?.sourceProvenance && (
+                <details className={styles.sourceDetails}>
+                  <summary className={styles.sourceBadge} title={sourceTooltip} aria-label={sourceLabel}>
+                    {sourceLabel}
+                  </summary>
+                  <div className={styles.sourceDetailsBody}>
+                    <p>{sourceExplanation}</p>
+                    <p className={styles.sourceUrl}>{session.url}</p>
+                    <a href={session.url} target="_blank" rel="noopener noreferrer">
+                      Open source
+                    </a>
+                  </div>
+                </details>
+              )}
+              <span className={styles.saveStatus}>{saveStatusLabel}</span>
+            </div>
             <div className="notebookControls">
               {concepts.length > 0 && (
                 <span className="notebookConceptProgress">
@@ -1075,12 +1117,21 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                 <Plus size={14} />
               </button>
               <button
+                onClick={() => setShowFullText(!showFullText)}
+                title={showFullText ? 'Hide full text' : 'Show full text'}
+                aria-label={showFullText ? 'Hide full text' : 'Show full text'}
+                type="button"
+              >
+                {showFullText ? 'Hide full text' : 'Show full text'}
+              </button>
+              <button
                 onClick={handleKbHelp}
                 title="Keyboard shortcuts"
                 aria-label="Keyboard shortcuts"
                 type="button"
               >
                 <CircleHelp size={14} />
+                <span>Shortcuts</span>
               </button>
               <button
                 onClick={cycleTheme}
@@ -1089,6 +1140,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                 type="button"
               >
                 <ThemeIcon size={14} />
+                <span>Theme: {theme}</span>
               </button>
               <button
                 onClick={() => setShowOutline((v) => !v)}
@@ -1177,56 +1229,87 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
           </>
         )}
 
-        {notebookMode && showOutline && session && (
-          <div
-            className="notebookOutlineOverlay"
-            onClick={() => setShowOutline(false)}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Table of contents"
+        {notebookMode && showShortcuts && (
+          <AccessibleDialog
+            label="Keyboard shortcuts"
+            onClose={() => setShowShortcuts(false)}
+            overlayClassName="notebookOutlineOverlay"
+            panelClassName="notebookOutlinePanel"
+            initialFocusSelector=".notebookOutlineClose"
           >
-            <div
-              className="notebookOutlinePanel"
-              id="notebook-outline"
-              ref={outlineRef}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="notebookOutlineHeader">
-                <span className="notebookOutlineTitle">Contents</span>
-                <button
-                  className="notebookOutlineClose"
-                  onClick={() => setShowOutline(false)}
-                  aria-label="Close contents"
-                >
-                  ✕
-                </button>
+            <div className="notebookOutlineHeader">
+              <span className="notebookOutlineTitle">Keyboard shortcuts</span>
+              <button
+                className="notebookOutlineClose"
+                onClick={() => setShowShortcuts(false)}
+                aria-label="Close keyboard shortcuts"
+                type="button"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="notebookOutlineList" role="list">
+              <div className="notebookOutlineItem" role="listitem">
+                <strong>N</strong>
+                <span>Add note</span>
               </div>
-              <div className="notebookOutlineList">
-                {visibleNodes.map((n) => {
-                  const kind = n.data.kind;
-                  const kindLabel = kind.charAt(0).toUpperCase() + kind.slice(1);
-                  const title =
-                    kind === 'concept'
-                      ? (n.data as ConceptData).title
-                      : kind === 'summary'
-                        ? `${(n.data as SummaryData).recap.length} recap points`
-                        : kind === 'quiz'
-                          ? (n.data as QuizData).prompt
-                          : (n.data as NoteData).text.slice(0, 40);
-                  return (
-                    <button
-                      key={n.id}
-                      className="notebookOutlineItem"
-                      onClick={() => jumpToNode(n.id)}
-                    >
-                      <span className="notebookOutlineKind">{kindLabel}</span>
-                      <span className="notebookOutlineItemTitle">{title}</span>
-                    </button>
-                  );
-                })}
+              <div className="notebookOutlineItem" role="listitem">
+                <strong>?</strong>
+                <span>Open keyboard shortcuts</span>
+              </div>
+              <div className="notebookOutlineItem" role="listitem">
+                <strong>Esc</strong>
+                <span>Close quiz or dialog</span>
               </div>
             </div>
-          </div>
+          </AccessibleDialog>
+        )}
+
+        {notebookMode && showOutline && session && (
+          <AccessibleDialog
+            label="Table of contents"
+            onClose={() => setShowOutline(false)}
+            overlayClassName="notebookOutlineOverlay"
+            panelClassName="notebookOutlinePanel"
+            initialFocusSelector=".notebookOutlineClose"
+          >
+            <div className="notebookOutlineHeader">
+              <span className="notebookOutlineTitle">Contents</span>
+              <button
+                className="notebookOutlineClose"
+                onClick={() => setShowOutline(false)}
+                aria-label="Close contents"
+                type="button"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="notebookOutlineList">
+              {visibleNodes.map((n) => {
+                const kind = n.data.kind;
+                const kindLabel = kind.charAt(0).toUpperCase() + kind.slice(1);
+                const title =
+                  kind === 'concept'
+                    ? (n.data as ConceptData).title
+                    : kind === 'summary'
+                      ? `${(n.data as SummaryData).recap.length} recap points`
+                      : kind === 'quiz'
+                        ? (n.data as QuizData).prompt
+                        : (n.data as NoteData).text.slice(0, 40);
+                return (
+                  <button
+                    key={n.id}
+                    className="notebookOutlineItem"
+                    onClick={() => jumpToNode(n.id)}
+                    type="button"
+                  >
+                    <span className="notebookOutlineKind">{kindLabel}</span>
+                    <span className="notebookOutlineItemTitle">{title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </AccessibleDialog>
         )}
 
         {activeQuiz && (

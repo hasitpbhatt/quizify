@@ -30,7 +30,7 @@
 .byline {
   font-size: var(--fs-caption);
   font-weight: var(--fw-body);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   text-decoration: none;
   transition: color var(--dur-fast) var(--ease-out);
 }
@@ -227,6 +227,12 @@
   padding: var(--space-2);
 }
 
+.dropdownRow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+
 .dropdownItem {
   display: flex;
   align-items: center;
@@ -239,9 +245,10 @@
   transition: background var(--dur-fast) var(--ease-out);
   border: none;
   background: none;
-  width: 100%;
+  width: auto;
   text-align: left;
   font-family: var(--font-ui);
+  flex: 1;
 }
 
 .dropdownItem:hover {
@@ -268,7 +275,7 @@
 .dropdownItemMeta {
   margin-left: auto;
   font-size: var(--fs-caption);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -288,8 +295,8 @@
   align-items: center;
 }
 
-.dropdownItem:hover .deleteBtn,
-.dropdownItem:focus-within .deleteBtn {
+.dropdownRow:hover .deleteBtn,
+.dropdownRow:focus-within .deleteBtn {
   opacity: 1;
 }
 
@@ -384,4 +391,47 @@
 
 .dialogConfirmBtn:hover {
   opacity: 0.9;
+}
+
+@media (max-width: 580px) {
+  .toolbar {
+    height: auto;
+    min-height: var(--notebook-header-height);
+    flex-wrap: wrap;
+    row-gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .brand {
+    white-space: normal;
+  }
+
+  .newBtn,
+  .themeToggle,
+  .sessionTrigger {
+    min-height: 44px;
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .dropdownRow {
+    gap: var(--space-2);
+  }
+
+  .dropdownItem {
+    padding: var(--space-3);
+  }
+
+  .deleteBtn {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    opacity: 1;
+    justify-content: center;
+  }
+
+  .renameBtn,
+  .dialogCancelBtn,
+  .dialogConfirmBtn {
+    min-height: 44px;
+  }
 }

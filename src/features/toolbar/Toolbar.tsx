@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
+import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { AccessibleDialog } from '@/lib/components/AccessibleDialog';
-import { ChevronDown, X } from 'lucide-react';
+import { ChevronDown, Monitor, Moon, Sun, X } from 'lucide-react';
 import styles from './Toolbar.module.css';
 
 interface ToolbarProps {
   isGenerating?: boolean;
   onCancelGeneration?: () => void;
+  onCycleTheme?: () => void;
 }
 
-export function Toolbar({ isGenerating = false, onCancelGeneration }: ToolbarProps) {
+export function Toolbar({ isGenerating = false, onCancelGeneration, onCycleTheme }: ToolbarProps) {
   const { sessions, currentId, load, select, remove, updateCurrent } = useSessionStore();
+  const { theme } = useSettingsStore();
   const [open, setOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -71,16 +74,6 @@ export function Toolbar({ isGenerating = false, onCancelGeneration }: ToolbarPro
           e.preventDefault();
           setFocusIndex((prev) => Math.max(prev - 1, 0));
           break;
-        case 'Enter':
-        case ' ':
-          e.preventDefault();
-          if (focusIndex >= 0 && focusIndex < sessions.length) {
-            const session = sessions[focusIndex];
-            select(session.id);
-            setOpen(false);
-            setDeleteCandidate(null);
-          }
-          break;
         case 'Escape':
           e.preventDefault();
           if (deleteCandidate) {
@@ -122,6 +115,7 @@ export function Toolbar({ isGenerating = false, onCancelGeneration }: ToolbarPro
   const sessionToDelete = deleteCandidate
     ? sessions.find((s) => s.id === deleteCandidate)
     : undefined;
+  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
 
   return (
     <div className={styles.toolbar}>
@@ -150,6 +144,19 @@ export function Toolbar({ isGenerating = false, onCancelGeneration }: ToolbarPro
         </button>
       )}
 
+      {onCycleTheme && (
+        <button
+          className={styles.themeToggle}
+          onClick={onCycleTheme}
+          title={`Theme: ${theme}`}
+          aria-label={`Theme: ${theme}`}
+          type="button"
+        >
+          <ThemeIcon size={14} />
+          <span>Theme: {theme}</span>
+        </button>
+      )}
+
       <div className={styles.sessionSelect} ref={ref} onKeyDown={handleKeyDown}>
         <button
           className={styles.sessionTrigger}
@@ -166,32 +173,34 @@ export function Toolbar({ isGenerating = false, onCancelGeneration }: ToolbarPro
         </button>
 
         {open && (
-          <div className={styles.dropdown} role="menu" ref={dropdownRef}>
+          <div className={styles.dropdown} ref={dropdownRef}>
             {sessions.length === 0 && (
               <div className={styles.emptyState}>No saved sessions yet</div>
             )}
             {sessions.map((s, i) => (
-              <div
-                key={s.id}
-                className={[
-                  styles.dropdownItem,
-                  s.id === currentId ? styles.dropdownItemActive : '',
-                  i === focusIndex ? styles.dropdownItemFocused : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                data-session-item
-                role="menuitem"
-                tabIndex={i === focusIndex ? 0 : -1}
-                onClick={() => {
-                  select(s.id);
-                  setOpen(false);
-                  setDeleteCandidate(null);
-                }}
-                onMouseEnter={() => setFocusIndex(i)}
-              >
-                <span>{s.name}</span>
-                <span className={styles.dropdownItemMeta}>{formatDate(s.updatedAt)}</span>
+              <div key={s.id} className={styles.dropdownRow}>
+                <button
+                  className={[
+                    styles.dropdownItem,
+                    s.id === currentId ? styles.dropdownItemActive : '',
+                    i === focusIndex ? styles.dropdownItemFocused : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  data-session-item
+                  tabIndex={i === focusIndex ? 0 : -1}
+                  onClick={() => {
+                    select(s.id);
+                    setOpen(false);
+                    setDeleteCandidate(null);
+                  }}
+                  onMouseEnter={() => setFocusIndex(i)}
+                  aria-label={`Open session ${s.name}`}
+                  type="button"
+                >
+                  <span>{s.name}</span>
+                  <span className={styles.dropdownItemMeta}>{formatDate(s.updatedAt)}</span>
+                </button>
                 <button
                   className={styles.deleteBtn}
                   onClick={(e) => {

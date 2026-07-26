@@ -21,8 +21,23 @@ const ttsMock = vi.hoisted(() => ({
   pause: vi.fn(),
   resume: vi.fn(),
   hasSegment: vi.fn(() => false),
+  subscribe: vi.fn(() => 'mock-sub-id'),
+  unsubscribe: vi.fn(),
+  subscribeState: vi.fn(() => vi.fn()),
+  setRate: vi.fn(),
+  emitCharProgress: vi.fn(),
+  finishSegment: vi.fn(),
+  setCallbacks: vi.fn(),
+  clearQueue: vi.fn(),
+  skip: vi.fn(),
+  enqueueMultiple: vi.fn(),
   isPlaying: false,
   isPaused: false,
+  speechSynthesisAvailable: true,
+  isIdle: true,
+  currentSegmentId: null,
+  currentQueueIndex: -1,
+  queueLength: 0,
 }));
 Object.defineProperty(ttsMock, 'isPlaying', { get: () => false, configurable: true });
 Object.defineProperty(ttsMock, 'isPaused', { get: () => false, configurable: true });
