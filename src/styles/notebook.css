@@ -612,7 +612,7 @@
 /* --- Learning cue: resume/review prompt (notebook mode) --- */
 .notebookLearningCue {
   position: fixed;
-  top: 72px;
+  top: 120px;
   left: 20px;
   z-index: 70;
   display: flex;
