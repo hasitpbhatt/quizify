@@ -140,11 +140,9 @@ vi.mock('@/shared/stores/sessionStore', () => ({
   useSessionStore: mockSessionStore,
 }));
 
-const mockSetNotebookMode = vi.hoisted(() => vi.fn());
 const mockNotebookSetState = vi.hoisted(() => vi.fn());
 vi.mock('@/shared/stores/notebookStore', () => ({
   useNotebookStore: {
-    getState: () => ({ setNotebookMode: mockSetNotebookMode }),
     setState: mockNotebookSetState,
   },
 }));
@@ -170,7 +168,6 @@ beforeEach(() => {
   mockFetchSourceContent.mockReset();
   mockExecutePromptTask.mockReset();
   mockRunPipeline.mockReset();
-  mockSetNotebookMode.mockReset();
   mockNotebookSetState.mockReset();
 });
 
@@ -359,7 +356,7 @@ describe('App', () => {
     });
   });
 
-  it('enables notebook mode on successful session select', async () => {
+  it('opens the selected session on successful session select', async () => {
     mockSessionStore.setState({ sessions: [{ id: 'session-1' }], currentId: null });
 
     render(<App />);
@@ -370,36 +367,6 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.getByTestId('canvas-page')).toBeInTheDocument();
     });
-    expect(mockSetNotebookMode).toHaveBeenCalledWith(true);
-  });
-
-  it('restores graph view when saved notebook preference is "graph"', async () => {
-    sessionStorageMock.setItem('quizify:page', 'canvas');
-    sessionStorageMock.setItem('quizify:currentId', 'existing-session');
-    sessionStorageMock.setItem('quizify:notebookMode:existing-session', 'graph');
-    mockSessionStore.setState({ currentId: 'existing-session', sessions: [{ id: 'existing-session' }] });
-
-    render(<App />);
-
-    await vi.waitFor(() => {
-      expect(screen.getByTestId('canvas-page')).toBeInTheDocument();
-    });
-    expect(mockSetNotebookMode).toHaveBeenCalledWith(false);
-  });
-
-  it('selects session honoring saved graph preference', async () => {
-    sessionStorageMock.setItem('quizify:notebookMode:session-1', 'graph');
-    mockSessionStore.setState({ sessions: [{ id: 'session-1' }], currentId: null });
-
-    render(<App />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('select-session'));
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId('canvas-page')).toBeInTheDocument();
-    });
-    expect(mockSetNotebookMode).toHaveBeenCalledWith(false);
   });
 
   it('enables notebook mode before createSession during generate', async () => {

@@ -122,6 +122,13 @@
   justify-content: space-between;
 }
 
+.revealHint {
+  color: var(--text-tertiary);
+  font-size: var(--fs-caption);
+  font-style: italic;
+  margin-left: auto;
+}
+
 .quizBadge {
   font-size: var(--fs-caption);
   font-weight: var(--fw-caption);

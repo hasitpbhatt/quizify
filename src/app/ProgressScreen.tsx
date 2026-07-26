@@ -157,9 +157,11 @@ export function ProgressScreen({ progress, error, onCancel, previewData }: Progr
             <span className={styles.orbRing2} />
           </div>
           <h1 className={styles.title}>
-            {progress.stage === 'done' ? 'Almost ready' : 'Building your canvas'}
+            {progress.stage === 'done' ? 'Almost ready' : 'Building your lesson'}
           </h1>
-          <p className={styles.subtitle}>{progress.label}</p>
+          <p className={styles.subtitle} aria-live="polite">
+            {progress.label}
+          </p>
         </div>
 
         <ol className={styles.stages} aria-live="polite">

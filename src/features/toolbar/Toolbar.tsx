@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
-import { useNotebookStore } from '@/shared/stores/notebookStore';
-
 import { AccessibleDialog } from '@/lib/components/AccessibleDialog';
 import { ChevronDown, X } from 'lucide-react';
 import styles from './Toolbar.module.css';
 
-export function Toolbar() {
+interface ToolbarProps {
+  isGenerating?: boolean;
+  onCancelGeneration?: () => void;
+}
+
+export function Toolbar({ isGenerating = false, onCancelGeneration }: ToolbarProps) {
   const { sessions, currentId, load, select, remove, updateCurrent } = useSessionStore();
   const [open, setOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null);
@@ -73,7 +76,6 @@ export function Toolbar() {
           e.preventDefault();
           if (focusIndex >= 0 && focusIndex < sessions.length) {
             const session = sessions[focusIndex];
-            useNotebookStore.getState().setNotebookMode(true);
             select(session.id);
             setOpen(false);
             setDeleteCandidate(null);
@@ -137,6 +139,17 @@ export function Toolbar() {
 
       <div className={styles.spacer} />
 
+      {isGenerating && onCancelGeneration && (
+        <button
+          className={styles.newBtn}
+          onClick={onCancelGeneration}
+          aria-label="Cancel generation"
+          type="button"
+        >
+          Cancel generation
+        </button>
+      )}
+
       <div className={styles.sessionSelect} ref={ref} onKeyDown={handleKeyDown}>
         <button
           className={styles.sessionTrigger}
@@ -171,7 +184,6 @@ export function Toolbar() {
                 role="menuitem"
                 tabIndex={i === focusIndex ? 0 : -1}
                 onClick={() => {
-                  useNotebookStore.getState().setNotebookMode(true);
                   select(s.id);
                   setOpen(false);
                   setDeleteCandidate(null);

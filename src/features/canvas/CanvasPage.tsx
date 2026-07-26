@@ -14,19 +14,23 @@ import { QuizInteraction } from '@/features/quiz/QuizInteraction';
 import { SummaryQuizInteraction } from '@/features/quiz/SummaryQuizInteraction';
 import { NoteNode } from './nodes/NoteNode';
 import { MobileFocusView } from './MobileFocusView';
-import { useIsMobile } from '@/shared/useMediaQuery';
+import { useIsMobile, useMediaQuery } from '@/shared/useMediaQuery';
 import { useDismissibleCue } from '@/shared/useDismissibleCue';
 import {
   Play,
   Pause,
   Square,
-  X,
   Volume2,
   VolumeX,
   List,
   SkipForward,
   RefreshCw,
   AlertTriangle,
+  CircleHelp,
+  Monitor,
+  Moon,
+  Plus,
+  Sun,
 } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
@@ -129,20 +133,19 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const updateCurrent = useSessionStore((s) => s.updateCurrent);
   const isMobile = useIsMobile();
   const notebookMode = useNotebookStore((s) => s.notebookMode);
-  const toggleNotebookMode = useNotebookStore((s) => s.toggleNotebookMode);
   const immersiveNotebook = notebookMode;
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
   const ttsRate = useSettingsStore((s) => s.ttsRate);
   const setTtsEnabled = useSettingsStore((s) => s.setTtsEnabled);
   const setTtsRate = useSettingsStore((s) => s.setTtsRate);
+  const theme = useSettingsStore((s) => s.theme);
+  const setTheme = useSettingsStore((s) => s.setTheme);
   const ttsPlaying = useNotebookStore((s) => s.ttsPlaying);
   const ttsPaused = useNotebookStore((s) => s.ttsPaused);
   const segmentIndex = useNotebookStore((s) => s.segmentIndex);
   const totalSegments = useNotebookStore((s) => s.totalSegments);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const prefersReducedMotion = useRef<boolean>(
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  );
+  const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
   const conceptTitles = useMemo(() => {
     const map = new Map<string, string>();
@@ -269,6 +272,58 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     );
   }, [session, currentConceptIndex, revealedQuizIds, immersiveNotebook]);
 
+  const { orderedVisibleNodes, looseNotes } = useMemo(() => {
+    const baseNodes = visibleNodes.filter((node) => node.data.kind !== 'note');
+    const visibleConceptIds = new Set(
+      baseNodes.filter((node) => node.data.kind === 'concept').map((node) => node.id),
+    );
+    const notesByConcept = new Map<string, CanvasNode[]>();
+    const loose: CanvasNode[] = [];
+
+    for (const node of visibleNodes) {
+      if (node.data.kind !== 'note') continue;
+      const parentId = (node.data as NoteData).linkedConceptId;
+      if (!parentId || !visibleConceptIds.has(parentId)) {
+        loose.push(node);
+        continue;
+      }
+      const notes = notesByConcept.get(parentId) ?? [];
+      notes.push(node);
+      notesByConcept.set(parentId, notes);
+    }
+
+    const ordered: CanvasNode[] = [];
+    baseNodes.forEach((node, index) => {
+      ordered.push(node);
+      if (node.data.kind === 'concept') {
+        const hasQuiz = baseNodes.some(
+          (candidate) =>
+            candidate.data.kind === 'quiz' &&
+            (candidate.data as QuizData).parentConceptId === node.id,
+        );
+        if (!hasQuiz) ordered.push(...(notesByConcept.get(node.id) ?? []));
+        return;
+      }
+      if (node.data.kind !== 'quiz') return;
+      const parentId = (node.data as QuizData).parentConceptId;
+      const hasLaterQuiz = baseNodes
+        .slice(index + 1)
+        .some(
+          (later) =>
+            later.data.kind === 'quiz' && (later.data as QuizData).parentConceptId === parentId,
+        );
+      if (!hasLaterQuiz) ordered.push(...(notesByConcept.get(parentId) ?? []));
+    });
+
+    for (const [parentId, notes] of notesByConcept) {
+      if (!baseNodes.some((node) => node.id === parentId && node.data.kind === 'concept')) {
+        loose.push(...notes);
+      }
+    }
+
+    return { orderedVisibleNodes: ordered, looseNotes: loose };
+  }, [visibleNodes]);
+
   const handleNodeClick = useCallback(
     (canvasNode: CanvasNode) => {
       if (canvasNode.data.kind === 'quiz') {
@@ -280,10 +335,14 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       } else if (canvasNode.data.kind === 'summary') {
         setSummaryQuiz(true);
       } else if (canvasNode.data.kind === 'concept') {
+        if (notebookMode && canvasNode.data.index > currentConceptIndex) {
+          useToastStore.getState().add('Complete the current concept to unlock this lesson.');
+          return;
+        }
         focusOnActiveConcept(canvasNode.id, true);
       }
     },
-    [conceptTitles, focusOnActiveConcept],
+    [conceptTitles, currentConceptIndex, focusOnActiveConcept, notebookMode],
   );
 
   const handleCloseQuiz = useCallback(() => {
@@ -302,15 +361,30 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     if (!session) return;
 
     const noteId = `note-${Date.now()}`;
+    const linkedConceptId = currentConcept?.id;
     const noteNode: CanvasNode = {
       id: noteId,
       type: 'note',
-      data: { kind: 'note', text: '' } as NoteData,
+      data: { kind: 'note', text: '', linkedConceptId } as NoteData,
     };
 
-    const updatedNodes = [...session.nodes, noteNode];
+    let insertionIndex = session.nodes.length;
+    if (linkedConceptId) {
+      const parentAndQuizIndexes = session.nodes.reduce<number[]>((indexes, node, index) => {
+        const belongsToConcept =
+          node.id === linkedConceptId ||
+          (node.data.kind === 'quiz' &&
+            (node.data as QuizData).parentConceptId === linkedConceptId);
+        if (belongsToConcept) indexes.push(index);
+        return indexes;
+      }, []);
+      const lastIndex = parentAndQuizIndexes.at(-1);
+      if (lastIndex !== undefined) insertionIndex = lastIndex + 1;
+    }
+    const updatedNodes = [...session.nodes];
+    updatedNodes.splice(insertionIndex, 0, noteNode);
     updateCurrent({ nodes: updatedNodes });
-  }, [session, updateCurrent]);
+  }, [currentConcept?.id, session, updateCurrent]);
 
   const handleRetryConcept = useCallback(
     async (conceptId: string) => {
@@ -479,7 +553,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       lastConceptIndexRef.current = currentConceptIndex;
 
       ttsManager.stop();
-      if (ttsEnabled && !prefersReducedMotion.current) {
+      if (ttsEnabled && !prefersReducedMotion) {
         ttsManager.setRate(ttsRate);
         const text = `${currentConcept.data.title}. ${currentConcept.data.explanation}`;
         ttsManager.enqueue({ nodeId: currentConcept.id, text });
@@ -494,6 +568,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     focusOnActiveConcept,
     ttsEnabled,
     ttsRate,
+    prefersReducedMotion,
   ]);
 
   // Reduced-motion unlock: TTS narration is skipped under prefers-reduced-motion
@@ -506,7 +581,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   // -motion users this is a no-op (quizzes stay hidden until TTS narration ends,
   // preserving the intended "reveal after narration" pacing).
   useEffect(() => {
-    if (!immersiveNotebook || !session || !prefersReducedMotion.current) return;
+    if (!immersiveNotebook || !session || !prefersReducedMotion) return;
     const currentConcept = concepts.find((c) => c.data.index === currentConceptIndex);
     if (!currentConcept) return;
     const quizIds = session.nodes
@@ -522,7 +597,14 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       return next;
     });
     focusOnActiveConcept(currentConcept.id, true);
-  }, [immersiveNotebook, session, concepts, currentConceptIndex, focusOnActiveConcept]);
+  }, [
+    immersiveNotebook,
+    session,
+    concepts,
+    currentConceptIndex,
+    focusOnActiveConcept,
+    prefersReducedMotion,
+  ]);
 
   // Stop TTS narration when exiting notebook mode or while content is still generating
   useEffect(() => {
@@ -694,14 +776,17 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const handleKbEscape = useCallback(() => {
     if (activeQuiz) setActiveQuiz(null);
     else if (summaryQuiz) setSummaryQuiz(false);
-    else if (notebookMode) toggleNotebookMode();
-  }, [activeQuiz, summaryQuiz, notebookMode, toggleNotebookMode]);
+  }, [activeQuiz, summaryQuiz]);
 
   const handleKbHelp = useCallback(() => {
-    useToastStore
-      .getState()
-      .add('Shortcuts: N = Add note · ? = Show this · Esc = Close quiz / exit Tutor');
+    useToastStore.getState().add('Shortcuts: N = Add note · ? = Show this · Esc = Close quiz');
   }, []);
+
+  const cycleTheme = useCallback(() => {
+    const next = theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light';
+    setTheme(next);
+  }, [setTheme, theme]);
+  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
 
   // Global keyboard shortcuts: N = add note, ? = help, Escape = close quiz
   useKeyboardShortcuts({
@@ -714,7 +799,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   if (!session || (visibleNodes.length === 0 && !isGenerating)) {
     return (
       <div className={styles.empty}>
-        <p>No lesson data yet.</p>
+        <p>We couldn&apos;t load this lesson. Try starting a new one or refresh the page.</p>
         {onHome && (
           <button className={styles.emptyAction} onClick={onHome} type="button">
             Start a new lesson
@@ -741,10 +826,81 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     currentConceptIndex >= concepts.length &&
     (session?.nodes.some((node) => node.id === SUMMARY_NODE_ID) ?? false);
 
+  const renderNode = (canvasNode: CanvasNode) => {
+    const kind = canvasNode.data.kind;
+    const isActionable = kind !== 'note';
+    const accessibleLabel =
+      kind === 'concept'
+        ? `Concept ${(canvasNode.data as ConceptData).index + 1}: ${(canvasNode.data as ConceptData).title}`
+        : kind === 'quiz'
+          ? `Quiz: ${(canvasNode.data as QuizData).prompt}`
+          : kind === 'summary'
+            ? 'Open final quiz summary'
+            : undefined;
+    return (
+      <div
+        key={canvasNode.id}
+        className={styles.nodeItem}
+        role={isActionable ? 'button' : undefined}
+        tabIndex={isActionable ? 0 : undefined}
+        aria-label={accessibleLabel}
+        data-concept-id={kind === 'concept' ? canvasNode.id : undefined}
+        id={
+          kind === 'concept' && (canvasNode.data as ConceptData).index === 0
+            ? 'quizify-first-concept'
+            : undefined
+        }
+        onClick={() => isActionable && handleNodeClick(canvasNode)}
+        onKeyDown={(event) => {
+          if (!isActionable || event.target !== event.currentTarget) return;
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            handleNodeClick(canvasNode);
+          }
+        }}
+      >
+        {kind === 'concept' && (
+          <ConceptNode
+            id={canvasNode.id}
+            data={canvasNode.data as ConceptData}
+            currentConceptIndex={currentConceptIndex}
+            isGenerating={isGenerating}
+            onClick={() => handleNodeClick(canvasNode)}
+          />
+        )}
+        {kind === 'quiz' && (
+          <QuizNode
+            id={canvasNode.id}
+            data={canvasNode.data as QuizData}
+            currentConceptIndex={currentConceptIndex}
+            revealed={revealedQuizIds.has(canvasNode.id)}
+            onClick={() => handleNodeClick(canvasNode)}
+          />
+        )}
+        {kind === 'summary' && (
+          <SummaryNode
+            id={canvasNode.id}
+            data={canvasNode.data as SummaryData}
+            onClick={() => handleNodeClick(canvasNode)}
+          />
+        )}
+        {kind === 'note' && (
+          <NoteNode
+            id={canvasNode.id}
+            data={canvasNode.data as NoteData}
+            linkedConceptTitle={conceptTitles.get(
+              (canvasNode.data as NoteData).linkedConceptId ?? '',
+            )}
+          />
+        )}
+      </div>
+    );
+  };
+
   if (isMobile && session) {
     return (
       <MobileFocusView
-        nodes={visibleNodes}
+        nodes={[...orderedVisibleNodes, ...looseNotes]}
         progress={progress}
         isGenerating={isGenerating}
         onHome={onHome}
@@ -760,54 +916,29 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         <CanvasErrorFallback error={error} onReset={reset} onHome={onHome ?? (() => {})} />
       )}
     >
-      <div
+      <main
         ref={containerRef}
         className={styles.container}
         data-notebook="true"
         data-generating={isGenerating ? 'true' : undefined}
+        aria-label="Lesson"
       >
-        <div className={styles.nodeList}>
-          {visibleNodes.map((canvasNode) => {
-            const kind = canvasNode.data.kind;
-            return (
-              <div
-                key={canvasNode.id}
-                className={styles.nodeItem}
-                data-concept-id={kind === 'concept' ? canvasNode.id : undefined}
-                onClick={() => kind !== 'note' && handleNodeClick(canvasNode)}
-              >
-                {kind === 'concept' && (
-                  <ConceptNode
-                    id={canvasNode.id}
-                    data={canvasNode.data as ConceptData}
-                    currentConceptIndex={currentConceptIndex}
-                    isGenerating={isGenerating}
-                    onClick={() => handleNodeClick(canvasNode)}
-                  />
-                )}
-                {kind === 'quiz' && (
-                  <QuizNode
-                    id={canvasNode.id}
-                    data={canvasNode.data as QuizData}
-                    currentConceptIndex={currentConceptIndex}
-                    revealed={revealedQuizIds.has(canvasNode.id)}
-                    onClick={() => handleNodeClick(canvasNode)}
-                  />
-                )}
-                {kind === 'summary' && (
-                  <SummaryNode
-                    id={canvasNode.id}
-                    data={canvasNode.data as SummaryData}
-                    onClick={() => handleNodeClick(canvasNode)}
-                  />
-                )}
-                {kind === 'note' && (
-                  <NoteNode id={canvasNode.id} data={canvasNode.data as NoteData} />
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <a className={styles.skipLink} href="#quizify-first-concept">
+          Skip to lesson
+        </a>
+        {nextAction?.kind === 'complete' && (
+          <section className={styles.completionBanner} aria-label="Lesson complete">
+            <strong>Lesson complete</strong>
+            <span>You reviewed every concept. Take the final quiz whenever you&apos;re ready.</span>
+          </section>
+        )}
+        <div className={styles.nodeList}>{orderedVisibleNodes.map(renderNode)}</div>
+        {looseNotes.length > 0 && (
+          <section className={styles.looseNotes} aria-labelledby="loose-notes-heading">
+            <h2 id="loose-notes-heading">Loose notes</h2>
+            <div className={styles.nodeList}>{looseNotes.map(renderNode)}</div>
+          </section>
+        )}
 
         {showProgress && (
           <div className={styles.progressBadge}>
@@ -940,28 +1071,61 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                   Concept {currentConceptIndex + 1} of {concepts.length}
                 </span>
               )}
-              <button onClick={toggleNotebookMode} title="Exit Notebook">
-                <X size={14} />
+              <button onClick={handleAddNote} title="Add note" aria-label="Add note" type="button">
+                <Plus size={14} />
               </button>
-              <div className="notebookDivider" />
-              <button onClick={() => setShowOutline((v) => !v)} title="Table of contents">
+              <button
+                onClick={handleKbHelp}
+                title="Keyboard shortcuts"
+                aria-label="Keyboard shortcuts"
+                type="button"
+              >
+                <CircleHelp size={14} />
+              </button>
+              <button
+                onClick={cycleTheme}
+                title={`Theme: ${theme}`}
+                aria-label={`Theme: ${theme}`}
+                type="button"
+              >
+                <ThemeIcon size={14} />
+              </button>
+              <button
+                onClick={() => setShowOutline((v) => !v)}
+                title="Table of contents"
+                aria-label="Table of contents"
+                aria-expanded={showOutline}
+                aria-controls="notebook-outline"
+                type="button"
+              >
                 <List size={14} />
               </button>
               <button
                 onClick={() => setTtsEnabled(!ttsEnabled)}
                 title={ttsEnabled ? 'Mute narration' : 'Unmute narration'}
-                aria-pressed={!ttsEnabled}
+                aria-label="Narration"
+                aria-pressed={ttsEnabled}
+                type="button"
               >
                 {ttsEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
               </button>
               <button
                 onClick={() => ttsManager.skip()}
                 title="Skip segment"
+                aria-label="Skip narration segment"
                 disabled={!ttsPlaying && !ttsPaused}
+                type="button"
               >
                 <SkipForward size={14} />
               </button>
-              <button onClick={handlePlayPause} title={ttsPaused ? 'Resume' : 'Play/Pause'}>
+              <button
+                onClick={handlePlayPause}
+                title={ttsPaused ? 'Resume' : ttsPlaying ? 'Pause' : 'Play narration'}
+                aria-label={
+                  ttsPaused ? 'Resume narration' : ttsPlaying ? 'Pause narration' : 'Play narration'
+                }
+                type="button"
+              >
                 {ttsPaused ? (
                   <Play size={14} />
                 ) : ttsPlaying ? (
@@ -970,7 +1134,13 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                   <Play size={14} />
                 )}
               </button>
-              <button onClick={handleStopTts} title="Stop" disabled={!ttsPlaying && !ttsPaused}>
+              <button
+                onClick={handleStopTts}
+                title="Stop"
+                aria-label="Stop narration"
+                disabled={!ttsPlaying && !ttsPaused}
+                type="button"
+              >
                 <Square size={14} />
               </button>
               <span className="notebookDivider" />
@@ -1017,6 +1187,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
           >
             <div
               className="notebookOutlinePanel"
+              id="notebook-outline"
               ref={outlineRef}
               onClick={(e) => e.stopPropagation()}
             >
@@ -1090,7 +1261,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
             />
           </ErrorBoundary>
         )}
-      </div>
+      </main>
     </ErrorBoundary>
   );
 }

@@ -12,7 +12,7 @@ interface SummaryNodeProps {
   onClick: () => void;
 }
 
-function SummaryNodeInner({ id, data }: SummaryNodeProps) {
+function SummaryNodeInner({ id, data, onClick }: SummaryNodeProps) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
 
   const { fullText, bulletOffsets } = useMemo(() => {
@@ -66,7 +66,7 @@ function SummaryNodeInner({ id, data }: SummaryNodeProps) {
   };
 
   return (
-    <div className={styles.node}>
+    <div className={styles.node} onClick={onClick}>
       <div className={styles.header}>Summary</div>
       <div className={styles.recap}>{renderRecap()}</div>
       <div className={styles.quizCount}>

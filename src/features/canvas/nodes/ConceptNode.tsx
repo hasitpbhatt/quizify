@@ -129,9 +129,13 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
   return (
     <div
       className={nodeClass}
-      onClick={() => {
-        if (isAnimating) skipAnimation();
-        else onClick();
+      onClick={(event) => {
+        if (isAnimating) {
+          event.stopPropagation();
+          skipAnimation();
+        } else {
+          onClick();
+        }
       }}
     >
       <div className={styles.title} data-typing={isTitleAnimating ? 'true' : undefined}>
@@ -175,6 +179,7 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
         ) : (
           <span className={styles.quizBadge}>Concept {data.index + 1}</span>
         )}
+        {isAnimating && <span className={styles.revealHint}>Click to reveal faster</span>}
         <button
           onClick={(e) => {
             e.stopPropagation();
