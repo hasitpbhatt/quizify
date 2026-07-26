@@ -239,7 +239,6 @@
     padding: var(--space-4);
     justify-content: center;
   }
-
   .personaGrid {
     grid-template-columns: 1fr;
   }
@@ -252,6 +251,54 @@
 
   .heading {
     font-size: clamp(2rem, 10vw, 2.75rem);
+  }
+  .errorDismiss,
+  .storageDismiss {
+    width: 44px;
+    height: 44px;
+  }
+  .chips {
+    gap: var(--space-3);
+  }
+  .chip {
+    min-height: 44px;
+    padding: var(--space-3) var(--space-4);
+    justify-content: center;
+  }
+  .personaRow {
+    align-items: flex-start;
+  }
+  .sessionToggle {
+    min-height: 44px;
+    padding: var(--space-3) var(--space-4);
+  }
+  .sessionCardRow {
+    gap: var(--space-3);
+  }
+  .sessionDelete {
+    width: 44px;
+    height: 44px;
+    opacity: 1;
+  }
+  .sessionCard {
+    min-height: 44px;
+    padding: var(--space-4);
+  }
+  .resumeCard {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .resumeAction {
+    justify-content: center;
+  }
+  .dialogButtons {
+    flex-direction: column-reverse;
+  }
+  .dialogCancelBtn,
+  .dialogConfirmBtn {
+    min-height: 44px;
+    width: 100%;
+  }
   }
 }
 
@@ -282,6 +329,12 @@
   gap: var(--space-2);
 }
 
+.sessionCardRow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
 .sessionCard {
   display: flex;
   align-items: center;
@@ -296,6 +349,9 @@
     border-color var(--dur-fast) var(--ease-out),
     transform var(--dur-fast) var(--ease-out);
   color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  width: 100%;
 }
 
 .sessionCard:hover {
@@ -360,7 +416,8 @@
   flex-shrink: 0;
 }
 
-.sessionCard:hover .sessionDelete {
+.sessionCardRow:hover .sessionDelete,
+.sessionCardRow:focus-within .sessionDelete {
   opacity: 1;
 }
 
@@ -534,6 +591,26 @@
 
 .errorDismiss:hover {
   background: rgba(224, 49, 49, 0.2);
+}
+
+.storageDismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.storageDismiss:hover {
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .generateHint {

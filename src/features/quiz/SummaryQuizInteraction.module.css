@@ -111,17 +111,17 @@
 
 .breakdownGreen {
   composes: breakdownValue;
-  color: #22c55e;
+  color: var(--feedback-success-text);
 }
 
 .breakdownYellow {
   composes: breakdownValue;
-  color: #eab308;
+  color: var(--feedback-warning-text);
 }
 
 .breakdownRed {
   composes: breakdownValue;
-  color: #ef4444;
+  color: var(--feedback-danger-text);
 }
 
 .actions {
@@ -152,4 +152,51 @@
   cursor: pointer;
   font-family: var(--font-ui);
   font-size: 13px;
+}
+
+.recoveryPanel {
+  margin: 0 0 16px;
+  padding: 16px;
+  border: 1px solid var(--warning);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  text-align: left;
+}
+
+.recoveryTitle {
+  margin-bottom: 8px;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.recoveryBody {
+  display: grid;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.recoveryBody p {
+  margin: 0;
+}
+
+.recoveryAnswer {
+  color: var(--text-primary);
+}
+
+.recoveryAnswer span {
+  color: var(--feedback-warning-text);
+  font-weight: 600;
+}
+
+.recoveryActions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 16px;
+  flex-wrap: wrap;
 }

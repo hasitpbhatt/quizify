@@ -233,7 +233,9 @@ describe('QuizInteraction', () => {
     });
 
     renderQuiz();
-    expect(screen.getByRole('alert')).toHaveTextContent('API error occurred');
+    const alerts = screen.getAllByRole('alert');
+    const errorAlert = alerts.find((a) => a.className.includes('error'));
+    expect(errorAlert).toHaveTextContent('API error occurred');
   });
 
   it('shows attempts list', () => {
@@ -422,7 +424,8 @@ describe('QuizInteraction', () => {
       />,
     );
 
-    expect(screen.getByRole('alert')).toBe(alert);
+    const newAlerts = screen.getAllByRole('alert');
+    expect(newAlerts[0]).toBe(alert);
     expect(alert).toHaveTextContent('Grading failed');
   });
 });

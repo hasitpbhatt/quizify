@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTheme } from './useTheme';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useSessionStore } from '@/shared/stores/sessionStore';
-import { Plus, Sun, Moon, Monitor } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { WelcomeModal } from '@/features/welcome/WelcomeModal';
 import { Toolbar } from '@/features/toolbar/Toolbar';
@@ -57,6 +57,7 @@ export function App() {
     title: string;
     snippet: string;
     provenance: SourceProvenance;
+    url: string;
     onConfirm: () => void;
     onCancel: () => void;
   } | null>(null);
@@ -209,7 +210,14 @@ export function App() {
             reject(new DOMException('Aborted', 'AbortError'));
           };
 
-          setPreviewData({ title, snippet, provenance: src.provenance, onConfirm, onCancel });
+          setPreviewData({
+            title,
+            snippet,
+            provenance: src.provenance,
+            url: src.url,
+            onConfirm,
+            onCancel,
+          });
         });
       }
 
@@ -304,24 +312,18 @@ export function App() {
     const next = theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light';
     setTheme(next);
   };
-  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
-
   const main =
     page === 'progress' ? (
       <div key="progress" className="pageEnter">
-        <Toolbar isGenerating={isGenerating} onCancelGeneration={handleCancel} />
+        <Toolbar
+          isGenerating={isGenerating}
+          onCancelGeneration={handleCancel}
+          onCycleTheme={cycleTheme}
+        />
         <div className={styles.actionBar}>
           <button className={styles.actionBtn} onClick={goWelcome} type="button">
             <Plus size={14} />
             <span>Cancel generation</span>
-          </button>
-          <button
-            className={styles.actionBtn}
-            onClick={cycleTheme}
-            title={'Theme: ' + theme}
-            type="button"
-          >
-            <ThemeIcon size={14} />
           </button>
         </div>
         <ProgressScreen
@@ -333,7 +335,11 @@ export function App() {
       </div>
     ) : page === 'canvas' ? (
       <div key="canvas" className={isGenerating ? 'pageEnterInstant' : 'pageEnter'}>
-        <Toolbar isGenerating={isGenerating} onCancelGeneration={handleCancel} />
+        <Toolbar
+          isGenerating={isGenerating}
+          onCancelGeneration={handleCancel}
+          onCycleTheme={cycleTheme}
+        />
         <CanvasPage progress={progress} isGenerating={isGenerating} onHome={goWelcome} />
       </div>
     ) : (

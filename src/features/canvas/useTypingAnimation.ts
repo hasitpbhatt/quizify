@@ -93,14 +93,6 @@ export function useTypingAnimation(
     const onProgress = (nid: string, charIndex: number) => {
       if (nid !== nodeId) return;
       hasReceivedProgressRef.current = true;
-      if (fallbackTimeoutRef.current) {
-        clearTimeout(fallbackTimeoutRef.current);
-        fallbackTimeoutRef.current = null;
-      }
-      if (fallbackIntervalRef.current) {
-        clearInterval(fallbackIntervalRef.current);
-        fallbackIntervalRef.current = null;
-      }
       targetRef.current = Math.max(targetRef.current, Math.min(charIndex, fullText.length));
     };
 

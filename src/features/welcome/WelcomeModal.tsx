@@ -117,62 +117,58 @@ function SessionCard({
   const progressLabel = formatConceptProgress(session);
 
   return (
-    <div
-      className={styles.sessionCard}
-      onClick={() => onSelect(session.id)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect(session.id);
-        }
-      }}
-    >
-      {badge && <span className={styles.resumeBadge}>{badge}</span>}
-      <ArrowRight size={14} className={styles.sessionCardArrow} />
-      <Icon size={16} />
-      <div className={styles.sessionInfo}>
-        <span className={styles.sessionName}>{session.name}</span>
-        <span className={styles.sessionMeta}>
-          {session.hostname && (
-            <>
-              <Globe size={11} />
-              <span>{session.hostname}</span>
-              <span className={styles.sessionDot}>·</span>
-            </>
-          )}
-          <Clock size={11} />
-          <span>{relativeTime(new Date(session.updatedAt))}</span>
-          {conceptCount > 0 && (
-            <>
-              <span className={styles.sessionDot}>·</span>
-              <span>
-                {conceptCount} concept
-                {conceptCount !== 1 ? 's' : ''}
-              </span>
-            </>
-          )}
-          {progressLabel && (
-            <>
-              <span className={styles.sessionDot}>·</span>
-              <span
-                style={{
-                  color: progressLabel === 'Completed' ? 'var(--success)' : 'var(--text-secondary)',
-                }}
-              >
-                {progressLabel}
-              </span>
-            </>
-          )}
-        </span>
-      </div>
+    <div className={styles.sessionCardRow}>
+      <button
+        className={styles.sessionCard}
+        onClick={() => onSelect(session.id)}
+        type="button"
+        aria-label={`Open session ${session.name}`}
+      >
+        {badge && <span className={styles.resumeBadge}>{badge}</span>}
+        <ArrowRight size={14} className={styles.sessionCardArrow} />
+        <Icon size={16} />
+        <div className={styles.sessionInfo}>
+          <span className={styles.sessionName}>{session.name}</span>
+          <span className={styles.sessionMeta}>
+            {session.hostname && (
+              <>
+                <Globe size={11} />
+                <span>{session.hostname}</span>
+                <span className={styles.sessionDot}>·</span>
+              </>
+            )}
+            <Clock size={11} />
+            <span>{relativeTime(new Date(session.updatedAt))}</span>
+            {conceptCount > 0 && (
+              <>
+                <span className={styles.sessionDot}>·</span>
+                <span>
+                  {conceptCount} concept
+                  {conceptCount !== 1 ? 's' : ''}
+                </span>
+              </>
+            )}
+            {progressLabel && (
+              <>
+                <span className={styles.sessionDot}>·</span>
+                <span
+                  style={{
+                    color:
+                      progressLabel === 'Completed'
+                        ? 'var(--feedback-success-text)'
+                        : 'var(--text-secondary)',
+                  }}
+                >
+                  {progressLabel}
+                </span>
+              </>
+            )}
+          </span>
+        </div>
+      </button>
       <button
         className={styles.sessionDelete}
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(session.id);
-        }}
+        onClick={() => onDelete(session.id)}
         aria-label={`Delete session ${session.name}`}
         type="button"
       >
@@ -373,7 +369,7 @@ export function WelcomeModal({
             <span>Quizify · Learn anything, visually</span>
           </div>
           <h1 id="welcome-heading" className={styles.heading}>
-            Turn any topic into a lesson you’ll actually remember.
+            Turn any topic into a guided lesson you actually remember.
           </h1>
           <p className={styles.subheading}>
             Paste a URL or topic. Quizify builds a guided, interactive lesson — concepts, quizzes,

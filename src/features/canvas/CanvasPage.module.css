@@ -107,7 +107,7 @@
   z-index: 10;
   font-family: var(--font-ui);
   font-size: var(--fs-small);
-  color: var(--text-secondary);
+  color: var(--text-primary);
   background: var(--bg-glass);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
@@ -228,7 +228,7 @@
 .recoveryItem button,
 .continueToQuiz,
 .finalQuizAction {
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-ui);
@@ -266,15 +266,83 @@
 }
 
 .sourceBadge {
+  display: inline-flex;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+
+.lessonMetaRow {
   position: absolute;
   top: 44px;
   left: 50%;
   z-index: 11;
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: min(94vw, 820px);
+}
+
+.sourceDetails {
+  position: relative;
+}
+
+.sourceDetails > summary {
+  list-style: none;
+}
+
+.sourceDetails > summary::-webkit-details-marker {
+  display: none;
+}
+
+.sourceDetailsBody {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(320px, 85vw);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  line-height: var(--lh-normal);
+}
+
+.sourceDetailsBody p {
+  margin: 0 0 var(--space-2);
+}
+
+.sourceDetailsBody p:last-of-type {
+  margin-bottom: var(--space-3);
+}
+
+.sourceUrl {
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.sourceDetailsBody a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: var(--fw-h2);
+}
+
+.saveStatus {
   padding: 3px 10px;
   border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
   background: var(--bg-glass);
-  color: var(--text-tertiary);
+  color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: var(--fs-caption);
   white-space: nowrap;
