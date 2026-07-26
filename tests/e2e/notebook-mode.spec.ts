@@ -26,8 +26,8 @@ test.describe('Notebook mode', () => {
     // Container has notebook data attribute
     await expect(page.locator('[data-notebook="true"]')).toHaveCount(1);
 
-    // Typewriter animation active on at least one element
-    await expect(page.locator('[data-typing="true"]')).not.toHaveCount(0);
+    // Typewriter animation is skipped under prefers-reduced-motion
+    await expect(page.locator('[data-typing="true"]')).toHaveCount(0);
 
     // No minimap or controls (notebook-only mode)
     await expect(page.locator('.react-flow__minimap')).toHaveCount(0);

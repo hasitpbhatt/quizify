@@ -21,6 +21,7 @@ const MIME: Record<string, string> = {
 };
 
 export async function setupPage(page: Page): Promise<void> {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.protocol !== 'http:' && url.protocol !== 'https:') {

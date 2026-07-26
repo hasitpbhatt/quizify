@@ -373,7 +373,7 @@ export function WelcomeModal({
             <span>Quizify · Learn anything, visually</span>
           </div>
           <h1 id="welcome-heading" className={styles.heading}>
-            Turn any topic into a canvas you actually remember.
+            Turn any topic into a lesson you’ll actually remember.
           </h1>
           <p className={styles.subheading}>
             Paste a URL or topic. Quizify builds a guided, interactive lesson — concepts, quizzes,
