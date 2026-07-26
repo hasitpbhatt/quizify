@@ -4,6 +4,72 @@
   background: var(--bg-canvas);
 }
 
+.nodeItem[role='button'] {
+  cursor: pointer;
+}
+
+.nodeItem[role='button']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
+  border-radius: var(--radius-lg);
+}
+
+.skipLink {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 120;
+  transform: translateY(-140%);
+  padding: 8px 12px;
+  border-radius: var(--radius-ui);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.skipLink:focus {
+  transform: translateY(0);
+}
+
+.looseNotes {
+  width: min(720px, calc(100% - 32px));
+  margin: var(--space-8) auto var(--space-12);
+  padding-top: var(--space-5);
+  border-top: 1px dashed var(--border);
+}
+
+.looseNotes h2 {
+  margin: 0 0 var(--space-3);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-h2);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.completionBanner {
+  width: min(720px, calc(100% - 32px));
+  margin: var(--space-5) auto 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--accent-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-family: var(--font-ui);
+}
+
+.completionBanner span {
+  color: var(--text-secondary);
+  font-size: var(--fs-small);
+}
+
 .empty {
   height: calc(100vh - 48px);
   display: flex;
@@ -31,93 +97,6 @@
 
 .emptyAction:hover {
   border-color: var(--accent);
-}
-
-.actionsRow {
-  position: absolute;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.actionBtn {
-  height: 40px;
-  padding: 0 var(--space-4);
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
-  background: var(--bg-glass);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--fs-small);
-  font-weight: var(--fw-h2);
-  cursor: pointer;
-  box-shadow: var(--shadow-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  transition:
-    transform var(--dur-fast) var(--ease-out),
-    background var(--dur-fast) var(--ease-out),
-    box-shadow var(--dur-fast) var(--ease-out);
-  white-space: nowrap;
-}
-
-.actionBtn:hover {
-  transform: scale(var(--hover-scale));
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow-lg);
-}
-
-.actionBtn:active {
-  transform: scale(var(--hover-scale-active));
-}
-
-.exportWrapper {
-  position: relative;
-}
-
-.exportDropdown {
-  position: absolute;
-  left: 0;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  overflow: hidden;
-  min-width: 130px;
-}
-
-.exportDropdown[data-open-up='true'] {
-  bottom: calc(100% + 6px);
-}
-
-.exportDropdown[data-open-up='false'] {
-  top: calc(100% + 6px);
-}
-
-.exportDropdown button {
-  display: block;
-  width: 100%;
-  padding: var(--space-2) var(--space-4);
-  border: none;
-  background: transparent;
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--fs-small);
-  cursor: pointer;
-  text-align: left;
-  transition: background var(--dur-fast) var(--ease-out);
-}
-
-.exportDropdown button:hover {
-  background: var(--bg-subtle);
 }
 
 .progressBadge {
@@ -163,65 +142,6 @@
     opacity: 0.45;
     transform: scale(0.85);
   }
-}
-
-.graphCue {
-  position: absolute;
-  top: 56px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  animation: graphCueIn 0.3s var(--ease-out) both;
-  max-width: min(90vw, 440px);
-  font-family: var(--font-ui);
-}
-
-.graphCueContent {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.graphCueTitle {
-  font-size: var(--fs-small);
-  font-weight: var(--fw-h2);
-  color: var(--text-primary);
-}
-
-.graphCueText {
-  font-size: var(--fs-caption);
-  color: var(--text-secondary);
-  line-height: 1.4;
-}
-
-.graphCueClose {
-  flex-shrink: 0;
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-ui);
-  background: var(--bg-subtle);
-  color: var(--text-primary);
-  font-size: var(--fs-caption);
-  font-family: var(--font-ui);
-  font-weight: var(--fw-h2);
-  cursor: pointer;
-  transition:
-    border-color var(--dur-fast),
-    background var(--dur-fast);
-}
-
-.graphCueClose:hover {
-  border-color: var(--border-strong);
-  background: var(--bg-elevated);
 }
 
 .buildingState {
@@ -371,45 +291,6 @@
   }
 }
 
-.react-flow__controls-button {
-  background: var(--bg-elevated);
-  border-bottom-color: var(--border);
-  color: var(--text-primary);
-  fill: var(--text-primary);
-}
-
-.react-flow__controls-button:hover {
-  background: var(--bg-subtle);
-}
-
-.exitNotebookBtn {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 11;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--bg-glass);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  color: var(--text-primary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: var(--shadow-md);
-  transition:
-    transform var(--dur-fast) var(--ease-out),
-    background var(--dur-fast) var(--ease-out);
-}
-
-.exitNotebookBtn:hover {
-  transform: scale(1.08);
-  background: var(--bg-elevated);
-}
-
 .container[data-generating='true'] {
   animation: none;
 }
@@ -424,28 +305,5 @@
   }
   to {
     opacity: 1;
-  }
-}
-
-@keyframes graphCueIn {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .actionBtn {
-    transition: none;
-  }
-  .actionBtn:hover {
-    transform: none;
-  }
-  .actionBtn:active {
-    transform: none;
   }
 }

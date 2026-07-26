@@ -47,7 +47,8 @@ function loadNumber(key: string, fallback: number): number {
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   persona: (loadString('quizify:persona') as Persona | '') || 'curious',
   theme: getPreferredTheme(),
-  ttsEnabled: loadBool('quizify:ttsEnabled', true),
+  // Narration is opt-in so a lesson never starts audio unexpectedly.
+  ttsEnabled: loadBool('quizify:ttsEnabled', false),
   ttsRate: loadNumber('quizify:ttsRate', 1),
 
   setPersona: (persona) => {

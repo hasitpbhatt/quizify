@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor, screen, fireEvent } from '@testing-library/react';
-import { ReactFlowProvider } from '@xyflow/react';
 import { CanvasPage } from '@/features/canvas/CanvasPage';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
+import { useSettingsStore } from '@/shared/stores/settingsStore';
 import * as sessionsDb from '@/lib/db/sessionsDb';
 import type { ConceptData } from '@/shared/types';
 import * as factories from '../../shared/factories';
@@ -51,11 +51,7 @@ Object.defineProperty(ttsMock, 'isPaused', {
 vi.mock('@/lib/llm/ttsManager', () => ({ ttsManager: ttsMock }));
 
 function renderCanvas() {
-  return render(
-    <ReactFlowProvider>
-      <CanvasPage />
-    </ReactFlowProvider>,
-  );
+  return render(<CanvasPage />);
 }
 
 async function seedSessionWithOneConcept() {
@@ -95,6 +91,7 @@ beforeEach(() => {
     totalSegments: 0,
     completedTypingNodeIds: {},
   });
+  useSettingsStore.setState({ ttsEnabled: true });
   useSessionStore.setState({ sessions: [], currentId: null, loaded: false });
 });
 
@@ -168,8 +165,7 @@ describe('CanvasPage — notebook-mode reduced-motion quiz reveal (NB-1)', () =>
   async function seedSessionWithConceptAndQuiz() {
     const concept = factories.mockConceptNode();
     const quiz = factories.mockQuizNode(concept.id);
-    const edge = factories.mockEdge(concept.id, quiz.id);
-    const session = factories.mockSession([concept, quiz], [edge]);
+    const session = factories.mockSession([concept, quiz], []);
     await sessionsDb.putSession(session);
     useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
     return { session, concept, quiz };
@@ -204,13 +200,13 @@ describe('CanvasPage — notebook-mode reduced-motion quiz reveal (NB-1)', () =>
   });
 
   it('reveals the active concept\'s quizzes without TTS narration under reduced-motion', async () => {
-    const { quiz } = await seedSessionWithConceptAndQuiz();
+    await seedSessionWithConceptAndQuiz();
 
-    const { container } = renderCanvas();
+    renderCanvas();
 
     // Quiz node should be rendered (visible) even though TTS never started.
     await waitFor(() => {
-      expect(container.querySelector(`.react-flow__node[data-id="${quiz.id}"]`)).not.toBeNull();
+      expect(screen.getByText('What is a qubit?')).toBeInTheDocument();
     });
 
     // No audio should have been enqueued or started under reduced-motion.
@@ -299,9 +295,8 @@ describe('CanvasPage — notebook mode indicator (NB-8)', () => {
 
     renderCanvas();
 
-    const progress = await screen.findByText(/Concept/);
+    const progress = await screen.findByText(/Concept \d+ of \d+/);
     expect(progress).toBeInTheDocument();
-    expect(progress.textContent).toMatch(/Concept.*of.*1/);
   });
 });
 
@@ -320,10 +315,10 @@ describe('CanvasPage — notebook reading-position persistence (NB-6)', () => {
       JSON.stringify({ conceptIndex: 0, viewport: { x: 0, y: 0, zoom: 1 }, revealedQuizIds: [quiz.id] }),
     );
 
-    const { container } = renderCanvas();
+    renderCanvas();
 
     await waitFor(() => {
-      expect(container.querySelector(`.react-flow__node[data-id="${quiz.id}"]`)).not.toBeNull();
+      expect(screen.getByText('What is a qubit?')).toBeInTheDocument();
     });
   });
 });

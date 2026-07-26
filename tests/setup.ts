@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 import '@testing-library/jest-dom';
 import 'fake-indexeddb/auto';
 
-// Polyfill browser APIs required by @xyflow/react and roughjs
+// Polyfill browser APIs
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -26,7 +26,13 @@ if (!globalThis.crypto?.randomUUID) {
   });
 }
 
-// requestAnimationFrame — React Flow uses it for internal scheduling
+// scrollIntoView — notebook mode scrolls active concept into view
+Object.defineProperty(Element.prototype, 'scrollIntoView', {
+  writable: true,
+  value: vi.fn(),
+});
+
+// requestAnimationFrame
 let rafId = 0;
 globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
   rafId++;
@@ -35,7 +41,7 @@ globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
 };
 globalThis.cancelAnimationFrame = (_id: number) => { /* no-op */ };
 
-// ResizeObserver — React Flow observes its container for layout
+// ResizeObserver
 class ResizeObserverMock {
   observe() { /* no-op */ }
   unobserve() { /* no-op */ }
@@ -46,7 +52,7 @@ Object.defineProperty(window, 'ResizeObserver', {
   value: ResizeObserverMock,
 });
 
-// IntersectionObserver — MiniMap uses it internally
+// IntersectionObserver
 class IntersectionObserverMock {
   readonly root: Element | null = null;
   readonly rootMargin: string = '';

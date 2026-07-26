@@ -1,21 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
-import { useNotebookStore } from '@/shared/stores/notebookStore';
-import { readNotebookModePreference } from '@/shared/notebookModePreference';
-import { useIsMobile } from '@/shared/useMediaQuery';
 import { AccessibleDialog } from '@/lib/components/AccessibleDialog';
-import { ChevronDown, X, Map, BookOpen } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import styles from './Toolbar.module.css';
 
 interface ToolbarProps {
-  canvasPage?: boolean;
+  isGenerating?: boolean;
+  onCancelGeneration?: () => void;
 }
 
-export function Toolbar({ canvasPage }: ToolbarProps) {
+export function Toolbar({ isGenerating = false, onCancelGeneration }: ToolbarProps) {
   const { sessions, currentId, load, select, remove, updateCurrent } = useSessionStore();
-  const notebookMode = useNotebookStore((s) => s.notebookMode);
-  const toggleNotebookMode = useNotebookStore((s) => s.toggleNotebookMode);
-  const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -81,7 +76,6 @@ export function Toolbar({ canvasPage }: ToolbarProps) {
           e.preventDefault();
           if (focusIndex >= 0 && focusIndex < sessions.length) {
             const session = sessions[focusIndex];
-            useNotebookStore.getState().setNotebookMode(readNotebookModePreference(session.id));
             select(session.id);
             setOpen(false);
             setDeleteCandidate(null);
@@ -145,27 +139,14 @@ export function Toolbar({ canvasPage }: ToolbarProps) {
 
       <div className={styles.spacer} />
 
-      {canvasPage && !isMobile && (
+      {isGenerating && onCancelGeneration && (
         <button
-          className={`${styles.viewToggle} ${notebookMode ? styles.viewToggleActive : ''}`}
-          onClick={toggleNotebookMode}
-          aria-pressed={notebookMode}
+          className={styles.newBtn}
+          onClick={onCancelGeneration}
+          aria-label="Cancel generation"
           type="button"
         >
-          <BookOpen size={14} aria-hidden />
-          <span>Tutor</span>
-        </button>
-      )}
-
-      {canvasPage && !isMobile && (
-        <button
-          className={`${styles.viewToggle} ${!notebookMode ? styles.viewToggleActive : ''}`}
-          onClick={() => useNotebookStore.getState().setNotebookMode(false)}
-          aria-pressed={!notebookMode}
-          type="button"
-        >
-          <Map size={14} aria-hidden />
-          <span>Map</span>
+          Cancel generation
         </button>
       )}
 
@@ -203,7 +184,6 @@ export function Toolbar({ canvasPage }: ToolbarProps) {
                 role="menuitem"
                 tabIndex={i === focusIndex ? 0 : -1}
                 onClick={() => {
-                  useNotebookStore.getState().setNotebookMode(readNotebookModePreference(s.id));
                   select(s.id);
                   setOpen(false);
                   setDeleteCandidate(null);

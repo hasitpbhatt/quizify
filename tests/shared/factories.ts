@@ -5,7 +5,6 @@ export function mockConceptNode(overrides: Partial<CanvasNode> = {}): CanvasNode
   return {
     id,
     type: 'concept',
-    position: { x: 0, y: 150 },
     data: {
       kind: 'concept',
       index: 0,
@@ -13,7 +12,6 @@ export function mockConceptNode(overrides: Partial<CanvasNode> = {}): CanvasNode
       explanation: 'Uses qubits instead of classical bits.',
       example: 'Superposition example.',
     },
-    draggable: true,
     ...overrides,
   };
 }
@@ -22,7 +20,6 @@ export function mockQuizNode(parentConceptId: string, overrides: Partial<CanvasN
   return {
     id: `quiz-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     type: 'quiz',
-    position: { x: 400, y: 150 },
     data: {
       kind: 'quiz',
       parentConceptId,
@@ -34,7 +31,6 @@ export function mockQuizNode(parentConceptId: string, overrides: Partial<CanvasN
       attempts: [],
       state: 'untested',
     },
-    draggable: true,
     ...overrides,
   };
 }

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { MobileFocusView } from '@/features/canvas/MobileFocusView';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
+import { useSettingsStore } from '@/shared/stores/settingsStore';
 import type { CanvasNode } from '@/shared/types';
 import * as factories from '../../shared/factories';
 
@@ -29,6 +30,7 @@ vi.mock('@/lib/llm/ttsManager', () => ({ ttsManager: ttsMock }));
 
 function renderMobile(nodes: CanvasNode[], notebook = true) {
   useNotebookStore.setState({ notebookMode: notebook, completedTypingNodeIds: {} });
+  useSettingsStore.setState({ ttsEnabled: true });
   return render(<MobileFocusView nodes={nodes} />);
 }
 

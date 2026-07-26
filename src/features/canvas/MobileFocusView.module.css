@@ -121,6 +121,14 @@
     transform var(--dur-fast) var(--ease-out);
 }
 
+.lessonProgress {
+  align-self: center;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+
 .topActionBtn:hover {
   background: var(--bg-elevated);
 }

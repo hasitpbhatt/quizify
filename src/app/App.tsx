@@ -4,11 +4,10 @@ import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { Plus, Sun, Moon, Monitor } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
-import { readNotebookModePreference } from '@/shared/notebookModePreference';
 import { WelcomeModal } from '@/features/welcome/WelcomeModal';
 import { Toolbar } from '@/features/toolbar/Toolbar';
 import { CanvasPage } from '@/features/canvas/CanvasPage';
-import { ReactFlowProvider } from '@xyflow/react';
+
 import { ProgressScreen } from './ProgressScreen';
 import { Toaster } from './Toaster';
 import { fetchSourceContent } from '@/lib/fetchSourceContent';
@@ -73,7 +72,6 @@ export function App() {
       if (needsRestore) {
         if (!savedId) return;
         const { select } = useSessionStore.getState();
-        useNotebookStore.getState().setNotebookMode(readNotebookModePreference(savedId));
         await select(savedId);
         if (useSessionStore.getState().currentId) {
           setPage('canvas');
@@ -144,7 +142,6 @@ export function App() {
   const handleSelectSession = useCallback(
     (id: string) => {
       trackEvent('lesson_resumed', { sessionId: id });
-      useNotebookStore.getState().setNotebookMode(readNotebookModePreference(id));
       select(id);
       setPage('canvas');
     },
@@ -312,11 +309,11 @@ export function App() {
   const main =
     page === 'progress' ? (
       <div key="progress" className="pageEnter">
-        <Toolbar />
+        <Toolbar isGenerating={isGenerating} onCancelGeneration={handleCancel} />
         <div className={styles.actionBar}>
           <button className={styles.actionBtn} onClick={goWelcome} type="button">
             <Plus size={14} />
-            <span>New</span>
+            <span>Cancel generation</span>
           </button>
           <button
             className={styles.actionBtn}
@@ -336,10 +333,8 @@ export function App() {
       </div>
     ) : page === 'canvas' ? (
       <div key="canvas" className={isGenerating ? 'pageEnterInstant' : 'pageEnter'}>
-        <Toolbar canvasPage />
-        <ReactFlowProvider>
-          <CanvasPage progress={progress} isGenerating={isGenerating} onHome={goWelcome} />
-        </ReactFlowProvider>
+        <Toolbar isGenerating={isGenerating} onCancelGeneration={handleCancel} />
+        <CanvasPage progress={progress} isGenerating={isGenerating} onHome={goWelcome} />
       </div>
     ) : (
       <div key="welcome" className="pageEnter">

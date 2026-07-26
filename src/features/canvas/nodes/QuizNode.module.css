@@ -128,6 +128,21 @@
   margin-top: var(--space-4);
 }
 
+.answerHint,
+.revealHint {
+  color: var(--text-secondary);
+  font-size: var(--fs-caption);
+}
+
+.answerHint::after {
+  content: '  ›';
+  color: var(--accent);
+}
+
+.revealHint {
+  font-style: italic;
+}
+
 .badge {
   font-size: 10px;
   font-weight: 600;

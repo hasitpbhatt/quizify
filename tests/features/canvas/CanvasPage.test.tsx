@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
-import { ReactFlowProvider } from '@xyflow/react';
 import { CanvasPage } from '@/features/canvas/CanvasPage';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
@@ -8,21 +7,13 @@ import * as sessionsDb from '@/lib/db/sessionsDb';
 import * as factories from '../../shared/factories';
 import type { CanvasNode, ConceptData, QuizData } from '@/shared/types';
 
-function renderCanvas() {
-  return render(
-    <ReactFlowProvider>
-      <CanvasPage />
-    </ReactFlowProvider>,
-  );
+function renderCanvas(overrides: Partial<React.ComponentProps<typeof CanvasPage>> = {}) {
+  return render(<CanvasPage {...overrides} />);
 }
 
 beforeEach(() => {
-  // The graph-rendering tests below assert against rendering without any
-  // notebook-mode interaction (TTS, typewriter). Force graph mode so the
-  // existing tests don't fight the notebook-by-default behavior. Tests
-  // that explicitly exercise notebook mode reset this themselves.
   useNotebookStore.setState({
-    notebookMode: false,
+    notebookMode: true,
     ttsPlaying: false,
     ttsPaused: false,
     currentSegmentNodeId: null,
@@ -43,7 +34,7 @@ describe('CanvasPage', () => {
   it('shows empty state when no session exists', async () => {
     renderCanvas();
     await waitFor(() => {
-      expect(screen.getByText('No lesson data yet.')).toBeInTheDocument();
+      expect(screen.getByText(/We couldn.t load this lesson/)).toBeInTheDocument();
     });
   });
 
@@ -52,14 +43,10 @@ describe('CanvasPage', () => {
     await sessionsDb.putSession(session);
     useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
 
-    render(
-      <ReactFlowProvider>
-        <CanvasPage isGenerating progress={{ stage: 'detail', label: 'Generating content (0/3 done…)' }} />
-      </ReactFlowProvider>,
-    );
+    render(<CanvasPage isGenerating progress={{ stage: 'detail', label: 'Generating content (0/3 done…)' }} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Building your canvas')).toBeInTheDocument();
+      expect(screen.getByText('Building your lesson')).toBeInTheDocument();
       expect(screen.getByText('Generating content (0/3 done…)')).toBeInTheDocument();
     });
     expect(screen.queryByText('No lesson data yet.')).not.toBeInTheDocument();
@@ -72,7 +59,7 @@ describe('CanvasPage', () => {
 
     renderCanvas();
     await waitFor(() => {
-      expect(screen.getByText('No lesson data yet.')).toBeInTheDocument();
+      expect(screen.getByText(/We couldn.t load this lesson/)).toBeInTheDocument();
     });
   });
 
@@ -83,6 +70,7 @@ describe('CanvasPage', () => {
     const session = factories.mockSession([concept, quiz], [edge]);
     await sessionsDb.putSession(session);
     useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
+    useNotebookStore.getState().markTypingComplete(concept.id);
 
     renderCanvas();
 
@@ -99,6 +87,7 @@ describe('CanvasPage', () => {
     const session = factories.mockSession([concept, quiz], [edge]);
     await sessionsDb.putSession(session);
     useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
+    useNotebookStore.getState().markTypingComplete(concept.id);
 
     renderCanvas();
 
@@ -108,10 +97,10 @@ describe('CanvasPage', () => {
 
     const state = useSessionStore.getState();
     const current = state.sessions.find(s => s.id === state.currentId);
-    expect(current?.edges).toHaveLength(1);
-    expect(current?.edges[0].source).toBe(concept.id);
-    expect(current?.edges[0].target).toBe(quiz.id);
-    expect(current?.edges[0].type).toBe('wiggly');
+    expect(current?.edges ?? []).toHaveLength(1);
+    expect((current?.edges ?? [])[0].source).toBe(concept.id);
+    expect((current?.edges ?? [])[0].target).toBe(quiz.id);
+    expect((current?.edges ?? [])[0].type).toBe('wiggly');
   });
 
   it('opens quiz modal when clicking a quiz node', async () => {
@@ -120,14 +109,15 @@ describe('CanvasPage', () => {
     const session = factories.mockSession([concept, quiz], [factories.mockEdge(concept.id, quiz.id)]);
     await sessionsDb.putSession(session);
     useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
+    useNotebookStore.getState().markTypingComplete(concept.id);
 
     renderCanvas();
 
     await waitFor(() => expect(screen.getByText('Quantum Computing')).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText('What is a qubit?')).toBeInTheDocument());
 
-    // Click the quiz node text — React Flow's onNodeClick fires via click event
-    screen.getByText('What is a qubit?').click();
+    // Click the quiz node button wrapper — matches the a11y-first role="button" pattern
+    screen.getByRole('button', { name: /Quiz:/ }).click();
 
     await waitFor(() => {
       expect(screen.getByText('Multiple Choice')).toBeInTheDocument();
@@ -135,22 +125,7 @@ describe('CanvasPage', () => {
     });
   });
 
-  it('adds a note node when clicking the Add note button', async () => {
-    const concept = factories.mockConceptNode();
-    const session = factories.mockSession([concept], []);
-    await sessionsDb.putSession(session);
-    useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
 
-    renderCanvas();
-
-    await waitFor(() => expect(screen.getByText('Quantum Computing')).toBeInTheDocument());
-
-    screen.getByTitle('Add note').click();
-
-    await waitFor(() => {
-      expect(document.querySelectorAll('.react-flow__node-note')).toHaveLength(1);
-    });
-  });
 
   describe('orientation cue', () => {
     function setNotebookMode() {
@@ -223,16 +198,7 @@ describe('CanvasPage', () => {
       });
     });
 
-    it('does not show the cue in graph mode', async () => {
-      const session = buildSession();
-      await setupSession(session);
 
-      renderCanvas();
-
-      await waitFor(() => {
-        expect(screen.queryByText('Start here')).not.toBeInTheDocument();
-      });
-    });
   });
 
   describe('learning cue', () => {
@@ -359,17 +325,6 @@ describe('CanvasPage', () => {
       setNotebookMode();
       const { session } = buildSessionWithProgress(3, 1, [], 0);
       window.sessionStorage.setItem(`quizify:learningcue:${session.id}`, 'dismissed');
-      await setupSession(session);
-
-      renderCanvas();
-
-      await waitFor(() => {
-        expect(screen.queryByText(/Continue with/)).not.toBeInTheDocument();
-      });
-    });
-
-    it('does not show the learning cue in graph mode', async () => {
-      const { session } = buildSessionWithProgress(3, 1, [], 0);
       await setupSession(session);
 
       renderCanvas();
