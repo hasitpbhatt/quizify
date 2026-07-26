@@ -250,6 +250,16 @@
   transform: scale(var(--hover-scale));
 }
 
+/* Keep action labels readable instead of forcing them into icon-only buttons. */
+.notebookControls button.notebookLabeledControl {
+  width: auto;
+  min-width: max-content;
+  padding-inline: var(--space-3);
+  gap: var(--space-1);
+  border-radius: var(--radius-ui);
+  white-space: nowrap;
+}
+
 .notebookControls button:active:not(:disabled) {
   transform: scale(var(--hover-scale-active));
 }

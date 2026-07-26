@@ -1113,13 +1113,32 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                   Concept {currentConceptIndex + 1} of {concepts.length}
                 </span>
               )}
-              <button onClick={handleAddNote} title="Add note" aria-label="Add note" type="button">
+              {onHome && (
+                <button
+                  className={styles.notebookLabeledControl}
+                  onClick={onHome}
+                  title="Start a new lesson"
+                  type="button"
+                >
+                  <Plus size={14} />
+                  <span>New lesson</span>
+                </button>
+              )}
+              <button
+                className={styles.notebookLabeledControl}
+                onClick={handleAddNote}
+                title="Add a note to this lesson"
+                type="button"
+              >
                 <Plus size={14} />
+                <span>Add note</span>
               </button>
               <button
+                className={styles.notebookLabeledControl}
                 onClick={() => setShowFullText(!showFullText)}
                 title={showFullText ? 'Hide full text' : 'Show full text'}
                 aria-label={showFullText ? 'Hide full text' : 'Show full text'}
+                aria-pressed={showFullText}
                 type="button"
               >
                 {showFullText ? 'Hide full text' : 'Show full text'}
@@ -1143,6 +1162,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                 <span>Theme: {theme}</span>
               </button>
               <button
+                className={styles.notebookLabeledControl}
                 onClick={() => setShowOutline((v) => !v)}
                 title="Table of contents"
                 aria-label="Table of contents"
@@ -1151,6 +1171,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                 type="button"
               >
                 <List size={14} />
+                <span>Contents</span>
               </button>
               <button
                 onClick={() => setTtsEnabled(!ttsEnabled)}

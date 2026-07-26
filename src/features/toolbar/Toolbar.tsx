@@ -148,8 +148,8 @@ export function Toolbar({ isGenerating = false, onCancelGeneration, onCycleTheme
         <button
           className={styles.themeToggle}
           onClick={onCycleTheme}
-          title={`Theme: ${theme}`}
-          aria-label={`Theme: ${theme}`}
+          title={`Change theme (currently ${theme})`}
+          aria-label={`Change theme, currently ${theme}`}
           type="button"
         >
           <ThemeIcon size={14} />
@@ -163,7 +163,12 @@ export function Toolbar({ isGenerating = false, onCancelGeneration, onCycleTheme
           onClick={() => setOpen((v) => !v)}
           aria-haspopup="menu"
           aria-expanded={open}
-          aria-label="Sessions"
+          aria-label={
+            current
+              ? `Current lesson: ${current.name}. Open lesson switcher`
+              : 'Open lesson switcher'
+          }
+          title={current ? `Current lesson: ${current.name}` : 'Open lesson switcher'}
           type="button"
         >
           <span className={styles.sessionName}>

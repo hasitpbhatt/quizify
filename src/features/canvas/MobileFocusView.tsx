@@ -223,10 +223,12 @@ export function MobileFocusView({
   const { title, body } = useMemo(() => (node ? renderContent(node) : { body: '' }), [node]);
 
   // Typewriter reveal for concept/summary prose, mirroring the desktop notebook.
-  const typing = useTypingAnimation(node?.id ?? '', body, false);
+  const typing = useTypingAnimation(node?.id ?? '', body, showFullText);
   const revealedBody =
     notebookMode && node && (node.data.kind === 'concept' || node.data.kind === 'summary')
-      ? body.slice(0, typing.revealed)
+      ? showFullText
+        ? body
+        : body.slice(0, typing.revealed)
       : body;
 
   const goPrev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
@@ -282,16 +284,8 @@ export function MobileFocusView({
     return conceptIndex >= 0 ? `Concept ${conceptIndex + 1} of ${conceptNodes.length}` : null;
   }, [node, nodes]);
 
-  const navigationCue = useMemo(() => {
-    const prevNode = index > 0 ? nodes[index - 1] : null;
-    const nextNode = index < nodes.length - 1 ? nodes[index + 1] : null;
-    const summarize = (item: CanvasNode | null) => {
-      if (!item) return 'Start';
-      const kind = formatKind(item).toLowerCase();
-      return `${kind}${item.data.kind === 'concept' ? `: ${(item.data as ConceptData).title}` : ''}`;
-    };
-    return `Prev: ${summarize(prevNode)} · Next: ${summarize(nextNode)}`;
-  }, [index, nodes]);
+  const stepLabel = total > 0 ? `${index + 1} of ${total}` : 'No items';
+  const navigationHint = total > 1 ? 'Swipe or use the arrows to move' : 'Current lesson item';
 
   const summaryData = node?.data.kind === 'summary' ? (node.data as SummaryData) : null;
 
@@ -471,7 +465,7 @@ export function MobileFocusView({
           >
             {showFullText ? 'Hide full text' : 'Show full text'}
           </button>
-          <span className={styles.pacingCue}>{navigationCue}</span>
+          <span className={styles.pacingCue}>{navigationHint}</span>
         </div>
       )}
 
@@ -513,18 +507,20 @@ export function MobileFocusView({
           className={styles.navBtn}
           onClick={goPrev}
           disabled={index === 0 || total === 0}
-          aria-label="Previous concept"
-          title="Previous concept"
+          aria-label="Previous lesson item"
+          title="Previous lesson item"
         >
           &lsaquo;
         </button>
-        <span className={styles.counter}>{navigationCue}</span>
+        <span className={styles.counter} aria-live="polite">
+          {stepLabel}
+        </span>
         <button
           className={styles.navBtn}
           onClick={goNext}
           disabled={index === total - 1 || total === 0}
-          aria-label="Next concept"
-          title="Next concept"
+          aria-label="Next lesson item"
+          title="Next lesson item"
         >
           &rsaquo;
         </button>

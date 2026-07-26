@@ -337,6 +337,14 @@
   font-weight: var(--fw-h2);
 }
 
+.notebookLabeledControl {
+  width: auto !important;
+  min-width: max-content;
+  padding-inline: var(--space-3) !important;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
 .saveStatus {
   padding: 3px 10px;
   border-radius: var(--radius-pill);
