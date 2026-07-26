@@ -19,8 +19,9 @@ interface ConceptNodeProps {
 
 function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNodeProps) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
+  const showFullText = useNotebookStore((s) => s.showFullText);
   const textToRead = `${data.title}. ${data.explanation}`;
-  const skipTyping = data.index < currentConceptIndex;
+  const skipTyping = data.index < currentConceptIndex || showFullText;
   const { revealed, isAnimating, skipAnimation } = useTypingAnimation(id, textToRead, skipTyping);
 
   const [isPlaying, setIsPlaying] = useState(false);

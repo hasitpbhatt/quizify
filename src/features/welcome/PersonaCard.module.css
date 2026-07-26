@@ -56,3 +56,11 @@
   opacity: 0.85;
   padding-left: calc(14px + var(--space-1.5));
 }
+
+@media (max-width: 580px) {
+  .card {
+    width: 100%;
+    min-height: 44px;
+    justify-content: flex-start;
+  }
+}

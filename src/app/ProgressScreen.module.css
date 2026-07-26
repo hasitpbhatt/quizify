@@ -238,7 +238,7 @@
 
 .stageHint {
   font-size: var(--fs-caption);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-weight: var(--fw-body);
   min-width: 0;
 }
@@ -409,7 +409,7 @@
   font-size: 8px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-weight: var(--fw-h2);
 }
 
@@ -465,6 +465,15 @@
   color: var(--text-secondary);
   line-height: var(--lh-normal);
   white-space: pre-wrap;
+}
+
+.previewSource {
+  margin: var(--space-3) 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--fs-caption);
+  color: var(--text-secondary);
+  line-height: var(--lh-normal);
+  word-break: break-word;
 }
 
 .previewFooter {

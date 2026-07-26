@@ -245,8 +245,10 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose, notebookM
         ) : null}
 
         {error && (
-          <div className={styles.error} aria-hidden="true">
-            {error}
+          <div className={styles.error} role="alert" aria-live="polite">
+            <strong>Grading failed.</strong>
+            <div>{error}</div>
+            <div>Adjust the answer and submit again.</div>
           </div>
         )}
 

@@ -43,10 +43,11 @@ function QuizNodeInner({ id, data, revealed, onClick }: QuizNodeProps) {
   const prevStateRef = useRef(data.state);
 
   const notebookMode = useNotebookStore((s) => s.notebookMode);
+  const showFullText = useNotebookStore((s) => s.showFullText);
   const { revealed: typingRevealed, skipAnimation } = useTypingAnimation(
     id,
     data.prompt,
-    !revealed,
+    !revealed || showFullText,
     80,
   );
   const promptText = notebookMode ? data.prompt.slice(0, typingRevealed) : data.prompt;

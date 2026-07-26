@@ -62,8 +62,8 @@
 }
 
 .navBtn {
-  width: 40px;
-  height: 40px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   border: 1px solid var(--border);
   background: var(--bg-elevated);
@@ -123,7 +123,7 @@
 
 .lessonProgress {
   align-self: center;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: var(--fs-caption);
   white-space: nowrap;
@@ -237,8 +237,8 @@
   top: 8px;
   right: 8px;
   z-index: 25;
-  width: 28px;
-  height: 28px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   border: none;
   background: var(--bg-elevated);
@@ -372,9 +372,53 @@
 .mobileTtsLabel {
   font-size: 11px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-family: var(--font-ui);
   margin-left: 4px;
+}
+
+.mobilePacingBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 var(--space-4) var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+}
+
+.pacingToggle {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ui);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--fs-caption);
+  cursor: pointer;
+}
+
+.pacingCue {
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.mobileCaption {
+  margin: 0 var(--space-4) var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ui);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  line-height: var(--lh-normal);
 }
 
 /* --- Mobile Outline Overlay Drawer --- */
@@ -426,8 +470,8 @@
 }
 
 .closeOutlineBtn {
-  width: 28px;
-  height: 28px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   border: none;
   background: var(--bg-subtle);
@@ -449,6 +493,7 @@
   align-items: flex-start;
   flex-direction: column;
   width: 100%;
+  min-height: 44px;
   padding: var(--space-3) var(--space-5);
   border: none;
   background: transparent;
