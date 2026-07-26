@@ -267,19 +267,20 @@
 }
 
 .cancelLink {
-  background: none;
-  border: none;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
   padding: var(--space-2) var(--space-4);
   font-family: var(--font-ui);
   font-size: var(--fs-small);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   cursor: pointer;
   border-radius: var(--radius-xs);
   transition: color var(--dur-fast) var(--ease-out);
 }
 
 .cancelLink:hover {
-  color: var(--text-secondary);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
 }
 
 .cancelBtn {

@@ -43,6 +43,17 @@
   line-height: var(--lh-normal);
 }
 
+.action {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 3px 7px;
+  background: var(--bg-subtle);
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
 .dismiss {
   flex-shrink: 0;
   background: none;

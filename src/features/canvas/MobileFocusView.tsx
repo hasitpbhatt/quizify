@@ -7,7 +7,20 @@ import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
 import { useTypingAnimation } from './useTypingAnimation';
-import { Play, Pause, Square, List, Plus, Download, Volume2, VolumeX } from 'lucide-react';
+import { useMediaQuery } from '@/shared/useMediaQuery';
+import {
+  Play,
+  Pause,
+  Square,
+  List,
+  Plus,
+  Download,
+  Volume2,
+  VolumeX,
+  Monitor,
+  Moon,
+  Sun,
+} from 'lucide-react';
 import { exportSessionJson } from '@/lib/export/json';
 import { downloadSessionMarkdown } from '@/lib/export/markdown';
 import { getNextLearningAction, normalizeLearningProgress } from '@/shared/learningProgress';
@@ -71,9 +84,7 @@ export function MobileFocusView({
   const [summaryQuiz, setSummaryQuiz] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
-  const prefersReducedMotion = useRef<boolean>(
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  );
+  const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
   // Clamp index when nodes shrink
   useEffect(() => {
@@ -139,7 +150,7 @@ export function MobileFocusView({
   // Gated on !prefers-reduced-motion AND the user's TTS-enabled setting to
   // match the desktop notebook behavior.
   useEffect(() => {
-    if (!notebookMode || !node || prefersReducedMotion.current || !ttsEnabled) return;
+    if (!notebookMode || !node || prefersReducedMotion || !ttsEnabled) return;
     if (node.data.kind === 'concept') {
       if (ttsManager.hasSegment(node.id)) return;
       const text = node.data.title + '. ' + node.data.explanation;
@@ -154,7 +165,7 @@ export function MobileFocusView({
     if (!ttsManager.isPlaying && !ttsManager.isPaused) {
       ttsManager.start();
     }
-  }, [notebookMode, node?.id, node?.data?.kind]);
+  }, [notebookMode, node, prefersReducedMotion, ttsEnabled]);
 
   const conceptTitles = useMemo(() => {
     const map = new Map<string, string>();
@@ -208,6 +219,26 @@ export function MobileFocusView({
   const cycleTheme = useCallback(() => {
     setTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light');
   }, [theme, setTheme]);
+  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
+
+  const conceptProgress = useMemo(() => {
+    const conceptNodes = nodes.filter((item) => item.data.kind === 'concept');
+    if (!node || conceptNodes.length === 0) return null;
+    const conceptIndex =
+      node.data.kind === 'concept'
+        ? node.data.index
+        : conceptNodes.findIndex((item) => {
+            if (item.data.kind !== 'concept') return false;
+            const parentId =
+              node.data.kind === 'quiz'
+                ? node.data.parentConceptId
+                : node.data.kind === 'note'
+                  ? node.data.linkedConceptId
+                  : undefined;
+            return parentId === item.id;
+          });
+    return conceptIndex >= 0 ? `Concept ${conceptIndex + 1} of ${conceptNodes.length}` : null;
+  }, [node, nodes]);
 
   const summaryData = node?.data.kind === 'summary' ? (node.data as SummaryData) : null;
 
@@ -262,13 +293,20 @@ export function MobileFocusView({
             <span>New</span>
           </button>
         )}
-        <button className={styles.topActionBtn} onClick={() => setShowOutline((v) => !v)}>
+        <button
+          className={styles.topActionBtn}
+          onClick={() => setShowOutline((v) => !v)}
+          aria-expanded={showOutline}
+          aria-controls="mobile-outline"
+          type="button"
+        >
           <List size={14} />
           <span>Outline</span>
         </button>
         <button className={styles.topActionBtn} onClick={cycleTheme} aria-label={`Theme: ${theme}`}>
-          {theme}
+          <ThemeIcon size={14} />
         </button>
+        {conceptProgress && <span className={styles.lessonProgress}>{conceptProgress}</span>}
       </div>
 
       <div className={styles.card} ref={cardRef}>
@@ -319,17 +357,31 @@ export function MobileFocusView({
           <button
             onClick={() => setTtsEnabled(!ttsEnabled)}
             title={ttsEnabled ? 'Mute narration' : 'Enable narration'}
-            aria-pressed={!ttsEnabled}
+            aria-label="Narration"
+            aria-pressed={ttsEnabled}
+            type="button"
           >
             {ttsEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
           </button>
-          <button onClick={handlePlayPause} className={styles.playPauseBtn} title="Play/Pause">
+          <button
+            onClick={handlePlayPause}
+            className={styles.playPauseBtn}
+            title={
+              ttsPaused ? 'Resume narration' : ttsPlaying ? 'Pause narration' : 'Play narration'
+            }
+            aria-label={
+              ttsPaused ? 'Resume narration' : ttsPlaying ? 'Pause narration' : 'Play narration'
+            }
+            type="button"
+          >
             {ttsPaused ? <Play size={14} /> : ttsPlaying ? <Pause size={14} /> : <Play size={14} />}
           </button>
           <button
             onClick={handleStopTts}
             className={styles.stopBtn}
+            aria-label="Stop narration"
             disabled={!ttsPlaying && !ttsPaused}
+            type="button"
             title="Stop"
           >
             <Square size={14} />
@@ -420,7 +472,11 @@ export function MobileFocusView({
           aria-modal="true"
           aria-label="Outline"
         >
-          <div className={styles.outlinePanel} onClick={(e) => e.stopPropagation()}>
+          <div
+            className={styles.outlinePanel}
+            id="mobile-outline"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className={styles.outlineHeader}>
               <span className={styles.outlineHeaderTitle}>Outline</span>
               <button

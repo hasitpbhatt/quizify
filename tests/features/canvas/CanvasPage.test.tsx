@@ -34,7 +34,7 @@ describe('CanvasPage', () => {
   it('shows empty state when no session exists', async () => {
     renderCanvas();
     await waitFor(() => {
-      expect(screen.getByText('No lesson data yet.')).toBeInTheDocument();
+      expect(screen.getByText(/We couldn.t load this lesson/)).toBeInTheDocument();
     });
   });
 
@@ -59,7 +59,7 @@ describe('CanvasPage', () => {
 
     renderCanvas();
     await waitFor(() => {
-      expect(screen.getByText('No lesson data yet.')).toBeInTheDocument();
+      expect(screen.getByText(/We couldn.t load this lesson/)).toBeInTheDocument();
     });
   });
 
@@ -116,8 +116,8 @@ describe('CanvasPage', () => {
     await waitFor(() => expect(screen.getByText('Quantum Computing')).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText('What is a qubit?')).toBeInTheDocument());
 
-    // Click the quiz node text — React Flow's onNodeClick fires via click event
-    screen.getByText('What is a qubit?').click();
+    // Click the quiz node button wrapper — matches the a11y-first role="button" pattern
+    screen.getByRole('button', { name: /Quiz:/ }).click();
 
     await waitFor(() => {
       expect(screen.getByText('Multiple Choice')).toBeInTheDocument();

@@ -3,6 +3,7 @@ import { render, waitFor, screen, fireEvent } from '@testing-library/react';
 import { CanvasPage } from '@/features/canvas/CanvasPage';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
+import { useSettingsStore } from '@/shared/stores/settingsStore';
 import * as sessionsDb from '@/lib/db/sessionsDb';
 import type { ConceptData } from '@/shared/types';
 import * as factories from '../../shared/factories';
@@ -90,6 +91,7 @@ beforeEach(() => {
     totalSegments: 0,
     completedTypingNodeIds: {},
   });
+  useSettingsStore.setState({ ttsEnabled: true });
   useSessionStore.setState({ sessions: [], currentId: null, loaded: false });
 });
 

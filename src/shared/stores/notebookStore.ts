@@ -10,8 +10,6 @@ interface NotebookState {
   totalSegments: number;
   completedTypingNodeIds: Record<string, true>;
 
-  setNotebookMode: (on: boolean) => void;
-  toggleNotebookMode: () => void;
   setCurrentSegment: (nodeId: string | null, index?: number, total?: number) => void;
   syncTtsState: (state: TtsState) => void;
   markTypingComplete: (nodeId: string) => void;
@@ -19,7 +17,7 @@ interface NotebookState {
 }
 
 export const useNotebookStore = create<NotebookState>((set, get) => ({
-  // Notebook is the primary product surface; graph view is the escape hatch.
+  // Notebook is the sole lesson surface.
   notebookMode: true,
   ttsPlaying: false,
   ttsPaused: false,
@@ -27,9 +25,6 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
   segmentIndex: 0,
   totalSegments: 0,
   completedTypingNodeIds: {},
-
-  setNotebookMode: (on) => set({ notebookMode: on }),
-  toggleNotebookMode: () => set((s) => ({ notebookMode: !s.notebookMode })),
 
   setCurrentSegment: (nodeId, index, total) =>
     set({

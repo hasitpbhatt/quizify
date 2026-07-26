@@ -18,23 +18,6 @@ describe('notebookStore', () => {
     expect(useNotebookStore.getState().notebookMode).toBe(true);
   });
 
-  it('setNotebookMode(false) disables notebook mode', () => {
-    useNotebookStore.getState().setNotebookMode(false);
-    expect(useNotebookStore.getState().notebookMode).toBe(false);
-  });
-
-  it('setNotebookMode(true) enables notebook mode', () => {
-    useNotebookStore.getState().setNotebookMode(true);
-    expect(useNotebookStore.getState().notebookMode).toBe(true);
-  });
-
-  it('toggleNotebookMode flips the mode', () => {
-    useNotebookStore.getState().toggleNotebookMode();
-    expect(useNotebookStore.getState().notebookMode).toBe(false);
-    useNotebookStore.getState().toggleNotebookMode();
-    expect(useNotebookStore.getState().notebookMode).toBe(true);
-  });
-
   it('syncTtsState maps playing state', () => {
     useNotebookStore.getState().syncTtsState('playing');
     const state = useNotebookStore.getState();

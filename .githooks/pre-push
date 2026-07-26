@@ -1,0 +1,27 @@
+#!/usr/bin/env sh
+# Pre-push hook: run lint and build to catch errors before pushing.
+# Matches the pre-PR checklist in AGENTS.md.
+
+echo "=== pre-push: running lint ==="
+npm run lint
+if [ $? -ne 0 ]; then
+  echo "FAILED: lint errors found. Fix them before pushing."
+  exit 1
+fi
+
+echo "=== pre-push: running format:check ==="
+npm run format:check
+if [ $? -ne 0 ]; then
+  echo "FAILED: formatting issues found. Run 'npm run format' and try again."
+  exit 1
+fi
+
+echo "=== pre-push: running build (typecheck + vite) ==="
+npm run build
+if [ $? -ne 0 ]; then
+  echo "FAILED: build errors found. Fix them before pushing."
+  exit 1
+fi
+
+echo "=== pre-push: all checks passed ==="
+exit 0

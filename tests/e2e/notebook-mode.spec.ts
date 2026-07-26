@@ -13,7 +13,7 @@ test.describe('Notebook mode', () => {
   });
 
   test('renders notebook UI with typewriter animation and gated quizzes', async ({ page }) => {
-    await setCanvasSession(page, SEED_SESSION_ID, true);
+    await setCanvasSession(page, SEED_SESSION_ID);
     await page.reload();
 
     // Wait for the node list to render
@@ -41,7 +41,7 @@ test.describe('Notebook mode', () => {
   });
 
   test('restores reading position and reveals quizzes from localStorage', async ({ page }) => {
-    await setCanvasSession(page, SEED_SESSION_ID, true);
+    await setCanvasSession(page, SEED_SESSION_ID);
 
     const quizIds = [`${SEED_SESSION_ID}-c1-quiz-0`, `${SEED_SESSION_ID}-c1-quiz-1`];
     const nbPosKey = `quizify:nbpos:${SEED_SESSION_ID}`;

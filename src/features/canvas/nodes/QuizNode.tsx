@@ -77,9 +77,13 @@ function QuizNodeInner({ id, data, revealed, onClick }: QuizNodeProps) {
       className={styles.node}
       data-node-type="quiz"
       data-state={data.state}
-      onClick={() => {
-        if (isAnimating) skipAnimation();
-        else onClick();
+      onClick={(event) => {
+        if (isAnimating) {
+          event.stopPropagation();
+          skipAnimation();
+        } else {
+          onClick();
+        }
       }}
     >
       <div className={styles.format}>
@@ -107,11 +111,15 @@ function QuizNodeInner({ id, data, revealed, onClick }: QuizNodeProps) {
         <span className={styles.badge} style={{ background: bc.bg, color: bc.text }}>
           {data.state}
         </span>
-        <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
-          {data.attempts.length > 0
-            ? `${data.attempts.length} attempt${data.attempts.length > 1 ? 's' : ''}`
-            : 'click to answer'}
-        </span>
+        {isAnimating ? (
+          <span className={styles.revealHint}>Click to reveal faster</span>
+        ) : (
+          <span className={styles.answerHint}>
+            {data.attempts.length > 0
+              ? `${data.attempts.length} attempt${data.attempts.length > 1 ? 's' : ''}`
+              : 'click to answer'}
+          </span>
+        )}
       </div>
     </div>
   );

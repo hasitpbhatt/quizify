@@ -78,12 +78,11 @@ export async function cleanupSession(page: Page, sessionId: string): Promise<voi
   );
 }
 
-export function setCanvasSession(page: Page, sessionId: string, notebookMode = false) {
-  return page.evaluate(({ id, notebook }) => {
+export function setCanvasSession(page: Page, sessionId: string) {
+  return page.evaluate(({ id }) => {
     sessionStorage.setItem('quizify:page', 'canvas');
     sessionStorage.setItem('quizify:currentId', id);
-    sessionStorage.setItem(`quizify:notebookMode:${id}`, notebook ? 'notebook' : 'graph');
-  }, { id: sessionId, notebook: notebookMode });
+  }, { id: sessionId });
 }
 
 export { SEED_SESSION_ID };

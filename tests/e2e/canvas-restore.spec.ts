@@ -13,7 +13,7 @@ test.describe('Canvas restore from IndexedDB', () => {
   });
 
   test('restores canvas from IndexedDB and renders the first concept', async ({ page }) => {
-    await setCanvasSession(page, SEED_SESSION_ID, true);
+    await setCanvasSession(page, SEED_SESSION_ID);
     await page.reload();
 
     // Wait for concept node to render

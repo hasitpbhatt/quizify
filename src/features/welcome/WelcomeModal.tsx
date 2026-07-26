@@ -370,7 +370,7 @@ export function WelcomeModal({
         <header className={styles.hero}>
           <div className={styles.eyebrow}>
             <Sparkles size={14} />
-            <span>Learn anything, visually</span>
+            <span>Quizify · Learn anything, visually</span>
           </div>
           <h1 id="welcome-heading" className={styles.heading}>
             Turn any topic into a canvas you actually remember.

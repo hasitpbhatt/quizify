@@ -5,10 +5,12 @@ import styles from './NoteNode.module.css';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
 import * as sessionsDb from '@/lib/db/sessionsDb';
+import { useToastStore } from '@/shared/stores/toastStore';
 
 interface NoteNodeProps {
   id: string;
   data: NoteData;
+  linkedConceptTitle?: string;
 }
 
 let lastDeletedNote: {
@@ -35,7 +37,7 @@ export async function undoLastDeletedNote(): Promise<boolean> {
   return true;
 }
 
-function NoteNodeInner({ id, data }: NoteNodeProps) {
+function NoteNodeInner({ id, data, linkedConceptTitle }: NoteNodeProps) {
   const [editing, setEditing] = useState(data.text.trim().length === 0);
   const [draft, setDraft] = useState(data.text);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -73,6 +75,7 @@ function NoteNodeInner({ id, data }: NoteNodeProps) {
       n.id === id ? { ...n, data: { ...n.data, text: trimmed } as NoteData } : n,
     );
     await updateCurrent({ nodes: updatedNodes });
+    useToastStore.getState().add('Note saved', 'success');
   }, [draft, data.text, id, updateCurrent]);
 
   const handleKeyDown = useCallback(
@@ -109,6 +112,12 @@ function NoteNodeInner({ id, data }: NoteNodeProps) {
       };
     }
     await updateCurrent({ nodes: updatedNodes, edges: updatedEdges });
+    useToastStore.getState().add('Note deleted', 'info', {
+      label: 'Undo',
+      onClick: () => {
+        void undoLastDeletedNote();
+      },
+    });
   }, [id, updateCurrent]);
 
   return (
@@ -144,7 +153,9 @@ function NoteNodeInner({ id, data }: NoteNodeProps) {
         ×
       </button>
       {data.linkedConceptId && (
-        <div className={styles.linkBadge}>Linked: {data.linkedConceptId}</div>
+        <div className={styles.linkBadge}>
+          Linked to {linkedConceptTitle ?? data.linkedConceptId}
+        </div>
       )}
     </div>
   );
