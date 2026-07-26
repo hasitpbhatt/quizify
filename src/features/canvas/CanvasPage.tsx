@@ -846,11 +846,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         : 'Source: not verified'
     : '';
   const sourceTooltip = session
-    ? [
-        sourceLabel,
-        `Lesson URL: ${session.url}`,
-        `Stored locally in IndexedDB`,
-      ].join('\n')
+    ? [sourceLabel, `Lesson URL: ${session.url}`, `Stored locally in IndexedDB`].join('\n')
     : undefined;
 
   const renderNode = (canvasNode: CanvasNode) => {
@@ -1093,7 +1089,11 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
             <div className={styles.lessonMetaRow}>
               {session?.sourceProvenance && (
                 <details className={styles.sourceDetails}>
-                  <summary className={styles.sourceBadge} title={sourceTooltip} aria-label={sourceLabel}>
+                  <summary
+                    className={styles.sourceBadge}
+                    title={sourceTooltip}
+                    aria-label={sourceLabel}
+                  >
                     {sourceLabel}
                   </summary>
                   <div className={styles.sourceDetailsBody}>
