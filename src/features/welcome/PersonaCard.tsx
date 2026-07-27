@@ -32,8 +32,10 @@ export function PersonaCard({
       type="button"
     >
       <Icon size={14} className={styles.icon} aria-hidden />
-      <span className={styles.title}>{label}</span>
-      <span className={styles.sublabel}>· {sublabel}</span>
+      <span className={styles.heading}>
+        <span className={styles.title}>{label}</span>
+        <span className={styles.sublabel}>· {sublabel}</span>
+      </span>
       <span className={styles.description}>{description}</span>
     </button>
   );

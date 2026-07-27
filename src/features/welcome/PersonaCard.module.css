@@ -1,17 +1,23 @@
 .card {
-  display: inline-flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
   align-items: center;
-  gap: var(--space-1.5);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border-hairline);
-  background: transparent;
+  column-gap: var(--space-2);
+  row-gap: 3px;
+  width: 100%;
+  min-height: 92px;
+  padding: var(--space-4);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
   cursor: pointer;
   font-family: var(--font-ui);
   font-size: var(--fs-small);
-  color: var(--text-tertiary);
+  color: var(--text-primary);
   transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out),
     background var(--dur-fast) var(--ease-out),
     color var(--dur-fast) var(--ease-out);
@@ -20,15 +26,17 @@
 }
 
 .card:hover {
-  border-color: var(--border-strong);
-  background: var(--bg-subtle);
-  color: var(--text-secondary);
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
 }
 
 .selected {
   border-color: var(--accent);
   background: var(--accent-subtle);
   color: var(--accent-pressed);
+  box-shadow: var(--shadow-sm);
 }
 
 .icon {
@@ -40,21 +48,41 @@
   color: var(--accent);
 }
 
+.heading {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
 .title {
   font-weight: var(--fw-h2);
+  line-height: var(--lh-tight);
 }
 
 .sublabel {
   color: inherit;
-  opacity: 0.6;
+  opacity: 0.65;
+  font-size: var(--fs-caption);
 }
 
 .description {
-  flex-basis: 100%;
+  grid-column: 1 / -1;
   font-size: var(--fs-caption);
   color: var(--text-secondary);
-  opacity: 0.85;
-  padding-left: calc(14px + var(--space-1.5));
+  line-height: var(--lh-normal);
+  padding-left: 0;
+}
+
+.card:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+@media (max-width: 580px) {
+  .card {
+    min-height: 72px;
+  }
 }
 
 @media (max-width: 580px) {
