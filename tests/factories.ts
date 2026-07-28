@@ -145,9 +145,14 @@ export function makeQuizItem(overrides?: Partial<QuizItem>): QuizItem {
 export function makeContentResponse(overrides?: Partial<ContentResponse>): ContentResponse {
   return {
     detail: { explanation: 'A detailed explanation.', example: 'An example.' },
-    quizzes: [makeQuizItem(), makeQuizItem({ format: 'trueFalse' })],
     ...overrides,
   };
+}
+
+export function makeQuizItemArray(count = 2): QuizItem[] {
+  return Array.from({ length: count }, (_, i) =>
+    makeQuizItem({ prompt: `Quiz ${i}?`, format: i === 0 ? 'multipleChoice' : 'trueFalse' }),
+  );
 }
 
 export function makeSummaryResponse(overrides?: Partial<SummaryResponse>): SummaryResponse {

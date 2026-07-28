@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ConceptNode } from '@/features/canvas/nodes/ConceptNode';
 import { QuizNode } from '@/features/canvas/nodes/QuizNode';
 import { SummaryNode } from '@/features/canvas/nodes/SummaryNode';
@@ -132,6 +132,69 @@ describe('ConceptNode', () => {
     );
 
     expect(screen.getByRole('alert')).toBeInTheDocument();
+  });
+});
+
+// ── ConceptNode TTS ────────────────────────────────────
+
+describe('ConceptNode TTS', () => {
+  it('renders the Listen button', () => {
+    const node = factories.mockConceptNode();
+    render(
+      <ConceptNode
+        id={node.id}
+        data={node.data as import('@/shared/types').ConceptData}
+        currentConceptIndex={0}
+        isGenerating={false}
+        onClick={() => {}}
+      />,
+    );
+    expect(screen.getByText('Listen')).toBeInTheDocument();
+  });
+
+  it('falls back to Web Speech when server TTS is unavailable', async () => {
+    const speakSpy = vi.spyOn(window.speechSynthesis, 'speak');
+    const node = factories.mockConceptNode();
+
+    render(
+      <ConceptNode
+        id={node.id}
+        data={node.data as import('@/shared/types').ConceptData}
+        currentConceptIndex={0}
+        isGenerating={false}
+        onClick={() => {}}
+      />,
+    );
+
+    // The fetch to /api/tts will fail (no server), triggering the Web Speech fallback
+    const btn = screen.getByText('Listen');
+    fireEvent.click(btn);
+
+    await vi.waitFor(() => {
+      expect(speakSpy).toHaveBeenCalled();
+    }, { timeout: 3000 });
+  });
+
+  it('disables the button while loading (before response)', async () => {
+    // Stub fetch to hang so we can observe the loading state
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(() => new Promise<never>(() => {}));
+
+    const node = factories.mockConceptNode();
+    render(
+      <ConceptNode
+        id={node.id}
+        data={node.data as import('@/shared/types').ConceptData}
+        currentConceptIndex={0}
+        isGenerating={false}
+        onClick={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByText('Listen'));
+
+    expect(screen.getByTitle('Listen')).toBeDisabled();
+    globalThis.fetch = originalFetch;
   });
 });
 

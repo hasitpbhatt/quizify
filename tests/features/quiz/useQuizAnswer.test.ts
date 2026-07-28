@@ -39,6 +39,11 @@ describe('localGrade (multipleChoice / trueFalse)', () => {
     const q = makeQuiz({ correctAnswer: 'Paris' });
     expect(localGrade(q, 'London').idealAnswer).toBe('Paris');
   });
+
+  it('sets gradingModel to local', () => {
+    const q = makeQuiz({ format: 'multipleChoice' });
+    expect(localGrade(q, 'A').gradingModel).toBe('local');
+  });
 });
 
 describe('localGrade (fillBlank)', () => {
@@ -71,6 +76,11 @@ describe('localGrade (fillBlank)', () => {
     const q = makeQuiz({ format: 'fillBlank', correctAnswer: 'Paris', acceptableAnswers: ['Paris'] });
     expect(localGrade(q, '').grade).toBe('incorrect');
   });
+
+  it('sets gradingModel to local', () => {
+    const q = makeQuiz({ format: 'fillBlank', correctAnswer: 'Paris', acceptableAnswers: ['Paris'] });
+    expect(localGrade(q, 'Paris').gradingModel).toBe('local');
+  });
 });
 
 describe('localGrade (ordering)', () => {
@@ -92,6 +102,11 @@ describe('localGrade (ordering)', () => {
   it('handles case-insensitive ordering comparison', () => {
     const q = makeQuiz({ format: 'ordering', correctAnswer: 'A,B,C', items: ['A', 'B', 'C'] });
     expect(localGrade(q, ['a', 'b', 'c']).grade).toBe('correct');
+  });
+
+  it('sets gradingModel to local', () => {
+    const q = makeQuiz({ format: 'ordering', correctAnswer: 'A,B,C', items: ['A', 'B', 'C'] });
+    expect(localGrade(q, ['A', 'B', 'C']).gradingModel).toBe('local');
   });
 });
 
@@ -117,6 +132,26 @@ describe('gradeQuizAnswer (semantic formats)', () => {
       grade: 'partial',
     });
     expect(mockExecutePromptTask).toHaveBeenCalledOnce();
+  });
+
+  it('sets gradingModel to llm when LLM succeeds', async () => {
+    mockExecutePromptTask.mockResolvedValueOnce({
+      grade: 'correct',
+      rationale: 'Correct!',
+      idealAnswer: '42',
+    });
+    const quiz = makeQuiz({ format: 'freeText', correctAnswer: '42' });
+
+    const result = await gradeQuizAnswer(quiz, '42');
+    expect(result.gradingModel).toBe('llm');
+  });
+
+  it('sets gradingModel to fuzzy when LLM fails', async () => {
+    mockExecutePromptTask.mockRejectedValueOnce(new Error('LLM unavailable'));
+    const quiz = makeQuiz({ format: 'shortAnswer', correctAnswer: 'Paris' });
+
+    const result = await gradeQuizAnswer(quiz, 'Paris');
+    expect(result.gradingModel).toBe('fuzzy');
   });
 });
 

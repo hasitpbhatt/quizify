@@ -20,6 +20,12 @@ export interface Attempt {
   grade: 'correct' | 'partial' | 'incorrect';
   rationale?: string;
   idealAnswer?: string;
+  /** Evidence fields — populated progressively as infrastructure is built. */
+  latencyMs?: number;
+  usedHint?: boolean;
+  confidence?: 'low' | 'medium' | 'high';
+  context?: 'immediate' | 'delayed';
+  gradingModel?: 'local' | 'llm' | 'fuzzy';
 }
 
 export interface QuizData {
