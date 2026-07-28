@@ -253,7 +253,7 @@
 .finalQuizAction {
   position: absolute;
   left: 50%;
-  bottom: 76px;
+  bottom: 100px;
   z-index: 24;
   transform: translateX(-50%);
   min-height: 44px;
