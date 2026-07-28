@@ -78,6 +78,16 @@ describe('executePromptTask', () => {
     expect(opts.onRetry).toBe(onRetry);
   });
 
+  it('passes onToken to chat', async () => {
+    mockChat.mockResolvedValue({ content: '{}' });
+    const onToken = vi.fn();
+
+    await executePromptTask(makeTask(), makeOpts({ onToken }), {});
+
+    const [, opts] = mockChat.mock.calls[0] as [ChatMessage[], Record<string, unknown>];
+    expect(opts.onToken).toBe(onToken);
+  });
+
   it('calls onParseRetry and re-prompts on first parse failure', async () => {
     mockChat
       .mockResolvedValueOnce({ content: 'not json' })

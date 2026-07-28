@@ -1,14 +1,23 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
-import { useNotebookStore } from '@/shared/stores/notebookStore';
-import { readNotebookModePreference } from '@/shared/notebookModePreference';
-import { ChevronDown, X } from 'lucide-react';
+import { useSettingsStore } from '@/shared/stores/settingsStore';
+import { AccessibleDialog } from '@/lib/components/AccessibleDialog';
+import { ChevronDown, Monitor, Moon, Sun, X } from 'lucide-react';
 import styles from './Toolbar.module.css';
 
-export function Toolbar() {
-  const { sessions, currentId, load, select, remove } = useSessionStore();
+interface ToolbarProps {
+  isGenerating?: boolean;
+  onCancelGeneration?: () => void;
+  onCycleTheme?: () => void;
+}
+
+export function Toolbar({ isGenerating = false, onCancelGeneration, onCycleTheme }: ToolbarProps) {
+  const { sessions, currentId, load, select, remove, updateCurrent } = useSessionStore();
+  const { theme } = useSettingsStore();
   const [open, setOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
   const [focusIndex, setFocusIndex] = useState(-1);
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -17,7 +26,6 @@ export function Toolbar() {
     load();
   }, [load]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -31,7 +39,6 @@ export function Toolbar() {
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  // Reset focus index when dropdown opens
   useEffect(() => {
     if (open) {
       const idx = sessions.findIndex((s) => s.id === currentId);
@@ -41,10 +48,9 @@ export function Toolbar() {
     }
   }, [open, currentId, sessions]);
 
-  // Scroll focused item into view
   useEffect(() => {
     if (focusIndex < 0 || !dropdownRef.current) return;
-    const items = dropdownRef.current.querySelectorAll('[role="option"]');
+    const items = dropdownRef.current.querySelectorAll('[data-session-item]');
     const target = items[focusIndex] as HTMLElement | undefined;
     target?.scrollIntoView?.({ block: 'nearest' });
   }, [focusIndex]);
@@ -67,15 +73,6 @@ export function Toolbar() {
         case 'ArrowUp':
           e.preventDefault();
           setFocusIndex((prev) => Math.max(prev - 1, 0));
-          break;
-        case 'Enter':
-        case ' ':
-          e.preventDefault();
-          if (focusIndex >= 0 && focusIndex < sessions.length) {
-            select(sessions[focusIndex].id);
-            setOpen(false);
-            setDeleteCandidate(null);
-          }
           break;
         case 'Escape':
           e.preventDefault();
@@ -102,15 +99,23 @@ export function Toolbar() {
     });
   };
 
-  const dropdownItemClass = (sId: string, i: number) => {
-    return [
-      styles.dropdownItem,
-      sId === currentId ? styles.dropdownItemActive : '',
-      i === focusIndex ? styles.dropdownItemFocused : '',
-    ]
-      .filter(Boolean)
-      .join(' ');
+  const startRename = () => {
+    if (!current) return;
+    setRenameValue(current.name);
+    setRenaming(true);
   };
+
+  const commitRename = async () => {
+    const trimmed = renameValue.trim();
+    setRenaming(false);
+    if (!current || !trimmed || trimmed === current.name) return;
+    await updateCurrent({ name: trimmed });
+  };
+
+  const sessionToDelete = deleteCandidate
+    ? sessions.find((s) => s.id === deleteCandidate)
+    : undefined;
+  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
 
   return (
     <div className={styles.toolbar}>
@@ -128,47 +133,81 @@ export function Toolbar() {
 
       <div className={styles.spacer} />
 
+      {isGenerating && onCancelGeneration && (
+        <button
+          className={styles.newBtn}
+          onClick={onCancelGeneration}
+          aria-label="Cancel generation"
+          type="button"
+        >
+          Cancel generation
+        </button>
+      )}
+
+      {onCycleTheme && (
+        <button
+          className={styles.themeToggle}
+          onClick={onCycleTheme}
+          title={`Theme: ${theme}`}
+          aria-label={`Theme: ${theme}`}
+          type="button"
+        >
+          <ThemeIcon size={14} />
+          <span>Theme: {theme}</span>
+        </button>
+      )}
+
       <div className={styles.sessionSelect} ref={ref} onKeyDown={handleKeyDown}>
         <button
           className={styles.sessionTrigger}
           onClick={() => setOpen((v) => !v)}
-          aria-haspopup="listbox"
+          aria-haspopup="menu"
           aria-expanded={open}
+          aria-label="Sessions"
+          type="button"
         >
           <span className={styles.sessionName}>
             {current ? current.name : 'No session selected'}
           </span>
-          <ChevronDown size={14} />
+          <ChevronDown size={14} aria-hidden />
         </button>
 
         {open && (
-          <div className={styles.dropdown} role="listbox" ref={dropdownRef}>
+          <div className={styles.dropdown} ref={dropdownRef}>
             {sessions.length === 0 && (
               <div className={styles.emptyState}>No saved sessions yet</div>
             )}
             {sessions.map((s, i) => (
-              <div
-                key={s.id}
-                className={dropdownItemClass(s.id, i)}
-                role="option"
-                aria-selected={s.id === currentId}
-                onClick={() => {
-                  useNotebookStore.getState().setNotebookMode(readNotebookModePreference(s.id));
-                  select(s.id);
-                  setOpen(false);
-                  setDeleteCandidate(null);
-                }}
-                onMouseEnter={() => setFocusIndex(i)}
-              >
-                <span>{s.name}</span>
-                <span className={styles.dropdownItemMeta}>{formatDate(s.updatedAt)}</span>
+              <div key={s.id} className={styles.dropdownRow}>
+                <button
+                  className={[
+                    styles.dropdownItem,
+                    s.id === currentId ? styles.dropdownItemActive : '',
+                    i === focusIndex ? styles.dropdownItemFocused : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  data-session-item
+                  tabIndex={i === focusIndex ? 0 : -1}
+                  onClick={() => {
+                    select(s.id);
+                    setOpen(false);
+                    setDeleteCandidate(null);
+                  }}
+                  onMouseEnter={() => setFocusIndex(i)}
+                  aria-label={`Open session ${s.name}`}
+                  type="button"
+                >
+                  <span>{s.name}</span>
+                  <span className={styles.dropdownItemMeta}>{formatDate(s.updatedAt)}</span>
+                </button>
                 <button
                   className={styles.deleteBtn}
                   onClick={(e) => {
                     e.stopPropagation();
                     setDeleteCandidate(s.id);
                   }}
-                  aria-label={'Delete session ' + s.name}
+                  aria-label={`Delete session ${s.name}`}
                   title="Delete session"
                   type="button"
                 >
@@ -176,6 +215,11 @@ export function Toolbar() {
                 </button>
               </div>
             ))}
+            {current && (
+              <button className={styles.renameBtn} onClick={startRename} type="button">
+                Rename current session
+              </button>
+            )}
             <div className={styles.localNote}>
               Sessions are stored locally in this browser (IndexedDB).
             </div>
@@ -183,52 +227,79 @@ export function Toolbar() {
         )}
       </div>
 
-      {deleteCandidate &&
-        (() => {
-          const sessionToDelete = sessions.find((s) => s.id === deleteCandidate);
-          return (
-            <div className={styles.dialogOverlay} onClick={() => setDeleteCandidate(null)}>
-              <div
-                className={styles.dialogModal}
-                onClick={(e) => e.stopPropagation()}
-                role="alertdialog"
-                aria-modal="true"
-                aria-labelledby="toolbar-delete-title"
-                aria-describedby="toolbar-delete-desc"
-              >
-                <h2 id="toolbar-delete-title" className={styles.dialogTitle}>
-                  Delete Session
-                </h2>
-                <p id="toolbar-delete-desc" className={styles.dialogDesc}>
-                  Are you sure you want to delete the session "
-                  {sessionToDelete?.name || 'this session'}"? This action cannot be undone.
-                </p>
-                <div className={styles.dialogButtons}>
-                  <button
-                    className={styles.dialogCancelBtn}
-                    onClick={() => setDeleteCandidate(null)}
-                    type="button"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className={styles.dialogConfirmBtn}
-                    onClick={() => {
-                      if (deleteCandidate) {
-                        remove(deleteCandidate);
-                        setDeleteCandidate(null);
-                        setOpen(false);
-                      }
-                    }}
-                    type="button"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+      {renaming && (
+        <AccessibleDialog
+          role="dialog"
+          label="Rename session"
+          onClose={() => setRenaming(false)}
+          overlayClassName={styles.dialogOverlay}
+          panelClassName={styles.dialogModal}
+          initialFocusSelector="#rename-session-input"
+        >
+          <h2 className={styles.dialogTitle}>Rename session</h2>
+          <input
+            id="rename-session-input"
+            className={styles.renameInput}
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitRename();
+            }}
+          />
+          <div className={styles.dialogButtons}>
+            <button
+              className={styles.dialogCancelBtn}
+              onClick={() => setRenaming(false)}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button className={styles.dialogConfirmBtn} onClick={commitRename} type="button">
+              Save
+            </button>
+          </div>
+        </AccessibleDialog>
+      )}
+
+      {deleteCandidate && sessionToDelete && (
+        <AccessibleDialog
+          role="alertdialog"
+          labelledBy="toolbar-delete-title"
+          describedBy="toolbar-delete-desc"
+          onClose={() => setDeleteCandidate(null)}
+          overlayClassName={styles.dialogOverlay}
+          panelClassName={styles.dialogModal}
+          initialFocusSelector=".toolbar-delete-cancel"
+        >
+          <h2 id="toolbar-delete-title" className={styles.dialogTitle}>
+            Delete Session
+          </h2>
+          <p id="toolbar-delete-desc" className={styles.dialogDesc}>
+            Are you sure you want to delete the session "{sessionToDelete.name}"? This action cannot
+            be undone.
+          </p>
+          <div className={styles.dialogButtons}>
+            <button
+              className={`${styles.dialogCancelBtn} toolbar-delete-cancel`}
+              onClick={() => setDeleteCandidate(null)}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className={styles.dialogConfirmBtn}
+              onClick={() => {
+                remove(deleteCandidate);
+                setDeleteCandidate(null);
+                setOpen(false);
+              }}
+              type="button"
+            >
+              Delete
+            </button>
+          </div>
+        </AccessibleDialog>
+      )}
     </div>
   );
 }

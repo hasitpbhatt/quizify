@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 
 export interface ExampleChip {
@@ -17,7 +17,22 @@ export const EXAMPLE_CHIPS: ExampleChip[] = [
 
 export function useWelcomeState() {
   const { persona, setPersona } = useSettingsStore();
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState(() => {
+    try {
+      return sessionStorage.getItem('quizify:draft') ?? '';
+    } catch {
+      return '';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (url) sessionStorage.setItem('quizify:draft', url);
+      else sessionStorage.removeItem('quizify:draft');
+    } catch {
+      /* storage unavailable */
+    }
+  }, [url]);
 
   const submitEnabled = url.trim().length > 0;
 

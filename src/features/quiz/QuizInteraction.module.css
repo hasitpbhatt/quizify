@@ -1,0 +1,267 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+}
+
+.notebookOverlay {
+  background: transparent;
+  backdrop-filter: none;
+  pointer-events: none;
+}
+
+.dialog {
+  width: 90%;
+  max-width: 520px;
+  max-height: 80vh;
+  padding: 24px;
+  overflow: auto;
+  background: var(--bg-canvas);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.notebookDialog {
+  pointer-events: auto;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.metadata {
+  margin-bottom: 4px;
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.prompt {
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.closeButton {
+  padding: 4px 10px;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.closeButton:focus-visible,
+.primaryButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.grading {
+  padding: 16px;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  text-align: center;
+}
+
+.feedback {
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid;
+  border-radius: 8px;
+}
+
+.correct {
+  background: var(--feedback-success-bg);
+  border-color: var(--feedback-success-border);
+}
+
+.partial {
+  background: var(--feedback-warning-bg);
+  border-color: var(--feedback-warning-border);
+}
+
+.incorrect {
+  background: var(--feedback-danger-bg);
+  border-color: var(--feedback-danger-border);
+}
+
+.feedbackTitle {
+  margin-bottom: 4px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.remediationTitle {
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.correct .feedbackTitle,
+.correctAnswer {
+  color: var(--feedback-success-text);
+}
+
+.partial .feedbackTitle {
+  color: var(--feedback-warning-text);
+}
+
+.incorrect .feedbackTitle {
+  color: var(--feedback-danger-text);
+}
+
+.feedbackBody {
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.sectionHeading {
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.rationale {
+  margin-bottom: 12px;
+}
+
+.primaryButton {
+  width: 100%;
+  padding: 8px 20px;
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--accent);
+  border: 0;
+  border-radius: 6px;
+}
+
+.result {
+  position: relative;
+}
+
+.error {
+  padding: 8px;
+  margin-top: 8px;
+  color: var(--feedback-danger-text);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  background: var(--feedback-danger-bg);
+  border: 1px solid var(--feedback-danger-border);
+  border-radius: 6px;
+}
+
+.attempts {
+  padding-top: 12px;
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.attemptsTitle {
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.attempt {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.badge {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+}
+
+.badgeCorrect,
+.badgeMastered {
+  background: var(--feedback-success-text);
+}
+
+.badgePartial,
+.badgeInProgress {
+  background: var(--feedback-warning-text);
+}
+
+.badgeIncorrect {
+  background: var(--feedback-danger-text);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+}
+
+.confettiContainer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1000;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.confettiParticle {
+  position: absolute;
+  background: var(--confetti-color);
+  border-radius: 50%;
+  animation: explode 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes explode {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--confetti-x)), calc(-50% + var(--confetti-y))) scale(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confettiContainer {
+    display: none;
+  }
+}

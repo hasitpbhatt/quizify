@@ -1,19 +1,38 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { ReactFlow, Background, MiniMap, BackgroundVariant } from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import type { CanvasNode, QuizData, ConceptData } from '@/shared/types';
+import type { CanvasNode, QuizData, ConceptData, NoteData, SummaryData } from '@/shared/types';
 import { QuizInteraction } from '@/features/quiz/QuizInteraction';
+import { SummaryQuizInteraction } from '@/features/quiz/SummaryQuizInteraction';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
+import { useSessionStore } from '@/shared/stores/sessionStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
 import { useTypingAnimation } from './useTypingAnimation';
-import { Play, Pause, Square, List } from 'lucide-react';
+import { useMediaQuery } from '@/shared/useMediaQuery';
+import {
+  Play,
+  Pause,
+  Square,
+  List,
+  Plus,
+  Download,
+  Volume2,
+  VolumeX,
+  Monitor,
+  Moon,
+  Sun,
+} from 'lucide-react';
+import { exportSessionJson } from '@/lib/export/json';
+import { downloadSessionMarkdown } from '@/lib/export/markdown';
+import { getNextLearningAction, normalizeLearningProgress } from '@/shared/learningProgress';
+import { AccessibleDialog } from '@/lib/components/AccessibleDialog';
 import styles from './MobileFocusView.module.css';
 
 interface Props {
   nodes: CanvasNode[];
   progress?: { stage: string; label: string };
   isGenerating?: boolean;
+  onHome?: () => void;
+  onAddNote?: () => void;
 }
 
 function formatKind(node: CanvasNode): string {
@@ -49,19 +68,31 @@ function renderContent(node: CanvasNode): { title?: string; body: string } {
   return { body: '' };
 }
 
-export function MobileFocusView({ nodes, progress, isGenerating = false }: Props) {
+export function MobileFocusView({
+  nodes,
+  progress,
+  isGenerating = false,
+  onHome,
+  onAddNote,
+}: Props) {
   const [index, setIndex] = useState(0);
-  const [showMinimap, setShowMinimap] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
   const [activeQuiz, setActiveQuiz] = useState<{
     quizId: string;
     quiz: QuizData;
     conceptTitle: string;
   } | null>(null);
+  const [summaryQuiz, setSummaryQuiz] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [caption, setCaption] = useState('');
+  const [captionVisible, setCaptionVisible] = useState(false);
+  const [captionAnnouncement, setCaptionAnnouncement] = useState('');
   const cardRef = useRef<HTMLDivElement>(null);
-  const prefersReducedMotion = useRef<boolean>(
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  );
+  const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+
+  useEffect(() => {
+    cardRef.current?.focus({ preventScroll: true });
+  }, [index, nodes.length, isGenerating]);
 
   // Clamp index when nodes shrink
   useEffect(() => {
@@ -90,6 +121,16 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
 
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
   const ttsRate = useSettingsStore((s) => s.ttsRate);
+  const setTtsEnabled = useSettingsStore((s) => s.setTtsEnabled);
+  const setTtsRate = useSettingsStore((s) => s.setTtsRate);
+  const theme = useSettingsStore((s) => s.theme);
+  const setTheme = useSettingsStore((s) => s.setTheme);
+  const showFullText = useNotebookStore((s) => s.showFullText);
+  const setShowFullText = useNotebookStore((s) => s.setShowFullText);
+  const session = useSessionStore((state) =>
+    state.currentId ? (state.sessions.find((item) => item.id === state.currentId) ?? null) : null,
+  );
+  const updateCurrent = useSessionStore((state) => state.updateCurrent);
 
   const handlePlayPause = useCallback(() => {
     if (ttsPaused) {
@@ -119,7 +160,7 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
   // Gated on !prefers-reduced-motion AND the user's TTS-enabled setting to
   // match the desktop notebook behavior.
   useEffect(() => {
-    if (!notebookMode || !node || prefersReducedMotion.current || !ttsEnabled) return;
+    if (!notebookMode || !node || prefersReducedMotion || !ttsEnabled) return;
     if (node.data.kind === 'concept') {
       if (ttsManager.hasSegment(node.id)) return;
       const text = node.data.title + '. ' + node.data.explanation;
@@ -134,7 +175,39 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
     if (!ttsManager.isPlaying && !ttsManager.isPaused) {
       ttsManager.start();
     }
-  }, [notebookMode, node?.id, node?.data?.kind]);
+  }, [notebookMode, node, prefersReducedMotion, ttsEnabled]);
+
+  useEffect(() => {
+    if (!notebookMode) {
+      setCaption('');
+      setCaptionVisible(false);
+      setCaptionAnnouncement('');
+      return;
+    }
+
+    const subId = ttsManager.subscribe('__caption__', {
+      onSegmentStart: () => {
+        setCaptionVisible(true);
+        setCaptionAnnouncement('Narration started.');
+      },
+      onCharProgress: (_nodeId, _charIndex, text?: string) => {
+        if (text != null) {
+          setCaption(text);
+          setCaptionVisible(true);
+        }
+      },
+      onSegmentEnd: () => {
+        setCaptionVisible(false);
+        setCaptionAnnouncement('Narration finished.');
+      },
+    });
+
+    return () => {
+      ttsManager.unsubscribe(subId);
+      setCaptionVisible(false);
+      setCaptionAnnouncement('');
+    };
+  }, [notebookMode]);
 
   const conceptTitles = useMemo(() => {
     const map = new Map<string, string>();
@@ -172,6 +245,76 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
     setActiveQuiz(null);
   }, []);
 
+  const updateNote = useCallback(
+    (noteId: string, text: string) => {
+      if (!session) return;
+      const updatedNodes = session.nodes.map((item) =>
+        item.id === noteId && item.data.kind === 'note'
+          ? { ...item, data: { ...item.data, text } as NoteData }
+          : item,
+      );
+      updateCurrent({ nodes: updatedNodes });
+    },
+    [session, updateCurrent],
+  );
+
+  const cycleTheme = useCallback(() => {
+    setTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light');
+  }, [theme, setTheme]);
+  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
+
+  const conceptProgress = useMemo(() => {
+    const conceptNodes = nodes.filter((item) => item.data.kind === 'concept');
+    if (!node || conceptNodes.length === 0) return null;
+    const conceptIndex =
+      node.data.kind === 'concept'
+        ? node.data.index
+        : conceptNodes.findIndex((item) => {
+            if (item.data.kind !== 'concept') return false;
+            const parentId =
+              node.data.kind === 'quiz'
+                ? node.data.parentConceptId
+                : node.data.kind === 'note'
+                  ? node.data.linkedConceptId
+                  : undefined;
+            return parentId === item.id;
+          });
+    return conceptIndex >= 0 ? `Concept ${conceptIndex + 1} of ${conceptNodes.length}` : null;
+  }, [node, nodes]);
+
+  const navigationCue = useMemo(() => {
+    const prevNode = index > 0 ? nodes[index - 1] : null;
+    const nextNode = index < nodes.length - 1 ? nodes[index + 1] : null;
+    const summarize = (item: CanvasNode | null) => {
+      if (!item) return 'Start';
+      const kind = formatKind(item).toLowerCase();
+      return `${kind}${item.data.kind === 'concept' ? `: ${(item.data as ConceptData).title}` : ''}`;
+    };
+    return `Prev: ${summarize(prevNode)} · Next: ${summarize(nextNode)}`;
+  }, [index, nodes]);
+
+  const summaryData = node?.data.kind === 'summary' ? (node.data as SummaryData) : null;
+
+  const lessonComplete = useMemo(() => {
+    if (!session) return false;
+    const conceptIds = session.nodes
+      .filter((item) => item.data.kind === 'concept')
+      .sort((a, b) => {
+        const ai = a.data.kind === 'concept' ? a.data.index : 0;
+        const bi = b.data.kind === 'concept' ? b.data.index : 0;
+        return ai - bi;
+      })
+      .map((item) => item.id);
+    if (conceptIds.length === 0) return false;
+    const progressState = normalizeLearningProgress(
+      session.lastConceptId,
+      session.completedConceptIds,
+      session.nextReviewAtByConceptId,
+      session.lastActivityAt,
+    );
+    return getNextLearningAction(progressState, conceptIds).kind === 'complete';
+  }, [session]);
+
   const isGeneratingProgress = isGenerating || (progress != null && progress.stage !== 'done');
 
   const outlineItemClass = (isCurrent: boolean) => {
@@ -189,17 +332,43 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
         </div>
       )}
 
+      {lessonComplete && !isGeneratingProgress && (
+        <div className={styles.completionBanner} role="status">
+          <strong>Lesson complete!</strong> Take the final quiz or review any concept from the
+          outline.
+        </div>
+      )}
+
       <div className={styles.topActions}>
-        <button className={styles.topActionBtn} onClick={() => setShowOutline((v) => !v)}>
+        {onHome && (
+          <button className={styles.topActionBtn} onClick={onHome} type="button">
+            <Plus size={14} />
+            <span>New lesson</span>
+          </button>
+        )}
+        <button
+          className={styles.topActionBtn}
+          onClick={() => setShowOutline((v) => !v)}
+          aria-expanded={showOutline}
+          aria-controls="mobile-outline"
+          type="button"
+        >
           <List size={14} />
-          <span>Outline</span>
+          <span>Table of contents</span>
         </button>
-        <button className={styles.topActionBtn} onClick={() => setShowMinimap((v) => !v)}>
-          {showMinimap ? '\u2715 Map' : '\u2630 Map'}
+        <button
+          className={styles.topActionBtn}
+          onClick={cycleTheme}
+          aria-label={`Theme: ${theme}`}
+          type="button"
+        >
+          <ThemeIcon size={14} />
+          <span>Theme: {theme}</span>
         </button>
+        {conceptProgress && <span className={styles.lessonProgress}>{conceptProgress}</span>}
       </div>
 
-      <div className={styles.card} ref={cardRef}>
+      <div className={styles.card} ref={cardRef} tabIndex={-1}>
         {node ? (
           <div className={styles.nodeContent}>
             <div className={styles.kindTag}>{kindLabel}</div>
@@ -219,6 +388,23 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
                 {(node.data as QuizData).attempts.length > 0 ? 'Answer again' : 'Answer quiz'}
               </button>
             )}
+            {node.data.kind === 'summary' && (
+              <button className={styles.answerBtn} onClick={() => setSummaryQuiz(true)}>
+                {session && Object.keys(session.scores).length > 0
+                  ? 'Review final results'
+                  : 'Take final quiz'}
+              </button>
+            )}
+            {node.data.kind === 'note' && (
+              <label className={styles.noteEditor}>
+                <span>Edit note</span>
+                <textarea
+                  value={(node.data as NoteData).text}
+                  onChange={(event) => updateNote(node.id, event.target.value)}
+                  rows={6}
+                />
+              </label>
+            )}
           </div>
         ) : (
           <div className={styles.emptyCard}>No content to display</div>
@@ -227,13 +413,34 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
 
       {notebookMode && (
         <div className={styles.mobileTtsControls}>
-          <button onClick={handlePlayPause} className={styles.playPauseBtn} title="Play/Pause">
+          <button
+            onClick={() => setTtsEnabled(!ttsEnabled)}
+            title={ttsEnabled ? 'Disable narration' : 'Enable narration'}
+            aria-label={ttsEnabled ? 'Disable narration' : 'Enable narration'}
+            aria-pressed={ttsEnabled}
+            type="button"
+          >
+            {ttsEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+          </button>
+          <button
+            onClick={handlePlayPause}
+            className={styles.playPauseBtn}
+            title={
+              ttsPaused ? 'Resume narration' : ttsPlaying ? 'Pause narration' : 'Play narration'
+            }
+            aria-label={
+              ttsPaused ? 'Resume narration' : ttsPlaying ? 'Pause narration' : 'Play narration'
+            }
+            type="button"
+          >
             {ttsPaused ? <Play size={14} /> : ttsPlaying ? <Pause size={14} /> : <Play size={14} />}
           </button>
           <button
             onClick={handleStopTts}
             className={styles.stopBtn}
+            aria-label="Stop narration"
             disabled={!ttsPlaying && !ttsPaused}
+            type="button"
             title="Stop"
           >
             <Square size={14} />
@@ -241,24 +448,83 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
           <span className={styles.mobileTtsLabel}>
             {totalSegments > 0 ? segmentIndex + 1 + ' / ' + totalSegments : 'Queued'}
           </span>
+          <select
+            value={ttsRate}
+            onChange={(event) => setTtsRate(Number(event.target.value))}
+            aria-label="Narration speed"
+          >
+            <option value={0.75}>0.75×</option>
+            <option value={1}>1×</option>
+            <option value={1.25}>1.25×</option>
+            <option value={1.5}>1.5×</option>
+            <option value={2}>2×</option>
+          </select>
         </div>
       )}
+
+      {notebookMode && (
+        <div className={styles.mobilePacingBar}>
+          <button
+            className={styles.pacingToggle}
+            onClick={() => setShowFullText(!showFullText)}
+            type="button"
+          >
+            {showFullText ? 'Hide full text' : 'Show full text'}
+          </button>
+          <span className={styles.pacingCue}>{navigationCue}</span>
+        </div>
+      )}
+
+      {notebookMode && captionVisible && caption && (
+        <div className={styles.mobileCaption} aria-hidden="true">
+          {caption}
+        </div>
+      )}
+
+      {notebookMode && (
+        <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {captionAnnouncement}
+        </div>
+      )}
+
+      <div className={styles.mobileActions}>
+        {onAddNote && (
+          <button type="button" onClick={onAddNote}>
+            <Plus size={14} /> Add note
+          </button>
+        )}
+        <button type="button" onClick={() => setShowExport((value) => !value)}>
+          <Download size={14} /> Export
+        </button>
+        {showExport && session && (
+          <div className={styles.mobileExportMenu}>
+            <button type="button" onClick={() => exportSessionJson(session)}>
+              JSON
+            </button>
+            <button type="button" onClick={() => downloadSessionMarkdown(session)}>
+              Markdown
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className={styles.nav}>
         <button
           className={styles.navBtn}
           onClick={goPrev}
           disabled={index === 0 || total === 0}
-          aria-label="Previous node"
+          aria-label="Previous concept"
+          title="Previous concept"
         >
           &lsaquo;
         </button>
-        <span className={styles.counter}>{total > 0 ? index + 1 + ' / ' + total : '0 / 0'}</span>
+        <span className={styles.counter}>{navigationCue}</span>
         <button
           className={styles.navBtn}
           onClick={goNext}
           disabled={index === total - 1 || total === 0}
-          aria-label="Next node"
+          aria-label="Next concept"
+          title="Next concept"
         >
           &rsaquo;
         </button>
@@ -274,80 +540,59 @@ export function MobileFocusView({ nodes, progress, isGenerating = false }: Props
         />
       )}
 
-      {showOutline && (
-        <div
-          className={styles.outlineOverlay}
-          onClick={() => setShowOutline(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Outline"
-        >
-          <div className={styles.outlinePanel} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.outlineHeader}>
-              <span className={styles.outlineHeaderTitle}>Outline</span>
-              <button
-                className={styles.closeOutlineBtn}
-                onClick={() => setShowOutline(false)}
-                aria-label="Close outline"
-              >
-                \u2715
-              </button>
-            </div>
-            <div className={styles.outlineList}>
-              {nodes.map((n, i) => {
-                const isCurrent = i === index;
-                const kind = formatKind(n);
-                const { title: nodeTitle } = renderContent(n);
-                const displayTitle =
-                  nodeTitle || (n.data.kind === 'note' ? n.data.text.slice(0, 30) + '...' : kind);
-                return (
-                  <button
-                    key={n.id}
-                    className={outlineItemClass(isCurrent)}
-                    onClick={() => {
-                      setIndex(i);
-                      setShowOutline(false);
-                    }}
-                  >
-                    <span className={styles.outlineKind}>{kind}</span>
-                    <span className={styles.outlineTitle}>{displayTitle}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+      {summaryQuiz && summaryData && session && (
+        <SummaryQuizInteraction
+          quizData={summaryData.finalQuiz}
+          onClose={() => setSummaryQuiz(false)}
+          onRetake={() => setSummaryQuiz(true)}
+          initialScores={session.scores}
+          onUpdateScores={(scores) => updateCurrent({ scores })}
+        />
       )}
 
-      {showMinimap && (
-        <div className={styles.minimapOverlay} onClick={() => setShowMinimap(false)}>
-          <div className={styles.minimapPanel} onClick={(e) => e.stopPropagation()}>
-            <button className={styles.closeMinimapBtn} onClick={() => setShowMinimap(false)}>
-              \u2715
-            </button>
-            <ReactFlow
-              nodes={nodes.map((n) => ({
-                id: n.id,
-                type: n.type,
-                position: n.position,
-                data: n.data as unknown as Record<string, unknown>,
-              }))}
-              edges={[]}
-              fitView
-              panOnDrag={false}
-              zoomOnScroll={false}
-              nodesDraggable={false}
-              nodesConnectable={false}
+      {showOutline && (
+        <AccessibleDialog
+          label="Outline"
+          onClose={() => setShowOutline(false)}
+          overlayClassName={styles.outlineOverlay}
+          panelClassName={styles.outlinePanel}
+          initialFocusSelector=".closeOutlineBtn"
+        >
+          <div className={styles.outlineHeader}>
+            <span className={styles.outlineHeaderTitle}>Outline</span>
+            <button
+              className={styles.closeOutlineBtn}
+              onClick={() => setShowOutline(false)}
+              aria-label="Close outline"
+              type="button"
             >
-              <Background variant={BackgroundVariant.Dots} gap={16} size={0.5} />
-              <MiniMap
-                nodeColor="var(--accent)"
-                maskColor="rgba(0,0,0,0.1)"
-                style={{ width: '100%', height: '100%' }}
-              />
-            </ReactFlow>
+              ✕
+            </button>
           </div>
-        </div>
+          <div className={styles.outlineList}>
+            {nodes.map((n, i) => {
+              const isCurrent = i === index;
+              const kind = formatKind(n);
+              const { title: nodeTitle } = renderContent(n);
+              const displayTitle =
+                nodeTitle || (n.data.kind === 'note' ? n.data.text.slice(0, 30) + '...' : kind);
+              return (
+                <button
+                  key={n.id}
+                  className={outlineItemClass(isCurrent)}
+                  onClick={() => {
+                    setIndex(i);
+                    setShowOutline(false);
+                  }}
+                  type="button"
+                >
+                  <span className={styles.outlineKind}>{kind}</span>
+                  <span className={styles.outlineTitle}>{displayTitle}</span>
+                </button>
+              );
+            })}
+          </div>
+        </AccessibleDialog>
       )}
     </div>
   );

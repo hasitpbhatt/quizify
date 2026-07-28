@@ -19,9 +19,23 @@
   --accent-subtle: rgba(79, 82, 212, 0.1);
   --accent-glass: rgba(79, 82, 212, 0.14);
 
+  /* pastel accent palette — softer variations for premium feel */
+  --accent-light: #7c7ef5;
+  --accent-muted: rgba(79, 82, 212, 0.06);
+
   --success: #2e9e5b;
   --warning: #d9a441;
   --danger: #d14b4b;
+  /* Feedback colors maintain WCAG AA contrast for normal text. */
+  --feedback-success-text: #176b3a;
+  --feedback-success-border: #2e7d4f;
+  --feedback-success-bg: rgba(23, 107, 58, 0.1);
+  --feedback-warning-text: #765600;
+  --feedback-warning-border: #9b7200;
+  --feedback-warning-bg: rgba(118, 86, 0, 0.1);
+  --feedback-danger-text: #a12626;
+  --feedback-danger-border: #b93838;
+  --feedback-danger-bg: rgba(161, 38, 38, 0.1);
 
   /* spacing */
   --space-0: 0px;
@@ -60,6 +74,7 @@
 
   /* font families */
   --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-heading: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-canvas: 'Caveat', cursive;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
@@ -89,6 +104,13 @@
   --dur-fast: 120ms;
   --dur: 200ms;
   --dur-slow: 320ms;
+
+  /* hover animation tokens */
+  --hover-scale: 1.04;
+  --hover-scale-active: 0.97;
+
+  /* notebook layout */
+  --notebook-header-height: 48px;
 }
 
 [data-theme='dark'] {
@@ -110,9 +132,22 @@
   --accent-subtle: rgba(126, 128, 240, 0.14);
   --accent-glass: rgba(126, 128, 240, 0.18);
 
+  /* pastel accent palette — softer variations for dark theme */
+  --accent-light: #a5a7f8;
+  --accent-muted: rgba(126, 128, 240, 0.08);
+
   --success: #3dbe73;
   --warning: #e6bb66;
   --danger: #e26c6c;
+  --feedback-success-text: #6fdc9b;
+  --feedback-success-border: #459866;
+  --feedback-success-bg: rgba(111, 220, 155, 0.12);
+  --feedback-warning-text: #f0ca78;
+  --feedback-warning-border: #a88642;
+  --feedback-warning-bg: rgba(240, 202, 120, 0.12);
+  --feedback-danger-text: #ff8f8f;
+  --feedback-danger-border: #a95353;
+  --feedback-danger-bg: rgba(255, 143, 143, 0.12);
 
   --shadow-xs: 0 0.5px 1px rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
@@ -124,9 +159,5 @@
   --note-text: #e8e2a0;
   --note-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
 
-  /* React Flow Controls are themed via data-theme, not .react-flow.dark */
-  --xy-controls-button-background-color-default: var(--bg-elevated);
-  --xy-controls-button-color-default: var(--text-primary);
-  --xy-controls-button-border-color-default: var(--border);
-  --xy-controls-button-background-color-hover-default: var(--bg-glass);
+  /* empty */
 }

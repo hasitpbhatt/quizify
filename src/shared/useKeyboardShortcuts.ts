@@ -6,7 +6,7 @@ import { useEffect } from 'react';
  * Shortcuts:
  *   N       - call onAddNote (add sticky note at canvas center)
  *   ?       - show shortcut reference toast
- *   Escape  - call onEscape (close active modal / exit notebook mode)
+ *   Escape  - call onEscape (close the active modal)
  *
  * All shortcuts are suppressed when focus is inside an input/textarea/select.
  */

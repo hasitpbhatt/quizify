@@ -2,13 +2,12 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTheme } from './useTheme';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useSessionStore } from '@/shared/stores/sessionStore';
-import { Plus, Sun, Moon, Monitor } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
-import { readNotebookModePreference } from '@/shared/notebookModePreference';
 import { WelcomeModal } from '@/features/welcome/WelcomeModal';
 import { Toolbar } from '@/features/toolbar/Toolbar';
 import { CanvasPage } from '@/features/canvas/CanvasPage';
-import { ReactFlowProvider } from '@xyflow/react';
+
 import { ProgressScreen } from './ProgressScreen';
 import { Toaster } from './Toaster';
 import { fetchSourceContent } from '@/lib/fetchSourceContent';
@@ -20,6 +19,8 @@ import { isDebugMode } from '@/lib/debug';
 import { useLatencyStore } from '@/shared/stores/latencyStore';
 import { LatencyPanel } from './LatencyPanel';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
+import { trackEvent } from '@/lib/analytics/events';
+import type { SourceProvenance } from '@/shared/types';
 import '@/styles/global.css';
 import styles from './App.module.css';
 
@@ -55,6 +56,8 @@ export function App() {
   const [previewData, setPreviewData] = useState<{
     title: string;
     snippet: string;
+    provenance: SourceProvenance;
+    url: string;
     onConfirm: () => void;
     onCancel: () => void;
   } | null>(null);
@@ -70,7 +73,6 @@ export function App() {
       if (needsRestore) {
         if (!savedId) return;
         const { select } = useSessionStore.getState();
-        useNotebookStore.getState().setNotebookMode(readNotebookModePreference(savedId));
         await select(savedId);
         if (useSessionStore.getState().currentId) {
           setPage('canvas');
@@ -107,16 +109,17 @@ export function App() {
     return () => document.removeEventListener('visibilitychange', handler);
   }, [loadSessions]);
 
-  // Warn before tab close/reload when viewing canvas
+  // Warn only while generation is actually in flight. Canvas changes are
+  // continuously persisted, so warning on every visit creates alert fatigue.
   useEffect(() => {
-    if (page !== 'canvas') return;
+    if (!isGenerating) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = '';
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [page]);
+  }, [isGenerating]);
 
   // Abort in-flight pipeline on unmount (navigating away mid-generation)
   useEffect(() => {
@@ -139,7 +142,7 @@ export function App() {
 
   const handleSelectSession = useCallback(
     (id: string) => {
-      useNotebookStore.getState().setNotebookMode(readNotebookModePreference(id));
+      trackEvent('lesson_resumed', { sessionId: id });
       select(id);
       setPage('canvas');
     },
@@ -149,6 +152,8 @@ export function App() {
   const handleGenerate = useCallback(async (url: string) => {
     const { persona } = useSettingsStore.getState();
     if (!persona) return;
+
+    trackEvent('generation_started', { source: url });
 
     const abortController = new AbortController();
     abortRef.current = abortController;
@@ -170,13 +175,10 @@ export function App() {
 
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
 
-      // Intercept with Preview so user commits knowingly (skip in test mode)
+      // Fetched pages continue automatically. Only generated/unknown cached
+      // material needs an explicit trust checkpoint.
       const isTest = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
-      if (!isTest) {
-        // Guard against an indefinite hang: if the user never acts on the
-        // preview, auto-cancel (treated like a manual Cancel) so generation
-        // doesn't stay parked on the progress screen forever.
-        const PREVIEW_TIMEOUT_MS = 5 * 60 * 1000;
+      if (!isTest && src.provenance !== 'fetched') {
         await new Promise<void>((resolve, reject) => {
           let title = '';
           const lines = src.content.split('\n');
@@ -198,27 +200,24 @@ export function App() {
           const sentences = cleanText.split(/[.!?]\s+/);
           const snippet = sentences.slice(0, 3).join('. ') + (sentences.length > 3 ? '...' : '.');
 
-          let cancelled = false;
-          const timeout = setTimeout(() => {
-            if (cancelled) return;
-            onCancel();
-          }, PREVIEW_TIMEOUT_MS);
-
           const onConfirm = () => {
-            cancelled = true;
-            clearTimeout(timeout);
             setPreviewData(null);
             resolve();
           };
           const onCancel = () => {
-            cancelled = true;
-            clearTimeout(timeout);
             setPreviewData(null);
             handleCancel();
             reject(new DOMException('Aborted', 'AbortError'));
           };
 
-          setPreviewData({ title, snippet, onConfirm, onCancel });
+          setPreviewData({
+            title,
+            snippet,
+            provenance: src.provenance,
+            url: src.url,
+            onConfirm,
+            onCancel,
+          });
         });
       }
 
@@ -250,9 +249,13 @@ export function App() {
       const session = await createSession({
         url: src.url,
         hostname: extractHostname(src.url),
+        name: outline.title,
+        sourceProvenance: src.provenance,
         persona,
       });
-      await select(session.id);
+      if (useSessionStore.getState().currentId === session.id) {
+        await select(session.id);
+      }
 
       // Navigate to canvas early so we can stream nodes in real-time
       reachedCanvasRef.current = true;
@@ -281,7 +284,10 @@ export function App() {
       latency.endStage('done');
 
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
-      await select(session.id);
+      if (useSessionStore.getState().currentId === session.id) {
+        await select(session.id);
+      }
+      trackEvent('generation_completed', { sessionId: session.id });
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         setPage('welcome');
@@ -306,24 +312,18 @@ export function App() {
     const next = theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light';
     setTheme(next);
   };
-  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
-
   const main =
     page === 'progress' ? (
       <div key="progress" className="pageEnter">
-        <Toolbar />
+        <Toolbar
+          isGenerating={isGenerating}
+          onCancelGeneration={handleCancel}
+          onCycleTheme={cycleTheme}
+        />
         <div className={styles.actionBar}>
           <button className={styles.actionBtn} onClick={goWelcome} type="button">
             <Plus size={14} />
-            <span>New</span>
-          </button>
-          <button
-            className={styles.actionBtn}
-            onClick={cycleTheme}
-            title={'Theme: ' + theme}
-            type="button"
-          >
-            <ThemeIcon size={14} />
+            <span>Cancel generation</span>
           </button>
         </div>
         <ProgressScreen
@@ -335,10 +335,12 @@ export function App() {
       </div>
     ) : page === 'canvas' ? (
       <div key="canvas" className={isGenerating ? 'pageEnterInstant' : 'pageEnter'}>
-        <Toolbar />
-        <ReactFlowProvider>
-          <CanvasPage progress={progress} isGenerating={isGenerating} onHome={goWelcome} />
-        </ReactFlowProvider>
+        <Toolbar
+          isGenerating={isGenerating}
+          onCancelGeneration={handleCancel}
+          onCycleTheme={cycleTheme}
+        />
+        <CanvasPage progress={progress} isGenerating={isGenerating} onHome={goWelcome} />
       </div>
     ) : (
       <div key="welcome" className="pageEnter">

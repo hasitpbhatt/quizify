@@ -287,10 +287,7 @@ export default defineConfig({
         sourcemap: true,
         rollupOptions: {
             output: {
-                manualChunks: {
-                    reactflow: ['@xyflow/react'],
-                    rough: ['roughjs'],
-                },
+                manualChunks: {},
             },
         },
     },
@@ -301,5 +298,6 @@ export default defineConfig({
         globals: true,
         environment: 'jsdom',
         setupFiles: ['./tests/setup.ts'],
+        exclude: ['node_modules/**', '.opencode/**', 'tests/e2e/**'],
     },
 });

@@ -3,6 +3,7 @@ import type { TtsState } from '@/lib/llm/ttsManager';
 
 interface NotebookState {
   notebookMode: boolean;
+  showFullText: boolean;
   ttsPlaying: boolean;
   ttsPaused: boolean;
   currentSegmentNodeId: string | null;
@@ -10,17 +11,17 @@ interface NotebookState {
   totalSegments: number;
   completedTypingNodeIds: Record<string, true>;
 
-  setNotebookMode: (on: boolean) => void;
-  toggleNotebookMode: () => void;
   setCurrentSegment: (nodeId: string | null, index?: number, total?: number) => void;
+  setShowFullText: (show: boolean) => void;
   syncTtsState: (state: TtsState) => void;
   markTypingComplete: (nodeId: string) => void;
   hasTypingCompleted: (nodeId: string) => boolean;
 }
 
 export const useNotebookStore = create<NotebookState>((set, get) => ({
-  // Notebook is the primary product surface; graph view is the escape hatch.
+  // Notebook is the sole lesson surface.
   notebookMode: true,
+  showFullText: false,
   ttsPlaying: false,
   ttsPaused: false,
   currentSegmentNodeId: null,
@@ -28,15 +29,14 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
   totalSegments: 0,
   completedTypingNodeIds: {},
 
-  setNotebookMode: (on) => set({ notebookMode: on }),
-  toggleNotebookMode: () => set((s) => ({ notebookMode: !s.notebookMode })),
-
   setCurrentSegment: (nodeId, index, total) =>
     set({
       currentSegmentNodeId: nodeId,
       segmentIndex: index ?? 0,
       totalSegments: total ?? 0,
     }),
+
+  setShowFullText: (show) => set({ showFullText: show }),
 
   markTypingComplete: (nodeId) =>
     set((state) =>

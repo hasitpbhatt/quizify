@@ -1,64 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { ReactFlowProvider, Position } from '@xyflow/react';
+import { render, screen } from '@testing-library/react';
 import { ConceptNode } from '@/features/canvas/nodes/ConceptNode';
 import { QuizNode } from '@/features/canvas/nodes/QuizNode';
 import { SummaryNode } from '@/features/canvas/nodes/SummaryNode';
 import { NoteNode } from '@/features/canvas/nodes/NoteNode';
-import { WigglyEdge } from '@/features/canvas/edges/WigglyEdge';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
-import * as sessionsDb from '@/lib/db/sessionsDb';
 import * as factories from '../../shared/factories';
-import type { CanvasNode, CanvasEdge } from '@/shared/types';
-import type { NodeProps, EdgeProps } from '@xyflow/react';
-
-function createNodeProps(canvasNode: CanvasNode, overrides: Partial<NodeProps> = {}): NodeProps {
-  return {
-    id: canvasNode.id,
-    type: canvasNode.type,
-    data: canvasNode.data as unknown as Record<string, unknown>,
-    position: canvasNode.position,
-    selected: canvasNode.selected ?? false,
-    dragging: false,
-    zIndex: 0,
-    sourcePosition: Position.Right,
-    targetPosition: Position.Left,
-    ...overrides,
-  } as unknown as NodeProps;
-}
-
-function createEdgeProps(edge: CanvasEdge, overrides: Partial<EdgeProps> = {}): EdgeProps {
-  return {
-    id: edge.id,
-    source: edge.source,
-    target: edge.target,
-    sourceX: 100,
-    sourceY: 200,
-    targetX: 400,
-    targetY: 200,
-    sourcePosition: Position.Right,
-    targetPosition: Position.Left,
-    selected: false,
-    type: 'wiggly' as const,
-    sourceHandleId: null,
-    targetHandleId: null,
-    markerStart: undefined,
-    markerEnd: undefined,
-    data: {},
-    label: undefined,
-    labelStyle: undefined,
-    labelShowBg: undefined,
-    labelBgStyle: undefined,
-    labelBgPadding: undefined,
-    labelBgBorderRadius: undefined,
-    style: {},
-    animated: false,
-    hidden: false,
-    curvature: 0.55,
-    ...overrides,
-  } as unknown as EdgeProps;
-}
+import type { CanvasNode } from '@/shared/types';
 
 beforeEach(() => {
   useSessionStore.setState({ sessions: [], currentId: null, loaded: false });
@@ -70,7 +19,15 @@ beforeEach(() => {
 describe('ConceptNode', () => {
   it('renders title and explanation', () => {
     const node = factories.mockConceptNode();
-    render(<ReactFlowProvider><ConceptNode {...createNodeProps(node)} /></ReactFlowProvider>);
+    render(
+      <ConceptNode
+        id={node.id}
+        data={node.data as import('@/shared/types').ConceptData}
+        currentConceptIndex={0}
+        isGenerating={false}
+        onClick={() => {}}
+      />,
+    );
 
     expect(screen.getByText('Quantum Computing')).toBeInTheDocument();
     expect(screen.getByText('Uses qubits instead of classical bits.')).toBeInTheDocument();
@@ -85,377 +42,287 @@ describe('ConceptNode', () => {
         title: 'Test',
         explanation: 'Test explanation.',
         example: 'Loading...',
+        generationStatus: 'generating',
       },
     });
-    const { container } = render(<ReactFlowProvider><ConceptNode {...createNodeProps(node)} /></ReactFlowProvider>);
+    const { container } = render(
+      <ConceptNode
+        id={node.id}
+        data={node.data as import('@/shared/types').ConceptData}
+        currentConceptIndex={0}
+        isGenerating={false}
+        onClick={() => {}}
+      />,
+    );
 
     const nodeDiv = container.querySelector('[class*="node"]');
     expect(nodeDiv?.className).toContain('loading');
   });
 
-  it('renders full content in notebook mode with skipTyping', () => {
+  it('renders full content with skipTyping when concept index < currentConceptIndex', () => {
     useNotebookStore.setState({ notebookMode: true, ttsPlaying: false, ttsPaused: false, segmentIndex: 0, totalSegments: 0 });
     const node = factories.mockConceptNode({
       data: {
         kind: 'concept',
         index: 0,
-        title: 'Quantum Computing',
-        explanation: 'Uses qubits instead of classical bits.',
-        example: 'Superposition example.',
+        title: 'Test Title',
+        explanation: 'Full explanation text that should not be truncated.',
+        example: 'Some example.',
       },
     });
-    render(<ReactFlowProvider><ConceptNode {...createNodeProps(node, { data: { ...node.data, skipTyping: true } as any })} /></ReactFlowProvider>);
 
-    expect(screen.getByText('Quantum Computing')).toBeInTheDocument();
-    expect(screen.getByText('Uses qubits instead of classical bits.')).toBeInTheDocument();
-    expect(screen.queryByText('Listen')).not.toBeInTheDocument();
+    render(
+      <ConceptNode
+        id={node.id}
+        data={node.data as import('@/shared/types').ConceptData}
+        currentConceptIndex={1}
+        isGenerating={false}
+        onClick={() => {}}
+      />,
+    );
+
+    expect(screen.getByText('Test Title')).toBeInTheDocument();
+    expect(screen.getByText('Full explanation text that should not be truncated.')).toBeInTheDocument();
+  });
+
+  it('shows locked badge when concept index > currentConceptIndex', () => {
+    const node = factories.mockConceptNode({
+      data: {
+        kind: 'concept',
+        index: 2,
+        title: 'Advanced',
+        explanation: 'Too advanced.',
+        example: 'N/A',
+      },
+    });
+
+    render(
+      <ConceptNode
+        id={node.id}
+        data={node.data as import('@/shared/types').ConceptData}
+        currentConceptIndex={1}
+        isGenerating={false}
+        onClick={() => {}}
+      />,
+    );
+
+    expect(screen.getByText('Locked')).toBeInTheDocument();
+  });
+
+  it('shows generation error for failed concepts', () => {
+    const node = factories.mockConceptNode({
+      data: {
+        kind: 'concept',
+        index: 0,
+        title: 'Failed',
+        explanation: 'N/A',
+        example: 'N/A',
+        generationStatus: 'failed',
+      },
+    });
+
+    render(
+      <ConceptNode
+        id={node.id}
+        data={node.data as import('@/shared/types').ConceptData}
+        currentConceptIndex={0}
+        isGenerating={false}
+        onClick={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toBeInTheDocument();
   });
 });
 
-// ── QuizNode ─────────────────────────────────────────────
+// ── QuizNode ──────────────────────────────────────────
 
 describe('QuizNode', () => {
-  it('renders quiz prompt and format label', () => {
-    const concept = factories.mockConceptNode();
-    const quiz = factories.mockQuizNode(concept.id);
-    render(<ReactFlowProvider><QuizNode {...createNodeProps(quiz)} /></ReactFlowProvider>);
+  it('renders quiz prompt and state badge', () => {
+    const node = factories.mockQuizNode('concept-1');
+
+    render(
+      <QuizNode
+        id={node.id}
+        data={node.data as import('@/shared/types').QuizData}
+        currentConceptIndex={0}
+        revealed={true}
+        onClick={() => {}}
+      />,
+    );
 
     expect(screen.getByText('What is a qubit?')).toBeInTheDocument();
-    expect(screen.getByText('Multiple Choice')).toBeInTheDocument();
+    expect(screen.getByText('untested')).toBeInTheDocument();
   });
 
-  it('shows click to answer when no attempts', () => {
-    const concept = factories.mockConceptNode();
-    const quiz = factories.mockQuizNode(concept.id);
-    render(<ReactFlowProvider><QuizNode {...createNodeProps(quiz)} /></ReactFlowProvider>);
-
-    expect(screen.getByText('click to answer')).toBeInTheDocument();
-  });
-
-  it('shows correct state badge', () => {
-    const concept = factories.mockConceptNode();
-    const quiz = factories.mockQuizNode(concept.id, {
+  it('shows attempt count', () => {
+    const node = factories.mockQuizNode('concept-1', {
       data: {
         kind: 'quiz',
-        parentConceptId: concept.id,
-        format: 'multipleChoice' as const,
+        parentConceptId: 'concept-1',
+        format: 'multipleChoice',
         prompt: 'Test?',
-        options: ['A', 'B', 'C', 'D'],
+        options: ['A', 'B'],
         correctAnswer: 'A',
-        rationale: 'Explanation.',
-        attempts: [{ timestamp: 1, given: 'A', grade: 'correct' as const, rationale: 'OK', idealAnswer: 'A' }],
-        state: 'correct' as const,
+        rationale: 'R',
+        attempts: [{ timestamp: 1, given: 'A', grade: 'correct' }],
+        state: 'correct',
       },
     });
-    render(<ReactFlowProvider><QuizNode {...createNodeProps(quiz)} /></ReactFlowProvider>);
 
-    expect(screen.getByText('correct')).toBeInTheDocument();
+    render(
+      <QuizNode
+        id={node.id}
+        data={node.data as import('@/shared/types').QuizData}
+        currentConceptIndex={0}
+        revealed={true}
+        onClick={() => {}}
+      />,
+    );
+
     expect(screen.getByText('1 attempt')).toBeInTheDocument();
   });
 
-  it('shows incorrect state badge', () => {
-    const concept = factories.mockConceptNode();
-    const quiz = factories.mockQuizNode(concept.id, {
-      data: {
-        kind: 'quiz',
-        parentConceptId: concept.id,
-        format: 'multipleChoice' as const,
-        prompt: 'Test?',
-        options: ['A', 'B', 'C', 'D'],
-        correctAnswer: 'A',
-        rationale: 'Explanation.',
-        attempts: [{ timestamp: 1, given: 'B', grade: 'incorrect' as const, rationale: 'Nope', idealAnswer: 'A' }],
-        state: 'incorrect' as const,
-      },
-    });
-    render(<ReactFlowProvider><QuizNode {...createNodeProps(quiz)} /></ReactFlowProvider>);
+  it('shows format label', () => {
+    const node = factories.mockQuizNode('concept-1');
+    render(
+      <QuizNode
+        id={node.id}
+        data={node.data as import('@/shared/types').QuizData}
+        currentConceptIndex={0}
+        revealed={true}
+        onClick={() => {}}
+      />,
+    );
 
-    expect(screen.getByText('incorrect')).toBeInTheDocument();
-  });
-
-  it('shows mastered state badge', () => {
-    const concept = factories.mockConceptNode();
-    const quiz = factories.mockQuizNode(concept.id, {
-      data: {
-        kind: 'quiz',
-        parentConceptId: concept.id,
-        format: 'multipleChoice' as const,
-        prompt: 'Test?',
-        options: ['A', 'B', 'C', 'D'],
-        correctAnswer: 'A',
-        rationale: 'Explanation.',
-        attempts: [
-          { timestamp: 1, given: 'A', grade: 'correct' as const, rationale: 'OK', idealAnswer: 'A' },
-          { timestamp: 2, given: 'A', grade: 'correct' as const, rationale: 'OK', idealAnswer: 'A' },
-        ],
-        state: 'mastered' as const,
-      },
-    });
-    render(<ReactFlowProvider><QuizNode {...createNodeProps(quiz)} /></ReactFlowProvider>);
-
-    expect(screen.getByText('mastered')).toBeInTheDocument();
-    expect(screen.getByText('2 attempts')).toBeInTheDocument();
-  });
-
-  it('renders trueFalse format', () => {
-    const concept = factories.mockConceptNode();
-    const quiz = factories.mockQuizNode(concept.id, {
-      data: {
-        kind: 'quiz',
-        parentConceptId: concept.id,
-        format: 'trueFalse' as const,
-        prompt: 'Is this true?',
-        options: ['True', 'False'],
-        correctAnswer: 'True',
-        rationale: 'Because.',
-        attempts: [],
-        state: 'untested' as const,
-      },
-    });
-    render(<ReactFlowProvider><QuizNode {...createNodeProps(quiz)} /></ReactFlowProvider>);
-
-    expect(screen.getByText('True False')).toBeInTheDocument();
-    expect(screen.getByText('Is this true?')).toBeInTheDocument();
+    expect(screen.getByText('Multiple Choice')).toBeInTheDocument();
   });
 });
 
 // ── SummaryNode ──────────────────────────────────────────
 
 describe('SummaryNode', () => {
-  it('renders recap items and final quiz button', () => {
-    const node: CanvasNode = {
+  it('renders recap items', () => {
+    const summaryNode: CanvasNode = {
       id: '__summary__',
       type: 'summary',
-      position: { x: 0, y: 0 },
       data: {
         kind: 'summary',
-        recap: ['Key insight one.', 'Key insight two.'],
-        finalQuiz: [{
-          kind: 'quiz' as const,
-          format: 'multipleChoice' as const,
-          prompt: 'Final Q?',
-          options: ['A', 'B', 'C', 'D'],
-          correctAnswer: 'A',
-          rationale: 'R.',
-          attempts: [],
-          state: 'untested' as const,
-          parentConceptId: '',
-        }],
-      },
-    };
-    render(<ReactFlowProvider><SummaryNode {...createNodeProps(node)} /></ReactFlowProvider>);
-
-    expect(screen.getByText('Summary')).toBeInTheDocument();
-    expect(screen.getByText('Key insight one.')).toBeInTheDocument();
-    expect(screen.getByText('Key insight two.')).toBeInTheDocument();
-    expect(screen.getByText('1 final quiz question')).toBeInTheDocument();
-    expect(screen.getByText('Take Final Quiz')).toBeInTheDocument();
-  });
-
-  it('shows results when available', () => {
-    const node: CanvasNode = {
-      id: '__summary__',
-      type: 'summary',
-      position: { x: 0, y: 0 },
-      data: {
-        kind: 'summary',
-        recap: ['Insight.'],
+        recap: ['Takeaway 1', 'Takeaway 2'],
         finalQuiz: [],
-        results: { masteryPct: 60, conceptsMastered: 3, conceptsShaky: 1, conceptsUntested: 1, perConcept: {} },
       },
     };
-    render(<ReactFlowProvider><SummaryNode {...createNodeProps(node)} /></ReactFlowProvider>);
 
-    expect(screen.getByText('60%')).toBeInTheDocument();
-    expect(screen.getByText('Mastery')).toBeInTheDocument();
-    expect(screen.queryByText('Take Final Quiz')).not.toBeInTheDocument();
+    render(
+      <SummaryNode
+        id={summaryNode.id}
+        data={summaryNode.data as import('@/shared/types').SummaryData}
+        onClick={() => {}}
+      />,
+    );
+
+    expect(screen.getByText('Takeaway 1')).toBeInTheDocument();
+    expect(screen.getByText('Takeaway 2')).toBeInTheDocument();
   });
 
-  it('renders multiple final quiz questions with plural', () => {
-    const node: CanvasNode = {
+  it('shows quiz count', () => {
+    const summaryNode: CanvasNode = {
       id: '__summary__',
       type: 'summary',
-      position: { x: 0, y: 0 },
       data: {
         kind: 'summary',
-        recap: ['Insight.'],
+        recap: ['R'],
         finalQuiz: [
           {
-            kind: 'quiz' as const,
-            format: 'multipleChoice' as const,
-            prompt: 'Q1?',
+            kind: 'quiz',
+            parentConceptId: '__summary__',
+            format: 'multipleChoice',
+            prompt: 'Final?',
             options: ['A', 'B'],
             correctAnswer: 'A',
-            rationale: 'R.',
+            rationale: 'R',
             attempts: [],
-            state: 'untested' as const,
-            parentConceptId: '',
-          },
-          {
-            kind: 'quiz' as const,
-            format: 'trueFalse' as const,
-            prompt: 'Q2?',
-            options: ['True', 'False'],
-            correctAnswer: 'True',
-            rationale: 'R.',
-            attempts: [],
-            state: 'untested' as const,
-            parentConceptId: '',
+            state: 'untested',
           },
         ],
       },
     };
-    render(<ReactFlowProvider><SummaryNode {...createNodeProps(node)} /></ReactFlowProvider>);
 
-    expect(screen.getByText('2 final quiz questions')).toBeInTheDocument();
+    render(
+      <SummaryNode
+        id={summaryNode.id}
+        data={summaryNode.data as import('@/shared/types').SummaryData}
+        onClick={() => {}}
+      />,
+    );
+
+    expect(screen.getByText('1 final quiz question')).toBeInTheDocument();
+  });
+
+  it('displays mastery results when available', () => {
+    const summaryNode: CanvasNode = {
+      id: '__summary__',
+      type: 'summary',
+      data: {
+        kind: 'summary',
+        recap: ['R'],
+        finalQuiz: [],
+        results: { masteryPct: 85, conceptsMastered: 3, conceptsShaky: 1, conceptsUntested: 0, perConcept: {} },
+      },
+    };
+
+    render(
+      <SummaryNode
+        id={summaryNode.id}
+        data={summaryNode.data as import('@/shared/types').SummaryData}
+        onClick={() => {}}
+      />,
+    );
+
+    expect(screen.getByText('85%')).toBeInTheDocument();
+    expect(screen.getByText('Mastery')).toBeInTheDocument();
   });
 });
 
-// ── NoteNode ─────────────────────────────────────────────
+// ── NoteNode ──────────────────────────────────────────
 
 describe('NoteNode', () => {
   it('renders note text', () => {
-    const node: CanvasNode = {
+    const noteNode: CanvasNode = {
       id: 'note-1',
       type: 'note',
-      position: { x: 0, y: 0 },
-      data: { kind: 'note', text: 'My study note.' },
+      data: { kind: 'note', text: 'My note' },
     };
-    render(<ReactFlowProvider><NoteNode {...createNodeProps(node)} /></ReactFlowProvider>);
 
-    expect(screen.getByText('My study note.')).toBeInTheDocument();
+    render(<NoteNode id={noteNode.id} data={noteNode.data as import('@/shared/types').NoteData} />);
+
+    expect(screen.getByText('My note')).toBeInTheDocument();
+    expect(screen.getByText('Edit')).toBeInTheDocument();
   });
 
-  it('enters edit mode on double-click', () => {
-    const node: CanvasNode = {
-      id: 'note-1',
+  it('starts editing when text is empty', () => {
+    const noteNode: CanvasNode = {
+      id: 'note-empty',
       type: 'note',
-      position: { x: 0, y: 0 },
-      data: { kind: 'note', text: 'My note.' },
+      data: { kind: 'note', text: '' },
     };
-    render(<ReactFlowProvider><NoteNode {...createNodeProps(node)} /></ReactFlowProvider>);
 
-    const textDiv = screen.getByText('My note.');
-    fireEvent.doubleClick(textDiv.closest('[class*="node"]')!);
+    render(<NoteNode id={noteNode.id} data={noteNode.data as import('@/shared/types').NoteData} />);
 
-    const textarea = document.querySelector('textarea');
-    expect(textarea).toBeInTheDocument();
-    expect(textarea).toHaveValue('My note.');
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
   });
 
-  it('saves note on blur after editing', async () => {
-    const node: CanvasNode = {
-      id: 'note-1',
+  it('shows linked concept badge', () => {
+    const noteNode: CanvasNode = {
+      id: 'note-linked',
       type: 'note',
-      position: { x: 0, y: 0 },
-      data: { kind: 'note', text: 'Original note.' },
+      data: { kind: 'note', text: 'Linked note', linkedConceptId: 'concept-1' },
     };
-    const session = factories.mockSession([node], []);
-    await sessionsDb.putSession(session);
-    useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
 
-    const { container } = render(<ReactFlowProvider><NoteNode {...createNodeProps(node)} /></ReactFlowProvider>);
+    render(<NoteNode id={noteNode.id} data={noteNode.data as import('@/shared/types').NoteData} />);
 
-    const nodeDiv = container.querySelector('[class*="node"]')!;
-    fireEvent.doubleClick(nodeDiv);
-
-    const textarea = document.querySelector('textarea')!;
-    fireEvent.change(textarea, { target: { value: 'Updated note.' } });
-    fireEvent.blur(textarea);
-
-    await waitFor(async () => {
-      const state = useSessionStore.getState();
-      const current = state.sessions.find(s => s.id === session.id);
-      const noteNode = current?.nodes.find(n => n.id === 'note-1');
-      expect(noteNode).toBeDefined();
-      const noteData = noteNode!.data as { kind: string; text: string };
-      expect(noteData.text).toBe('Updated note.');
-    });
+    expect(screen.getByText(/Linked to concept-1/)).toBeInTheDocument();
   });
 
-  it('cancels edit on Escape', () => {
-    const node: CanvasNode = {
-      id: 'note-1',
-      type: 'note',
-      position: { x: 0, y: 0 },
-      data: { kind: 'note', text: 'Original note.' },
-    };
-    const { container } = render(<ReactFlowProvider><NoteNode {...createNodeProps(node)} /></ReactFlowProvider>);
 
-    const nodeDiv = container.querySelector('[class*="node"]')!;
-    fireEvent.doubleClick(nodeDiv);
-
-    const textarea = document.querySelector('textarea')!;
-    fireEvent.change(textarea, { target: { value: 'Changed text.' } });
-    fireEvent.keyDown(textarea, { key: 'Escape' });
-
-    expect(screen.getByText('Original note.')).toBeInTheDocument();
-  });
-
-  it('deletes note on delete button click', async () => {
-    const node: CanvasNode = {
-      id: 'note-1',
-      type: 'note',
-      position: { x: 0, y: 0 },
-      data: { kind: 'note', text: 'Delete me.' },
-    };
-    const session = factories.mockSession([node], []);
-    await sessionsDb.putSession(session);
-    useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
-    const { container } = render(<ReactFlowProvider><NoteNode {...createNodeProps(node)} /></ReactFlowProvider>);
-
-    const deleteBtn = container.querySelector('[title="Delete note"]')!;
-    fireEvent.click(deleteBtn);
-
-    await waitFor(() => {
-      const state = useSessionStore.getState();
-      const current = state.sessions.find(s => s.id === session.id);
-      expect(current?.nodes).toHaveLength(0);
-    });
-  });
-});
-
-// ── WigglyEdge ───────────────────────────────────────────
-
-describe('WigglyEdge', () => {
-  it('renders SVG element', () => {
-    const edge = factories.mockEdge('source-1', 'target-1');
-    const { container } = render(
-      <svg>
-        <WigglyEdge {...createEdgeProps(edge)} />
-      </svg>,
-    );
-
-    const path = container.querySelector('path');
-    expect(path).toBeInTheDocument();
-    expect(path).toHaveAttribute('d');
-  });
-
-  it('renders roughjs-generated path inside g element', () => {
-    const edge = factories.mockEdge('source-1', 'target-1');
-    const { container } = render(
-      <svg>
-        <WigglyEdge {...createEdgeProps(edge)} />
-      </svg>,
-    );
-
-    const g = container.querySelector('g');
-    expect(g).toBeInTheDocument();
-    // roughjs should have appended a child path to the g element
-    expect(g?.children.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('changes stroke color when selected', () => {
-    const edge = factories.mockEdge('source-1', 'target-1');
-    const { container } = render(
-      <svg>
-        <WigglyEdge {...createEdgeProps(edge, { selected: true })} />
-      </svg>,
-    );
-
-    const g = container.querySelector('g');
-    const roughPath = g?.querySelector('path');
-    expect(roughPath).toBeInTheDocument();
-    expect(roughPath?.getAttribute('stroke')).toBe('var(--accent)');
-  });
 });

@@ -26,6 +26,8 @@ interface SessionState {
   create: (opts: {
     url: string;
     hostname: string;
+    name?: string;
+    sourceProvenance?: import('@/shared/types').SourceProvenance;
     persona: import('@/shared/types').Persona;
   }) => Promise<Session>;
   select: (id: string) => Promise<void>;
@@ -71,13 +73,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  create: async ({ url, hostname, persona }) => {
+  create: async ({ url, hostname, name, sourceProvenance, persona }) => {
     const now = Date.now();
     const session: Session = {
       id: generateId(),
-      name: hostname,
+      name: name?.trim() || hostname,
       url,
       hostname,
+      sourceProvenance,
       persona,
       createdAt: now,
       updatedAt: now,

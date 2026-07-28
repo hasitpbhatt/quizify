@@ -27,6 +27,21 @@
   pointer-events: none;
 }
 
+.locked {
+  opacity: 0.72;
+}
+
+.lockedBadge {
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  color: var(--text-tertiary);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-caption);
+  vertical-align: middle;
+}
+
 .loading::after {
   content: '';
   position: absolute;
@@ -83,6 +98,17 @@
   margin-bottom: var(--space-4);
 }
 
+.generationError {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: var(--danger-subtle, rgba(185, 28, 28, 0.08));
+  color: var(--danger);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+}
+
 .explanationPara {
   margin: 0;
 }
@@ -96,6 +122,13 @@
   justify-content: space-between;
 }
 
+.revealHint {
+  color: var(--text-tertiary);
+  font-size: var(--fs-caption);
+  font-style: italic;
+  margin-left: auto;
+}
+
 .quizBadge {
   font-size: var(--fs-caption);
   font-weight: var(--fw-caption);
@@ -103,6 +136,49 @@
   background: var(--bg-subtle);
   padding: 2px var(--space-3);
   border-radius: var(--radius-pill);
+}
+
+.streamingBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-caption);
+  color: var(--accent, #4f46e5);
+  background: var(--bg-subtle);
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-pill);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.streamingDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent, #4f46e5);
+  animation: dotPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes dotPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
 }
 
 .playButton {

@@ -73,7 +73,7 @@ describe('fetchSourceContent', () => {
     it('returns cached content without network calls', async () => {
       await setCachedSource('https://example.com', 'cached text');
       const result = await fetchSourceContent('https://example.com', { persona: 'student' });
-      expect(result).toEqual({ content: 'cached text', source: 'cache', url: 'https://example.com' });
+      expect(result).toEqual({ content: 'cached text', source: 'cache', url: 'https://example.com', provenance: 'legacy-unknown' });
       expect(mockFetch).not.toHaveBeenCalled();
     });
   });

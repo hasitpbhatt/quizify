@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import styles from './ShortAnswer.module.css';
 
 interface Props {
@@ -8,10 +8,15 @@ interface Props {
 
 export function ShortAnswer({ disabled, onSubmit }: Props) {
   const [value, setValue] = useState('');
+  const inputId = useId();
 
   return (
     <div className={styles.wrapper}>
+      <label className={styles.label} htmlFor={inputId}>
+        Your answer
+      </label>
       <input
+        id={inputId}
         className={styles.input}
         value={value}
         onChange={(e) => setValue(e.target.value)}

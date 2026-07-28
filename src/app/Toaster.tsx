@@ -12,6 +12,18 @@ export function Toaster() {
       {toasts.map((t) => (
         <div key={t.id} className={styles.toast} data-type={t.type}>
           <span className={styles.message}>{t.message}</span>
+          {t.action && (
+            <button
+              className={styles.action}
+              onClick={() => {
+                remove(t.id);
+                t.action?.onClick();
+              }}
+              type="button"
+            >
+              {t.action.label}
+            </button>
+          )}
           <button className={styles.dismiss} onClick={() => remove(t.id)} aria-label="Dismiss">
             \u2715
           </button>

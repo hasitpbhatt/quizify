@@ -189,7 +189,8 @@ describe('QuizInteraction', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/Correct/)).toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent('Correct. Great job!');
+      expect(screen.getByText('\u2713 Correct')).toBeInTheDocument();
       expect(screen.getByText('Great job!')).toBeInTheDocument();
     });
   });
@@ -204,7 +205,9 @@ describe('QuizInteraction', () => {
     });
 
     renderQuiz();
-    expect(screen.getByText(/Grading timed out, retrying/)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Grading timed out, retrying\u2026 (1/3)',
+    );
   });
 
   it('shows "Gradingâ€¦" when submitting without retryInfo', () => {
@@ -217,7 +220,7 @@ describe('QuizInteraction', () => {
     });
 
     renderQuiz();
-    expect(screen.getByText('Grading\u2026')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Grading\u2026');
   });
 
   it('shows error message', () => {
@@ -230,7 +233,9 @@ describe('QuizInteraction', () => {
     });
 
     renderQuiz();
-    expect(screen.getByText('API error occurred')).toBeInTheDocument();
+    const alerts = screen.getAllByRole('alert');
+    const errorAlert = alerts.find((a) => a.className.includes('error'));
+    expect(errorAlert).toHaveTextContent('API error occurred');
   });
 
   it('shows attempts list', () => {
@@ -324,13 +329,12 @@ describe('QuizInteraction', () => {
       />,
     );
 
-    // The overlay is the outermost div (first child)
-    const overlay = screen.getByText('What is 2+2?').closest('div[style*="position: fixed"]')!;
+    const overlay = screen.getByRole('dialog');
     fireEvent.click(overlay);
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it('does not call onClose when clicking inside the modal', () => {
+  it('does not call onClose when clicking inside the modal', async () => {
     const onClose = vi.fn();
     render(
       <QuizInteraction
@@ -342,7 +346,9 @@ describe('QuizInteraction', () => {
     );
 
     // Click inside the modal (the format component)
-    fireEvent.click(screen.getByTestId('mc-submit'));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('mc-submit'));
+    });
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -362,7 +368,8 @@ describe('QuizInteraction', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/Almost there/)).toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent('Almost there. Close enough.');
+      expect(screen.getByText('~ Almost there')).toBeInTheDocument();
     });
   });
 
@@ -382,7 +389,43 @@ describe('QuizInteraction', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/Not quite/)).toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent('Not quite. Nope.');
+      expect(screen.getByText('\u2717 Not quite')).toBeInTheDocument();
     });
+  });
+
+  it('keeps stable atomic live regions for status and errors', async () => {
+    const view = renderQuiz();
+    const status = screen.getByRole('status');
+    const alert = screen.getByRole('alert');
+
+    expect(status).toHaveAttribute('aria-atomic', 'true');
+    expect(alert).toHaveAttribute('aria-atomic', 'true');
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('mc-submit'));
+    });
+
+    expect(screen.getByRole('status')).toBe(status);
+
+    mockUseQuizAnswer.mockReturnValue({
+      submit: mockSubmit,
+      submitting: false,
+      error: 'Grading failed',
+      attempts: [],
+      retryInfo: null,
+    });
+    view.rerender(
+      <QuizInteraction
+        quiz={makeQuiz()}
+        quizId="q1"
+        conceptTitle="Math"
+        onClose={vi.fn()}
+      />,
+    );
+
+    const newAlerts = screen.getAllByRole('alert');
+    expect(newAlerts[0]).toBe(alert);
+    expect(alert).toHaveTextContent('Grading failed');
   });
 });

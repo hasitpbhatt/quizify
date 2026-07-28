@@ -89,6 +89,7 @@ describe('ShortAnswer', () => {
   it('renders input field with placeholder', () => {
     render(<ShortAnswer disabled={false} onSubmit={vi.fn()} />);
     expect(screen.getByPlaceholderText('Type your answer…')).toBeInTheDocument();
+    expect(screen.getByLabelText('Your answer')).toBeInTheDocument();
   });
 
   it('calls onSubmit with trimmed value on submit click', () => {
@@ -126,6 +127,7 @@ describe('FreeText', () => {
   it('renders textarea with placeholder', () => {
     render(<FreeText disabled={false} onSubmit={vi.fn()} />);
     expect(screen.getByPlaceholderText('Write your answer in detail…')).toBeInTheDocument();
+    expect(screen.getByLabelText('Your answer')).toBeInTheDocument();
   });
 
   it('calls onSubmit with trimmed value on submit click', () => {
@@ -161,7 +163,7 @@ describe('FillBlank', () => {
 
   it('renders an input for the blank', () => {
     render(<FillBlank blankedSentence={sentence} disabled={false} onSubmit={vi.fn()} />);
-    expect(screen.getByRole('textbox')).toBeInTheDocument();
+    expect(screen.getByLabelText('Fill in the blank')).toBeInTheDocument();
   });
 
   it('calls onSubmit with filled value on submit click', () => {
@@ -187,8 +189,9 @@ describe('FillBlank', () => {
 
   it('handles sentence without trailing text after blank', () => {
     render(<FillBlank blankedSentence="Fill ___" disabled={false} onSubmit={vi.fn()} />);
-    expect(screen.getByText((t) => t.startsWith('Fill'))).toBeInTheDocument();
-    expect(screen.getByRole('textbox')).toBeInTheDocument();
+    const input = screen.getByLabelText('Fill in the blank');
+    expect(input.parentElement).toHaveTextContent('Fill');
+    expect(input).toBeInTheDocument();
   });
 });
 
