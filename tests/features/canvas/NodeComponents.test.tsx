@@ -321,7 +321,7 @@ describe('NoteNode', () => {
 
     render(<NoteNode id={noteNode.id} data={noteNode.data as import('@/shared/types').NoteData} />);
 
-    expect(screen.getByText(/Linked: concept-1/)).toBeInTheDocument();
+    expect(screen.getByText(/Linked to concept-1/)).toBeInTheDocument();
   });
 
 

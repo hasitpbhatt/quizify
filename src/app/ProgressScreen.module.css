@@ -238,7 +238,7 @@
 
 .stageHint {
   font-size: var(--fs-caption);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-weight: var(--fw-body);
   min-width: 0;
 }
@@ -267,19 +267,20 @@
 }
 
 .cancelLink {
-  background: none;
-  border: none;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
   padding: var(--space-2) var(--space-4);
   font-family: var(--font-ui);
   font-size: var(--fs-small);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   cursor: pointer;
   border-radius: var(--radius-xs);
   transition: color var(--dur-fast) var(--ease-out);
 }
 
 .cancelLink:hover {
-  color: var(--text-secondary);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
 }
 
 .cancelBtn {
@@ -408,7 +409,7 @@
   font-size: 8px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-weight: var(--fw-h2);
 }
 
@@ -464,6 +465,15 @@
   color: var(--text-secondary);
   line-height: var(--lh-normal);
   white-space: pre-wrap;
+}
+
+.previewSource {
+  margin: var(--space-3) 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--fs-caption);
+  color: var(--text-secondary);
+  line-height: var(--lh-normal);
+  word-break: break-word;
 }
 
 .previewFooter {

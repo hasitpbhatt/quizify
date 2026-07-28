@@ -95,16 +95,25 @@ export function SummaryQuizInteraction({
   const [showResults, setShowResults] = useState(false);
   const [grading, setGrading] = useState(false);
   const [announcement, setAnnouncement] = useState('');
+  const [review, setReview] = useState<{
+    rationale: string;
+    correctAnswer: string;
+  } | null>(null);
+  const [resetSeed, setResetSeed] = useState(0);
   const overlayRef = useRef<HTMLDivElement>(null);
 
   const current = quizData[currentIndex];
   const total = quizData.length;
   const done = Object.keys(results).length;
 
-  useFocusTrap(overlayRef, showResults ? '.summary-close-btn' : '.summary-first-focus');
+  useFocusTrap(
+    overlayRef,
+    showResults ? '.summary-close-btn' : review ? '.summary-review-retry' : '.summary-first-focus',
+  );
 
   const handleAnswer = useCallback(
     (correct: boolean) => {
+      setReview(null);
       setResults((prev) => {
         const next = { ...prev };
         next[currentIndex] = correct;
@@ -123,23 +132,33 @@ export function SummaryQuizInteraction({
         onUpdateScores(next);
         return next;
       });
+      if (!correct) {
+        setReview({
+          rationale:
+            'You can retry this question now, or continue and review it later from the results screen.',
+          correctAnswer: current.correctAnswer,
+        });
+      }
     },
-    [currentIndex, onUpdateScores],
+    [current, currentIndex, onUpdateScores],
   );
 
   const goNext = useCallback(() => {
     if (currentIndex < total - 1) {
+      setReview(null);
       setCurrentIndex((i) => i + 1);
     }
   }, [currentIndex, total]);
 
   const goPrev = useCallback(() => {
     if (currentIndex > 0) {
+      setReview(null);
       setCurrentIndex((i) => i - 1);
     }
   }, [currentIndex]);
 
   const finishQuiz = useCallback(() => {
+    setReview(null);
     setShowResults(true);
   }, []);
 
@@ -153,8 +172,26 @@ export function SummaryQuizInteraction({
     setCurrentIndex(0);
     setShowResults(false);
     setAnnouncement('Assessment reset. Question 1 of ' + total + '.');
+    setReview(null);
+    setResetSeed(0);
     onRetake();
   }, [onRetake, total]);
+
+  const retryCurrent = useCallback(() => {
+    setResults((prev) => {
+      const next = { ...prev };
+      delete next[currentIndex];
+      return next;
+    });
+    setReview(null);
+    setResetSeed((seed) => seed + 1);
+    setAnnouncement('Question reset. Try once more.');
+  }, [currentIndex]);
+
+  const continueAnyway = useCallback(() => {
+    setReview(null);
+    setAnnouncement('Continuing to the next question.');
+  }, []);
 
   if (showResults) {
     const correct = Object.values(results).filter(Boolean).length;
@@ -211,6 +248,7 @@ export function SummaryQuizInteraction({
 
   const submitAnswer = async (answer: string | string[]) => {
     setGrading(true);
+    setReview(null);
     setAnnouncement('Grading answer.');
     try {
       const result = await gradeQuizAnswer(current, answer, {
@@ -243,24 +281,66 @@ export function SummaryQuizInteraction({
         </div>
         <div className={styles.prompt}>{current.prompt}</div>
 
+        {review && (
+          <div className={styles.recoveryPanel} role="status" aria-live="polite">
+            <div className={styles.recoveryTitle}>You can try this one again</div>
+            <div className={styles.recoveryBody}>
+              <p>{review.rationale}</p>
+              <p className={styles.recoveryAnswer}>
+                Correct answer: <span>{review.correctAnswer}</span>
+              </p>
+            </div>
+            <div className={styles.recoveryActions}>
+              <button
+                className={`${styles.primaryBtn} summary-review-retry`}
+                onClick={retryCurrent}
+                type="button"
+              >
+                Try once more
+              </button>
+              <button
+                className={`${styles.secondaryBtn} summary-review-continue`}
+                onClick={continueAnyway}
+                type="button"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        )}
+
         {current.format === 'multipleChoice' && (
           <MultipleChoice
+            key={`${currentIndex}-${resetSeed}`}
             options={current.options ?? []}
             disabled={answered || grading}
             onSubmit={submitAnswer}
           />
         )}
         {current.format === 'trueFalse' && (
-          <TrueFalse disabled={answered || grading} onSubmit={submitAnswer} />
+          <TrueFalse
+            key={`${currentIndex}-${resetSeed}`}
+            disabled={answered || grading}
+            onSubmit={submitAnswer}
+          />
         )}
         {current.format === 'shortAnswer' && (
-          <ShortAnswer disabled={answered || grading} onSubmit={submitAnswer} />
+          <ShortAnswer
+            key={`${currentIndex}-${resetSeed}`}
+            disabled={answered || grading}
+            onSubmit={submitAnswer}
+          />
         )}
         {current.format === 'freeText' && (
-          <FreeText disabled={answered || grading} onSubmit={submitAnswer} />
+          <FreeText
+            key={`${currentIndex}-${resetSeed}`}
+            disabled={answered || grading}
+            onSubmit={submitAnswer}
+          />
         )}
         {current.format === 'fillBlank' && (
           <FillBlank
+            key={`${currentIndex}-${resetSeed}`}
             blankedSentence={current.blankedSentence ?? ''}
             disabled={answered || grading}
             onSubmit={submitAnswer}
@@ -268,6 +348,7 @@ export function SummaryQuizInteraction({
         )}
         {current.format === 'ordering' && (
           <Ordering
+            key={`${currentIndex}-${resetSeed}`}
             items={current.items ?? []}
             disabled={answered || grading}
             onSubmit={submitAnswer}

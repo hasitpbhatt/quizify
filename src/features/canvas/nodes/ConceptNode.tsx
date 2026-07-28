@@ -19,8 +19,9 @@ interface ConceptNodeProps {
 
 function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNodeProps) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
+  const showFullText = useNotebookStore((s) => s.showFullText);
   const textToRead = `${data.title}. ${data.explanation}`;
-  const skipTyping = data.index < currentConceptIndex;
+  const skipTyping = data.index < currentConceptIndex || showFullText;
   const { revealed, isAnimating, skipAnimation } = useTypingAnimation(id, textToRead, skipTyping);
 
   const [isPlaying, setIsPlaying] = useState(false);
@@ -129,9 +130,13 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
   return (
     <div
       className={nodeClass}
-      onClick={() => {
-        if (isAnimating) skipAnimation();
-        else onClick();
+      onClick={(event) => {
+        if (isAnimating) {
+          event.stopPropagation();
+          skipAnimation();
+        } else {
+          onClick();
+        }
       }}
     >
       <div className={styles.title} data-typing={isTitleAnimating ? 'true' : undefined}>
@@ -175,6 +180,7 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
         ) : (
           <span className={styles.quizBadge}>Concept {data.index + 1}</span>
         )}
+        {isAnimating && <span className={styles.revealHint}>Click to reveal faster</span>}
         <button
           onClick={(e) => {
             e.stopPropagation();

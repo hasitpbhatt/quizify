@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ttsManager } from '@/lib/llm/ttsManager';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
+import { useMediaQuery } from '@/shared/useMediaQuery';
 
 /**
  * useTypingAnimation
@@ -19,8 +20,7 @@ export function useTypingAnimation(
   const hasTypingCompleted = useNotebookStore((s) => Boolean(s.completedTypingNodeIds[nodeId]));
   const markTypingComplete = useNotebookStore((s) => s.markTypingComplete);
 
-  const prefersReducedMotion =
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const shouldAnimate =
     notebookMode &&
     fullText.length > 0 &&
@@ -93,14 +93,6 @@ export function useTypingAnimation(
     const onProgress = (nid: string, charIndex: number) => {
       if (nid !== nodeId) return;
       hasReceivedProgressRef.current = true;
-      if (fallbackTimeoutRef.current) {
-        clearTimeout(fallbackTimeoutRef.current);
-        fallbackTimeoutRef.current = null;
-      }
-      if (fallbackIntervalRef.current) {
-        clearInterval(fallbackIntervalRef.current);
-        fallbackIntervalRef.current = null;
-      }
       targetRef.current = Math.max(targetRef.current, Math.min(charIndex, fullText.length));
     };
 

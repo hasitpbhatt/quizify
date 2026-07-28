@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { CanvasPage } from '@/features/canvas/CanvasPage';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
@@ -34,7 +36,7 @@ describe('CanvasPage', () => {
   it('shows empty state when no session exists', async () => {
     renderCanvas();
     await waitFor(() => {
-      expect(screen.getByText('No lesson data yet.')).toBeInTheDocument();
+      expect(screen.getByText(/We couldn.t load this lesson/)).toBeInTheDocument();
     });
   });
 
@@ -59,7 +61,7 @@ describe('CanvasPage', () => {
 
     renderCanvas();
     await waitFor(() => {
-      expect(screen.getByText('No lesson data yet.')).toBeInTheDocument();
+      expect(screen.getByText(/We couldn.t load this lesson/)).toBeInTheDocument();
     });
   });
 
@@ -116,8 +118,8 @@ describe('CanvasPage', () => {
     await waitFor(() => expect(screen.getByText('Quantum Computing')).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText('What is a qubit?')).toBeInTheDocument());
 
-    // Click the quiz node text — React Flow's onNodeClick fires via click event
-    screen.getByText('What is a qubit?').click();
+    // Click the quiz node button wrapper — matches the a11y-first role="button" pattern
+    screen.getByRole('button', { name: /Quiz:/ }).click();
 
     await waitFor(() => {
       expect(screen.getByText('Multiple Choice')).toBeInTheDocument();
@@ -365,6 +367,89 @@ describe('CanvasPage', () => {
         expect(el).toBeTruthy();
         expect(el?.textContent).toMatch(/Concept.*2.*of.*3/);
       }, { timeout: 2000 });
+    });
+  });
+
+  describe('z-index layering regression', () => {
+    function readCss(filename: string): string {
+      const root = resolve(__dirname, '../../..');
+      return readFileSync(resolve(root, 'src', filename), 'utf-8');
+    }
+
+    function extractZIndex(css: string, selector: string): number | null {
+      const regex = new RegExp(
+        selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[^}]*z-index\\s*:\\s*(\\d+)',
+        'i',
+      );
+      const match = css.match(regex);
+      return match ? parseInt(match[1], 10) : null;
+    }
+
+    function extractBottom(css: string, selector: string): string | null {
+      const regex = new RegExp(
+        selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[^}]*bottom\\s*:\\s*([^;]+)',
+        'i',
+      );
+      const match = css.match(regex);
+      return match ? match[1].trim() : null;
+    }
+
+    function extractTop(css: string, selector: string): string | null {
+      const regex = new RegExp(
+        selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[^}]*top\\s*:\\s*([^;]+)',
+        'i',
+      );
+      const match = css.match(regex);
+      return match ? match[1].trim() : null;
+    }
+
+    it('quiz overlay z-index must exceed notebookControls z-index', () => {
+      const quizCss = readCss('features/quiz/QuizInteraction.module.css');
+      const summaryCss = readCss('features/quiz/SummaryQuizInteraction.module.css');
+      const notebookCss = readCss('styles/notebook.css');
+
+      const quizZ = extractZIndex(quizCss, '.overlay');
+      const summaryZ = extractZIndex(summaryCss, '.overlay');
+      const controlsZ = extractZIndex(notebookCss, '.notebookControls');
+
+      expect(quizZ).toBeGreaterThanOrEqual(200);
+      expect(summaryZ).toBeGreaterThanOrEqual(200);
+      expect(controlsZ).toBeLessThanOrEqual(100);
+      expect(quizZ!).toBeGreaterThan(controlsZ!);
+      expect(summaryZ!).toBeGreaterThan(controlsZ!);
+    });
+
+    it('continueToQuiz button must clear notebookControls bottom offset', () => {
+      const canvasCss = readCss('features/canvas/CanvasPage.module.css');
+      const notebookCss = readCss('styles/notebook.css');
+
+      const continueBottom = extractBottom(canvasCss, '.continueToQuiz');
+      const controlsBottom = extractBottom(notebookCss, '.notebookControls');
+
+      expect(continueBottom).toBeTruthy();
+      expect(controlsBottom).toBeTruthy();
+
+      const continuePx = parseInt(continueBottom!, 10);
+      const controlsPx = parseInt(controlsBottom!, 10);
+
+      expect(continuePx).toBeGreaterThan(controlsPx);
+    });
+
+    it('notebookLearningCue must not overlap notebookOrientation', () => {
+      const notebookCss = readCss('styles/notebook.css');
+
+      const orientationTop = extractTop(notebookCss, '.notebookOrientation');
+      const learningTop = extractTop(notebookCss, '.notebookLearningCue');
+
+      expect(orientationTop).toBeTruthy();
+      expect(learningTop).toBeTruthy();
+
+      const orientationPx = parseInt(orientationTop!, 10);
+      const learningPx = parseInt(learningTop!, 10);
+
+      // Orientation cue is ~80px tall (16px padding * 2 + content).
+      // Learning cue must start below orientation cue's bottom.
+      expect(learningPx).toBeGreaterThanOrEqual(orientationPx + 80);
     });
   });
 
