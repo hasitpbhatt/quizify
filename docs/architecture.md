@@ -1,163 +1,94 @@
 # Quizify Architecture
 
-> Architectural reference for AI agents and contributors.
+> Current-system reference for AI agents and contributors.
+> Product strategy lives in [`docs/roadmap.md`](./roadmap.md).
 
-```mermaid
-flowchart TD
-    %% ── 1. USER INPUT ──
-    subgraph "1. User Input"
-        direction LR
-        A[WelcomeModal] -->|URL/topic + persona + provider| B[App.tsx\nhandleGenerate]
-    end
+## What the product is today
 
-    %% ── 2. FETCH ──
-    subgraph "2. Content Fetching"
-        direction TB
-        C[fetchSourceContent] --> D{Cache Hit?}
-        D -->|Yes| E[Return cached content]
-        D -->|No| F{Is URL?}
+Quizify is a **guided study notebook**, not a graph canvas. A learner pastes a URL or topic; the app fetches or generates source material, builds a short concept outline, expands each concept with explanations and quizzes, and presents a linear, progressive notebook experience with optional narration.
 
-        F -->|Yes| G[raceProxies]
-        F -->|No| H1[fetchSubjectFromLlm\nsubject]
+Public positioning and Year-1 sequencing are defined in the roadmap. The public brand name is expected to change; treat **Quizify** as the internal codename until the naming sprint completes.
 
-        G -->|Dev| G1[Vite /__proxy?url=]
-        G -->|Prod| G2[CF /api/fetch?url=]
-        G1 -->|Server fetch + CORS: *| G3{OK + >200 chars?}
-        G2 -->|Server fetch + CORS: *| G3
-        G3 -->|Yes| H[Real article content]
-        G3 -->|No| I[extractSubjectFromUrl]
-        I --> J[fetchSubjectFromLlm\nfrom extracted subject]
+## Stack
 
-        H1 --> K
-        H --> K
-        J --> K
+- **Runtime:** Vite 5 + React 18 + TypeScript (`"type": "module"`)
+- **State:** Zustand (`settingsStore`, `sessionStore`, `notebookStore`, toast/latency helpers)
+- **Persistence:** IndexedDB via `idb` — DB `quizify` v2, stores `source_cache` and `sessions`
+- **UI:** Linear notebook / card journey in `src/features/canvas/` (desktop + `MobileFocusView`)
+- **LLM:** Server-proxied Mistral via Cloudflare Pages Function `/api/chat` (`src/lib/llm/providers.ts`, `chat.ts`)
+- **Fetch:** Server-side URL proxy `/api/fetch` (dev: Vite `/__proxy` + `/api/fetch`)
+- **Tests:** Vitest + jsdom + Testing Library; Playwright e2e under `tests/e2e/`
 
-        K[Validate ≥50 chars\nTruncate by paragraphs\nCache to IDB]
-    end
+## App flow
 
-    %% ── 3. OUTLINE ──
-    subgraph "3. Outline"
-        L[executePromptTask\noutlineTask] --> M[chat → LLM]
-        M --> N[parseOutline]
-        N --> O{Valid?\ntitle + concepts[]?}
-        O -->|No| P{Retry < 2?}
-        P -->|Yes| Q["Hint: 'Return ONLY\nvalid JSON'"] --> M
-        P -->|No| R[Throw ParseError\n→ catch in App]
-        O -->|Yes| S[OutlineData\n{title, summary, concepts}]
-    end
+`src/app/App.tsx` orchestrates three pages:
 
-    %% ── 4. PIPELINE ──
-    subgraph "4. Pipeline"
-        T[createSession → IDB\nsetPage('canvas')] --> U[runPipeline]
+1. **welcome** → `WelcomeModal`
+2. **progress** → `Toolbar` + `ProgressScreen` (optional generated-content preview)
+3. **canvas** → `Toolbar` + `CanvasPage` (notebook / mobile focus)
 
-        U --> V[Phase 0\npushConceptShells\nplaceholder nodes]
-        V --> W[Phase 1\nrunContentPhase\nparallel concepts]
-
-        subgraph Per Concept
-            P1[executePromptTask\ncontentTask]
-            P1 --> P2[Update node +\ncreate quiz nodes +\nwiggly edges]
-            P2 --> P3[persist via mutex]
-        end
-
-        W --> X[Phase 2\npushChainEdges\nlastQuiz→nextConcept]
-        X --> Y[Phase 3\npushSummary\nrecap + final quiz\nnon-fatal, skipped for\nlow-RPM providers]
-    end
-
-    %% ── 5. CANVAS ──
-    subgraph "5. Canvas & Interaction"
-        Z[CanvasPage\nReactFlow renderer]
-        Z --> Z1[Progression Gating\nvisible by concept index]
-        Z --> Z2[Notebook Mode\nTTS + typing animation +\nquiz reveal on segment end]
-        Z --> Z3[Quiz Interaction\nformat renderer +\ngrading + persist attempts]
-        Z --> Z4[Mobile Focus View\nsingle-card navigation]
-
-        Z1 --> Z5[Export\nJSON / Markdown / PNG]
-    end
-
-    %% Connections
-    B --> C
-    K --> L
-    S --> T
-    Y --> Z
-
-    %% Error flow
-    R --> ERR{Page state?}
-    ERR -->|progress| ERR1[Show error + Go back]
-    ERR -->|canvas| ERR2[Toast + keep partial nodes]
-```
-
-## Fetch Strategy (3 tiers)
+`handleGenerate(url)`:
 
 ```
-Tier 1: IndexedDB cache ──┬── source_cache store, keyPath "url"
-                           └── expires after 24h (cachedAt timestamp)
-
-Tier 2: Server-side proxy ──┬── Dev: Vite middleware at /__proxy?url=
-                            ├── Prod: Cloudflare Function at /api/fetch?url=
-                            └── Both return Access-Control-Allow-Origin: *
-                                → No CORS errors (server-to-server)
-
-Tier 3: LLM knowledge ──┬── URL input and proxy fails:
-                        │      extractSubjectFromUrl() extracts last path segment
-                        │      e.g., /wiki/Photosynthesis → "Photosynthesis"
-                        │      → fetchSubjectFromLlm() generates educational content
-                        │
-                        └── Topic input (non-URL):
-                               fetchSubjectFromLlm() generates from scratch
+fetchSourceContent(url)
+  → outline via chat() + parseOutline()
+  → createSession + select
+  → setPage('canvas')
+  → runPipeline(...)   // concept shells → parallel content → chain → summary
+  → select(session.id) // re-pin after concurrent store updates
 ```
 
-## Why This Works
+Non-abort errors return the user to welcome with a surfaced message.
 
-| Scenario | Outcome |
-|----------|---------|
-| Proxy works (Cloudflare/Vite) | Real article content → high-quality outline |
-| Proxy fails for URL | Subject extracted from URL → LLM generates from knowledge → quality outline |
-| Topic input (e.g., "gravity") | LLM generates from scratch directly → quality outline |
-| No server backend | All proxy attempts fail → subject extraction + LLM fallback |
+## Pipeline (`src/lib/pipeline.ts`)
 
-## Key Data Flow
+1. Phase 0 — push concept shells, persist once
+2. Phase 1 — bounded concurrency (default 3) for content + quizzes; mutex around `persist()`
+3. Phase 2 — inter-concept progression edges / ordering
+4. Phase 3 — summary + final quiz (non-fatal)
 
-```
-Input ──► fetchSourceContent() ──► SourceResult.content
-                                        │
-                                        ▼
-                              executePromptTask(outlineTask, content)
-                                        │
-                                        ▼
-                              OutlineData.concepts[]
-                                        │
-                                        ▼
-                              runPipeline(concepts)
-                                        │
-                                        ▼
-                              { nodes: CanvasNode[], edges: CanvasEdge[] }
-                                        │
-                                        ▼
-                              Zustand sessionStore (persisted to IndexedDB)
-                                        │
-                                        ▼
-                              CanvasPage (ReactFlow render)
-```
+Failed concepts can be skipped or retried; abort propagates.
 
-## Error Handling Layers
+## Fetch strategy
 
-1. **LLM retries** — `chat.ts` retries 3× on 429/5xx with exponential backoff; `promptTask.ts` retries 1× on parse failure
-2. **Pipeline per-concept** — failed concepts are caught and skipped (non-fatal), abort propagates
-3. **Summary** — failure is caught and swallowed (canvas works without summary node)
-4. **Error boundaries** — App root (reload), Canvas container (retry/home), per-node (nodeId+type), Quiz (close)
-5. **App catch** — AbortError → silent return to welcome; other errors → shown on progress page or toast on canvas
+1. **IndexedDB cache** — `source_cache`, 24h TTL
+2. **Server proxy** — `/api/fetch` (prod) / Vite proxy (dev), CORS-safe server fetch
+3. **LLM subject fallback** — `extractSubjectFromUrl()` + `fetchSubjectFromLlm()` when proxy fails or input is a topic
 
-## Store Architecture
+Generated fallback content must be labeled and confirmed before continuing.
 
-```
-settingsStore ──┬── persona, theme
-                └── localStorage "quizify:*" keys
+## Data model (high level)
 
-sessionStore ──┬── sessions[] + currentId
-               └── IndexedDB via idb (db "quizify", v2)
-                   ├── sessions (keyPath "id")
-                   └── source_cache (keyPath "url")
+- `Session` — id, name, url, hostname, persona, timestamps, nodes, edges, scores
+- `CanvasNode` / `NodeData` — concept | quiz | note | summary
+- Quiz formats — multipleChoice, trueFalse, shortAnswer, freeText, fillBlank, ordering
+- Attempts live on quiz data; progression/review helpers in `progression.ts` and `learningProgress.ts`
 
-notebookStore ──┬── notebookMode, ttsPlaying/Paused, currentSegmentNodeId
-                └── completedTypingNodeIds Set
-```
+## Store gotchas (do not regress)
+
+1. Always `await createSession` and `await select` before and after `runPipeline`.
+2. `sessionStore` uses updater-form `set((state) => ...)` and IDB-fresh reads in `updateCurrent`.
+3. Pipeline concurrent writes must stay mutex-serialized.
+4. Summary failure is intentionally non-fatal.
+5. Empty canvas usually means a store race or missing `updateCurrent`, not a render bug.
+6. Mobile uses `MobileFocusView` — debug that path on small viewports.
+
+## Backend surfaces
+
+| Endpoint | Role | Known gap |
+|----------|------|-----------|
+| `functions/api/chat.ts` | Proxies chat to Mistral with server key | Needs auth, quotas, model allowlist, body limits |
+| `functions/api/fetch.ts` | Server-side URL fetch | Needs SSRF hardening, size/timeout limits |
+| `/api/tts` (client call) | Intended TTS | Function missing — browser speech fallback path |
+
+## Analytics
+
+`src/lib/analytics/events.ts` currently stores a small local ring buffer. Roadmap Phase 0 requires full funnel, cost, quality, and retention telemetry.
+
+## Docs map
+
+| Doc | Purpose |
+|-----|---------|
+| [`docs/roadmap.md`](./roadmap.md) | Canonical strategy, metrics, sprints, gates |
+| [`docs/architecture.md`](./architecture.md) | Current system wiring (this file) |
+| [`AGENTS.md`](../AGENTS.md) | Short agent cheat sheet |
