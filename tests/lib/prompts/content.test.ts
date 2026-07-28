@@ -12,20 +12,17 @@ describe('buildContentSystemPrompt', () => {
     expect(expert).toContain('advanced techniques');
   });
 
-  it('lists all 6 quiz formats', () => {
-    const prompt = buildContentSystemPrompt('student', 'x');
-    expect(prompt).toContain('multipleChoice');
-    expect(prompt).toContain('trueFalse');
-    expect(prompt).toContain('shortAnswer');
-    expect(prompt).toContain('freeText');
-    expect(prompt).toContain('fillBlank');
-    expect(prompt).toContain('ordering');
-  });
-
-  it('instructs to return JSON', () => {
+  it('instructs to return detail JSON', () => {
     const prompt = buildContentSystemPrompt('student', 'x');
     expect(prompt).toContain('"detail"');
-    expect(prompt).toContain('"quizzes"');
+    expect(prompt).toContain('explanation');
+    expect(prompt).toContain('example');
+  });
+
+  it('does not mention quiz formats', () => {
+    const prompt = buildContentSystemPrompt('student', 'x');
+    expect(prompt).not.toContain('multipleChoice');
+    expect(prompt).not.toContain('quiz');
   });
 });
 

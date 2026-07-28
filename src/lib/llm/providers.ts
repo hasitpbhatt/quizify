@@ -4,6 +4,8 @@ export interface ProviderConfig {
   fallbackModel: string;
   gradingModel: string;
   contentModel: string;
+  quizModel: string;
+  summaryModel: string;
   allowStreamingSplit: boolean;
 }
 
@@ -13,6 +15,8 @@ export const PROVIDER: ProviderConfig = {
   fallbackModel: 'mistral-medium-latest',
   gradingModel: 'mistral-small-latest',
   contentModel: 'mistral-medium-2508',
+  quizModel: 'mistral-small-2506',
+  summaryModel: 'mistral-medium-2508',
   allowStreamingSplit: true,
 };
 
@@ -30,6 +34,14 @@ export function getGradingModel(): string {
 
 export function getContentModel(): string {
   return PROVIDER.contentModel;
+}
+
+export function getQuizModel(): string {
+  return PROVIDER.quizModel;
+}
+
+export function getSummaryModel(): string {
+  return PROVIDER.summaryModel;
 }
 
 export function getApiBase(): string {

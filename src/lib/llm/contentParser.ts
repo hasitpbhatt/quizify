@@ -13,15 +13,6 @@ export interface QuizItem {
   rationale: string;
 }
 
-const VALID_FORMATS: QuizFormat[] = [
-  'multipleChoice',
-  'trueFalse',
-  'shortAnswer',
-  'freeText',
-  'fillBlank',
-  'ordering',
-];
-
 export interface ConceptDetailContent {
   explanation: string;
   example: string;
@@ -29,7 +20,6 @@ export interface ConceptDetailContent {
 
 export interface ContentResponse {
   detail: ConceptDetailContent;
-  quizzes: QuizItem[];
 }
 
 export function parseContentResponse(raw: string): ContentResponse {
@@ -79,54 +69,10 @@ export function parseContentResponse(raw: string): ContentResponse {
     throw new ParseError('Missing "detail.explanation"');
   if (typeof detailObj.example !== 'string') throw new ParseError('Missing "detail.example"');
 
-  if (!Array.isArray(obj.quizzes) || obj.quizzes.length === 0) {
-    throw new ParseError('Missing or empty "quizzes" array');
-  }
-
-  const quizzes = obj.quizzes
-    .map((item: unknown, j: number) => {
-      try {
-        if (!item || typeof item !== 'object') throw new Error(`Quiz ${j} is not an object`);
-        const quiz = item as Record<string, unknown>;
-        if (!VALID_FORMATS.includes(quiz.format as QuizFormat)) {
-          throw new Error(`Quiz ${j}: invalid format "${String(quiz.format)}"`);
-        }
-        if (typeof quiz.prompt !== 'string')
-          throw new Error(`Quiz ${j}: missing or invalid "prompt"`);
-        if (typeof quiz.correctAnswer !== 'string')
-          throw new Error(`Quiz ${j}: missing or invalid "correctAnswer"`);
-        if (typeof quiz.rationale !== 'string')
-          throw new Error(`Quiz ${j}: missing or invalid "rationale"`);
-
-        return {
-          format: quiz.format as QuizFormat,
-          prompt: quiz.prompt,
-          options: Array.isArray(quiz.options) ? quiz.options : undefined,
-          blankedSentence:
-            typeof quiz.blankedSentence === 'string' ? quiz.blankedSentence : undefined,
-          items: Array.isArray(quiz.items) ? quiz.items : undefined,
-          correctAnswer: quiz.correctAnswer,
-          acceptableAnswers: Array.isArray(quiz.acceptableAnswers)
-            ? quiz.acceptableAnswers
-            : undefined,
-          rationale: quiz.rationale,
-        } as QuizItem;
-      } catch (e) {
-        console.warn('[contentParser] skipping malformed quiz item', e);
-        return null;
-      }
-    })
-    .filter((item): item is QuizItem => item !== null);
-
-  if (quizzes.length === 0) {
-    console.warn('[contentParser] all quiz items were malformed — returning empty quizzes array');
-  }
-
   return {
     detail: {
       explanation: detailObj.explanation,
       example: detailObj.example,
     },
-    quizzes,
   };
 }

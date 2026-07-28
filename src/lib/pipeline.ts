@@ -9,7 +9,9 @@ import {
 } from '@/shared/types';
 import { executePromptTask } from '@/lib/llm/promptTask';
 import { contentTask } from '@/lib/tasks/contentTask';
+import { quizTask } from '@/lib/tasks/quizTask';
 import { summaryTask } from '@/lib/tasks/summaryTask';
+import { getContentModel, getQuizModel, getSummaryModel } from '@/lib/llm/providers';
 import { debugLog } from '@/lib/debug';
 import type { QuizItem } from '@/lib/llm/contentParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
@@ -26,7 +28,23 @@ export interface PipelineProgress {
 
 type ProgressCallback = (progress: PipelineProgress) => void;
 
-const CONCURRENCY = 3;
+function getInitialConcurrency(): number {
+  const env = typeof import.meta !== 'undefined' ? import.meta.env.VITE_PIPELINE_CONCURRENCY : undefined;
+  if (env) {
+    const parsed = parseInt(env as string, 10);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+  return 1;
+}
+
+export interface RateLimitState {
+  consecutive429s: number;
+  effectiveConcurrency: number;
+}
+
+export function createRateLimitState(): RateLimitState {
+  return { consecutive429s: 0, effectiveConcurrency: getInitialConcurrency() };
+}
 
 export function quizItemToQuizData(item: QuizItem, conceptId: string): QuizData {
   return { kind: 'quiz', parentConceptId: conceptId, attempts: [], state: 'untested', ...item };
@@ -81,6 +99,8 @@ export async function processOneConcept(
   signal: AbortSignal | undefined,
   persist: () => Promise<void>,
   onNotify: (step: PipelineStep, label: string, error?: string) => void,
+  rateLimitState?: RateLimitState,
+  model?: string,
 ): Promise<string | null> {
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
@@ -111,11 +131,22 @@ export async function processOneConcept(
         persona,
         signal,
         context: { topic },
+        model: model ?? getContentModel(),
         onToken,
-        onRetry: (info) =>
+        onRetry: (info) => {
+          if (rateLimitState && info.status === 429) {
+            rateLimitState.consecutive429s++;
+            if (rateLimitState.consecutive429s >= 2 && rateLimitState.effectiveConcurrency > 1) {
+              rateLimitState.effectiveConcurrency = 1;
+              debugLog('warn', 'pipeline', 'rate-limit throttling detected, reducing concurrency to 1');
+            }
+          } else if (rateLimitState) {
+            rateLimitState.consecutive429s = 0;
+          }
           useToastStore
             .getState()
-            .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
+            .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`);
+        },
         onParseRetry: (raw) =>
           console.warn(
             `[pipeline] ParseError for concept ${concept.id}, retrying. Raw:\n${raw.slice(0, 500)}`,
@@ -146,24 +177,13 @@ export async function processOneConcept(
       };
     }
 
-    content.quizzes.forEach((item, qi) => {
-      const quizId = `${concept.id}-quiz-${qi}`;
-      const quizData = quizItemToQuizData(item, concept.id);
-      nodes.push({
-        id: quizId,
-        type: 'quiz',
-        data: quizData,
-      });
-    });
-
     persist();
     const conceptElapsed = Math.round(performance.now() - conceptStart);
     debugLog(
       'log',
       'pipeline',
-      'concept done id=%s quizzes=%d elapsed=%dms',
+      'concept done id=%s elapsed=%dms',
       concept.id,
-      content.quizzes.length,
       conceptElapsed,
     );
     return concept.id;
@@ -200,7 +220,7 @@ export async function processOneConcept(
 
 export async function runWithConcurrency(
   items: Array<{ id: string; title: string; explanation: string }>,
-  concurrency: number,
+  getConcurrency: () => number,
   fn: (item: { id: string; title: string; explanation: string }, index: number) => Promise<void>,
 ): Promise<void> {
   const poolAbort = new AbortController();
@@ -218,7 +238,8 @@ export async function runWithConcurrency(
     }
   };
 
-  if (concurrency >= items.length) {
+  const initialConcurrency = getConcurrency();
+  if (initialConcurrency >= items.length) {
     const results = await Promise.allSettled(items.map((item, i) => safeFn(item, i)));
     if (poolAbort.signal.aborted) throw poolAbort.signal.reason;
     for (const r of results) {
@@ -226,8 +247,9 @@ export async function runWithConcurrency(
     }
   } else {
     let next = 0;
-    const workers = Array.from({ length: concurrency }, async () => {
+    const workers = Array.from({ length: initialConcurrency }, async (_, workerIndex) => {
       while (next < items.length && !poolAbort.signal.aborted) {
+        if (workerIndex >= getConcurrency()) return;
         const i = next++;
         await safeFn(items[i], i);
       }
@@ -248,31 +270,100 @@ export async function runContentPhase(
   signal: AbortSignal | undefined,
   persist: () => Promise<void>,
   onNotify: (step: PipelineStep, label: string, error?: string) => void,
+  rateLimitState: RateLimitState,
 ): Promise<number> {
   const total = concepts.length;
   let completed = 0;
   let failed = 0;
   onNotify('detail', `Generating content (0/${total} done\u2026)`);
 
-  await runWithConcurrency(concepts, Math.min(CONCURRENCY, total), async (concept, i) => {
-    const lastNodeId = await processOneConcept(
-      nodes,
-      edges,
-      generatedConcepts,
-      concept,
-      i,
-      topic,
-      persona,
-      signal,
-      persist,
-      onNotify,
-    );
-    conceptLastNodeIds[i] = lastNodeId;
-    if (!lastNodeId) failed++;
-    completed++;
-    onNotify('detail', `Generating content (${completed}/${total} done\u2026)`);
-  });
+  await runWithConcurrency(
+    concepts,
+    () => rateLimitState.effectiveConcurrency,
+    async (concept, i) => {
+      const lastNodeId = await processOneConcept(
+        nodes,
+        edges,
+        generatedConcepts,
+        concept,
+        i,
+        topic,
+        persona,
+        signal,
+        persist,
+        onNotify,
+        rateLimitState,
+        getContentModel(),
+      );
+      conceptLastNodeIds[i] = lastNodeId;
+      if (!lastNodeId) failed++;
+      completed++;
+      onNotify('detail', `Generating content (${completed}/${total} done\u2026)`);
+    },
+  );
   return failed;
+}
+
+export async function runQuizPhase(
+  nodes: CanvasNode[],
+  generatedConcepts: ConceptInfo[],
+  topic: string,
+  persona: Persona,
+  signal: AbortSignal | undefined,
+  persist: () => Promise<void>,
+  onNotify: (step: PipelineStep, label: string, error?: string) => void,
+): Promise<void> {
+  if (generatedConcepts.length === 0) return;
+
+  onNotify('quiz', `Generating quizzes (${generatedConcepts.length} concepts)\u2026`);
+
+  const results = await Promise.allSettled(
+    generatedConcepts.map(async (concept) => {
+      try {
+        const quizzes = await executePromptTask(
+          quizTask,
+          {
+            persona,
+            signal,
+            context: { topic },
+            model: getQuizModel(),
+            onRetry: (info) =>
+              useToastStore
+                .getState()
+                .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
+          },
+          concept,
+        );
+        return { conceptId: concept.id, quizzes } as const;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') throw err;
+        debugLog(
+          'warn',
+          'pipeline',
+          'quiz FAIL concept=%s err=%s',
+          concept.id,
+          err instanceof Error ? err.message : String(err),
+        );
+        return null;
+      }
+    }),
+  );
+
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value) {
+      const { conceptId, quizzes } = result.value;
+      quizzes.forEach((item, qi) => {
+        const quizId = `${conceptId}-quiz-${qi}`;
+        nodes.push({
+          id: quizId,
+          type: 'quiz',
+          data: quizItemToQuizData(item, conceptId),
+        });
+      });
+    }
+  }
+
+  await persist();
 }
 
 export async function pushSummary(
@@ -294,6 +385,7 @@ export async function pushSummary(
         persona,
         signal,
         context: { topic },
+        model: getSummaryModel(),
         onRetry: (info) =>
           useToastStore
             .getState()
@@ -354,23 +446,25 @@ export async function runPipeline(
 
   const generatedConcepts: ConceptInfo[] = [];
   const conceptLastNodeIds: (string | null)[] = [];
+  const rateLimitState = createRateLimitState();
 
   // --- Phase 0: Concept shells ---
   pushConceptShells(nodes, concepts, sourceUrl);
   await persist();
   debugLog('log', 'pipeline', 'phase 0: %d concept shells pushed', concepts.length);
 
-  // --- Phase 1: Content generation ---
+  // --- Phase 1: Content generation (medium model, sequential via adaptive concurrency) ---
   debugLog(
     'log',
     'pipeline',
-    'phase 1: generating %d concepts (concurrency=%s)',
+    'phase 1: generating %d concepts (concurrency=%s model=%s)',
     concepts.length,
-    CONCURRENCY === Infinity ? 'Infinity' : String(CONCURRENCY),
+    rateLimitState.effectiveConcurrency,
+    getContentModel(),
   );
   const failedConcepts = await runContentPhase(
     nodes,
-    [], // unused edges placeholder
+    [],
     generatedConcepts,
     conceptLastNodeIds,
     concepts,
@@ -379,10 +473,15 @@ export async function runPipeline(
     signal,
     persist,
     notify,
+    rateLimitState,
   );
 
-  // --- Phase 2: Summary ---
-  debugLog('log', 'pipeline', 'phase 2: summary start');
+  // --- Phase 2: Quiz generation (small model, parallel burst) ---
+  debugLog('log', 'pipeline', 'phase 2: quiz generation for %d concepts (model=%s)', generatedConcepts.length, getQuizModel());
+  await runQuizPhase(nodes, generatedConcepts, topic, persona, signal, persist, notify);
+
+  // --- Phase 3: Summary (medium model) ---
+  debugLog('log', 'pipeline', 'phase 3: summary start (model=%s)', getSummaryModel());
   await pushSummary(nodes, generatedConcepts, topic, persona, signal, persist, notify);
 
   notify(
