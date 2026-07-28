@@ -220,7 +220,7 @@ describe('processOneConcept', () => {
   });
 
   it('returns null and notifies on non-abort error', async () => {
-    mockExecute.mockRejectedValueOnce(new Error('API error'));
+    mockExecute.mockRejectedValue(new Error('API error'));
 
     const { nodes, edges, generated, persist, notify, rateLimitState } = setup();
     const tail = await processOneConcept(nodes, edges, generated, concept, 0, topic, persona, undefined, persist, notify, rateLimitState);
@@ -230,16 +230,15 @@ describe('processOneConcept', () => {
     expect(notify).toHaveBeenCalledWith('error', expect.stringContaining('Test Concept'), expect.any(String));
   });
 
-  it('tracks 429 retries and reduces effectiveConcurrency', async () => {
-    mockExecute.mockImplementationOnce(async (_task: unknown, opts: { onRetry: (info: { status: number }) => void }) => {
-      opts.onRetry({ status: 429 });
-      throw new Error('Rate limited');
-    });
+  it('tracks 429 retries and bumps contentModelIndex', async () => {
+    mockExecute.mockRejectedValue(new Error('Rate limited'));
 
     const { nodes, edges, generated, persist, notify, rateLimitState } = setup();
     await processOneConcept(nodes, edges, generated, concept, 0, topic, persona, undefined, persist, notify, rateLimitState);
 
     expect(rateLimitState.consecutive429s).toBeGreaterThanOrEqual(1);
+    expect(rateLimitState.contentModelIndex).toBeGreaterThanOrEqual(1);
+    expect(rateLimitState.last429At).toBeGreaterThan(0);
   });
 });
 
@@ -289,7 +288,7 @@ describe('runQuizPhase', () => {
     const persist = vi.fn().mockResolvedValue(undefined);
     const notify = vi.fn();
 
-    await runQuizPhase(nodes, generated, 'Topic', 'curious' as Persona, undefined, persist, notify);
+    await runQuizPhase(nodes, generated, 'Topic', 'curious' as Persona, undefined, persist, notify, createRateLimitState());
 
     // 2 concepts × 2 quizzes each = 4 quiz nodes
     expect(nodes).toHaveLength(4);
@@ -305,7 +304,7 @@ describe('runQuizPhase', () => {
     const persist = vi.fn().mockResolvedValue(undefined);
     const notify = vi.fn();
 
-    await runQuizPhase(nodes, [], 'Topic', 'curious' as Persona, undefined, persist, notify);
+    await runQuizPhase(nodes, [], 'Topic', 'curious' as Persona, undefined, persist, notify, createRateLimitState());
 
     expect(nodes).toHaveLength(0);
     expect(persist).not.toHaveBeenCalled();
@@ -325,7 +324,7 @@ describe('runQuizPhase', () => {
     const notify = vi.fn();
 
     await expect(
-      runQuizPhase(nodes, generated, 'Topic', 'curious' as Persona, undefined, persist, notify),
+      runQuizPhase(nodes, generated, 'Topic', 'curious' as Persona, undefined, persist, notify, createRateLimitState()),
     ).resolves.toBeUndefined();
 
     // Only c1's quiz was created; c2's failed
@@ -350,7 +349,7 @@ describe('pushSummary', () => {
     const persist = vi.fn().mockResolvedValue(undefined);
     const notify = vi.fn();
 
-    await pushSummary(nodes, generated, 'Topic', 'curious' as Persona, undefined, persist, notify);
+    await pushSummary(nodes, generated, 'Topic', 'curious' as Persona, undefined, persist, notify, createRateLimitState());
 
     expect(nodes).toHaveLength(1);
     expect(nodes[0].id).toBe('__summary__');
@@ -370,14 +369,14 @@ describe('pushSummary', () => {
     const persist = vi.fn().mockResolvedValue(undefined);
     const notify = vi.fn();
 
-    await pushSummary(nodes, [], 'Topic', 'curious' as Persona, undefined, persist, notify);
+    await pushSummary(nodes, [], 'Topic', 'curious' as Persona, undefined, persist, notify, createRateLimitState());
 
     expect(nodes).toHaveLength(0);
     expect(persist).not.toHaveBeenCalled();
   });
 
   it('handles LLM failure gracefully (non-fatal)', async () => {
-    mockExecute.mockRejectedValueOnce(new Error('Summary API down'));
+    mockExecute.mockRejectedValue(new Error('Summary API down'));
 
     const nodes: CanvasNode[] = [];
     const generated: ConceptInfo[] = [{ id: 'c1', title: 'T', explanation: 'E', example: 'Ex' }];
@@ -385,7 +384,7 @@ describe('pushSummary', () => {
     const notify = vi.fn();
 
     await expect(
-      pushSummary(nodes, generated, 'Topic', 'curious' as Persona, undefined, persist, notify),
+      pushSummary(nodes, generated, 'Topic', 'curious' as Persona, undefined, persist, notify, createRateLimitState()),
     ).resolves.toBeUndefined();
 
     expect(nodes).toHaveLength(0);

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useToastStore } from '@/shared/stores/toastStore';
 import { debugLog } from '@/lib/debug';
@@ -27,6 +27,7 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
   const [lastResult, setLastResult] = useState<SubmitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryInfo, setRetryInfo] = useState<{ attempt: number; maxRetries: number } | null>(null);
+  const startedAt = useRef(Date.now());
 
   const submit = useCallback(
     async (given: string | string[]) => {
@@ -50,6 +51,8 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
           grade: result.grade,
           rationale: result.rationale,
           idealAnswer: result.idealAnswer,
+          latencyMs: Date.now() - startedAt.current,
+          gradingModel: result.gradingModel,
         };
 
         const updatedAttempts = [...quiz.attempts, attempt];

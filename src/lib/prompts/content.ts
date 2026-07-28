@@ -4,8 +4,7 @@ import { sanitizeForPrompt } from './sanitize';
 const personaInstructions: Record<Persona, string> = {
   curious:
     'Use analogies, avoid jargon, focus on "why" and big-picture connections. Write for a bright teenager.',
-  student:
-    'Cover fundamentals clearly. Include key definitions and formulas. Undergraduate level.',
+  student: 'Cover fundamentals clearly. Include key definitions and formulas. Undergraduate level.',
   professional:
     'Focus on practical knowledge, trade-offs, edge cases, implementation details. Assume related field experience.',
   expert:

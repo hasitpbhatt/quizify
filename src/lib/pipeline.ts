@@ -11,7 +11,13 @@ import { executePromptTask } from '@/lib/llm/promptTask';
 import { contentTask } from '@/lib/tasks/contentTask';
 import { quizTask } from '@/lib/tasks/quizTask';
 import { summaryTask } from '@/lib/tasks/summaryTask';
-import { getContentModel, getQuizModel, getSummaryModel } from '@/lib/llm/providers';
+import {
+  getContentModelAt,
+  getQuizModel,
+  getSummaryModelAt,
+  CONTENT_MODEL_CASCADE,
+  SUMMARY_MODEL_CASCADE,
+} from '@/lib/llm/providers';
 import { debugLog } from '@/lib/debug';
 import type { QuizItem } from '@/lib/llm/contentParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
@@ -28,22 +34,24 @@ export interface PipelineProgress {
 
 type ProgressCallback = (progress: PipelineProgress) => void;
 
-function getInitialConcurrency(): number {
-  const env = typeof import.meta !== 'undefined' ? import.meta.env.VITE_PIPELINE_CONCURRENCY : undefined;
-  if (env) {
-    const parsed = parseInt(env as string, 10);
-    if (!isNaN(parsed) && parsed > 0) return parsed;
-  }
-  return 1;
-}
-
 export interface RateLimitState {
   consecutive429s: number;
-  effectiveConcurrency: number;
+  last429At: number;
+  contentModelIndex: number;
+  summaryModelIndex: number;
 }
 
 export function createRateLimitState(): RateLimitState {
-  return { consecutive429s: 0, effectiveConcurrency: getInitialConcurrency() };
+  return { consecutive429s: 0, last429At: 0, contentModelIndex: 0, summaryModelIndex: 0 };
+}
+
+export function resetIfCooled(state: RateLimitState): void {
+  if (state.last429At > 0 && Date.now() - state.last429At > 60000) {
+    state.consecutive429s = 0;
+    state.contentModelIndex = 0;
+    state.summaryModelIndex = 0;
+    state.last429At = 0;
+  }
 }
 
 export function quizItemToQuizData(item: QuizItem, conceptId: string): QuizData {
@@ -124,98 +132,121 @@ export async function processOneConcept(
   const conceptStart = performance.now();
   debugLog('log', 'pipeline', 'concept start id=%s title=%s', concept.id, concept.title);
 
-  try {
-    const content = await executePromptTask(
-      contentTask,
-      {
-        persona,
-        signal,
-        context: { topic },
-        model: model ?? getContentModel(),
-        onToken,
-        onRetry: (info) => {
-          if (rateLimitState && info.status === 429) {
-            rateLimitState.consecutive429s++;
-            if (rateLimitState.consecutive429s >= 2 && rateLimitState.effectiveConcurrency > 1) {
-              rateLimitState.effectiveConcurrency = 1;
-              debugLog('warn', 'pipeline', 'rate-limit throttling detected, reducing concurrency to 1');
+  let modelIndex = rateLimitState?.contentModelIndex ?? 0;
+  const maxModels = rateLimitState ? CONTENT_MODEL_CASCADE.length : 1;
+  let lastError: Error | null = null;
+
+  while (modelIndex < maxModels) {
+    const currentModel = model ?? getContentModelAt(modelIndex);
+    const startedAt = Date.now();
+    try {
+      const content = await executePromptTask(
+        contentTask,
+        {
+          persona,
+          signal,
+          context: { topic },
+          model: currentModel,
+          onToken,
+          onRetry: (info) => {
+            if (rateLimitState && info.status === 429) {
+              rateLimitState.last429At = Date.now();
+              rateLimitState.consecutive429s++;
+            } else if (rateLimitState) {
+              rateLimitState.consecutive429s = 0;
             }
-          } else if (rateLimitState) {
-            rateLimitState.consecutive429s = 0;
-          }
-          useToastStore
-            .getState()
-            .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`);
+            useToastStore
+              .getState()
+              .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`);
+          },
+          onParseRetry: (raw) =>
+            console.warn(
+              `[pipeline] ParseError for concept ${concept.id}, retrying. Raw:\n${raw.slice(0, 500)}`,
+            ),
         },
-        onParseRetry: (raw) =>
-          console.warn(
-            `[pipeline] ParseError for concept ${concept.id}, retrying. Raw:\n${raw.slice(0, 500)}`,
-          ),
-      },
-      concept,
-    );
+        concept,
+      );
 
-    generatedConcepts.push({
-      id: concept.id,
-      title: concept.title,
-      explanation: content.detail.explanation,
-      example: content.detail.example,
-    });
+      generatedConcepts.push({
+        id: concept.id,
+        title: concept.title,
+        explanation: content.detail.explanation,
+        example: content.detail.example,
+      });
 
-    const nodeIndex = nodeIndexById.get(concept.id) ?? -1;
-    if (nodeIndex !== -1) {
-      nodes[nodeIndex] = {
-        ...nodes[nodeIndex],
-        data: {
-          ...nodes[nodeIndex].data,
-          explanation: content.detail.explanation,
-          example: content.detail.example,
-          streaming: false,
-          generationStatus: 'ready',
-          generationError: undefined,
-        } as ConceptData,
-      };
+      const nodeIndex = nodeIndexById.get(concept.id) ?? -1;
+      if (nodeIndex !== -1) {
+        nodes[nodeIndex] = {
+          ...nodes[nodeIndex],
+          data: {
+            ...nodes[nodeIndex].data,
+            explanation: content.detail.explanation,
+            example: content.detail.example,
+            streaming: false,
+            generationStatus: 'ready',
+            generationError: undefined,
+          } as ConceptData,
+        };
+      }
+
+      persist();
+      const conceptElapsed = Math.round(performance.now() - conceptStart);
+      debugLog('log', 'pipeline', 'concept done id=%s elapsed=%dms', concept.id, conceptElapsed);
+      return concept.id;
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') throw err;
+      lastError = err instanceof Error ? err : new Error(String(err));
+      const elapsed = Date.now() - startedAt;
+
+      debugLog(
+        'warn',
+        'pipeline',
+        'concept model=%s FAIL id=%s title=%s elapsed=%dms err=%s',
+        currentModel,
+        concept.id,
+        concept.title,
+        elapsed,
+        lastError.message,
+      );
+
+      if (rateLimitState) {
+        rateLimitState.last429At = Date.now();
+        rateLimitState.consecutive429s++;
+        rateLimitState.contentModelIndex = modelIndex + 1;
+        if (rateLimitState.contentModelIndex >= CONTENT_MODEL_CASCADE.length) {
+          rateLimitState.contentModelIndex = CONTENT_MODEL_CASCADE.length - 1;
+        }
+      }
+
+      modelIndex++;
+      if (modelIndex < maxModels) {
+        useToastStore.getState().add(`Model ${currentModel} failed, trying next tier\u2026`);
+      }
     }
-
-    persist();
-    const conceptElapsed = Math.round(performance.now() - conceptStart);
-    debugLog(
-      'log',
-      'pipeline',
-      'concept done id=%s elapsed=%dms',
-      concept.id,
-      conceptElapsed,
-    );
-    return concept.id;
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') throw err;
-    debugLog(
-      'error',
-      'pipeline',
-      'concept FAIL id=%s title=%s err=%s',
-      concept.id,
-      concept.title,
-      err instanceof Error ? err.message : String(err),
-    );
-    onNotify(
-      'error',
-      `Failed to load ${concept.title}`,
-      err instanceof Error ? err.message : 'Unknown error',
-    );
-    if (nodeIdx !== undefined && nodeIdx !== -1) {
-      nodes[nodeIdx] = {
-        ...nodes[nodeIdx],
-        data: {
-          ...nodes[nodeIdx].data,
-          streaming: false,
-          generationStatus: 'failed',
-          generationError: err instanceof Error ? err.message : 'Unknown error',
-        } as ConceptData,
-      };
-      await persist();
-    }
-    return null;
   }
+
+  debugLog(
+    'error',
+    'pipeline',
+    'concept FAIL id=%s title=%s all models exhausted err=%s',
+    concept.id,
+    concept.title,
+    lastError?.message ?? 'Unknown error',
+  );
+  onNotify('error', `Failed to load ${concept.title}`, lastError?.message ?? 'Unknown error');
+  if (nodeIdx !== undefined && nodeIdx !== -1) {
+    nodes[nodeIdx] = {
+      ...nodes[nodeIdx],
+      data: {
+        ...nodes[nodeIdx].data,
+        streaming: false,
+        generationStatus: 'failed',
+        generationError: lastError?.message ?? 'Unknown error',
+      } as ConceptData,
+    };
+    await persist();
+  }
+  return null;
 }
 
 export async function runWithConcurrency(
@@ -279,7 +310,7 @@ export async function runContentPhase(
 
   await runWithConcurrency(
     concepts,
-    () => rateLimitState.effectiveConcurrency,
+    () => 1,
     async (concept, i) => {
       const lastNodeId = await processOneConcept(
         nodes,
@@ -293,7 +324,6 @@ export async function runContentPhase(
         persist,
         onNotify,
         rateLimitState,
-        getContentModel(),
       );
       conceptLastNodeIds[i] = lastNodeId;
       if (!lastNodeId) failed++;
@@ -312,6 +342,7 @@ export async function runQuizPhase(
   signal: AbortSignal | undefined,
   persist: () => Promise<void>,
   onNotify: (step: PipelineStep, label: string, error?: string) => void,
+  rateLimitState?: RateLimitState,
 ): Promise<void> {
   if (generatedConcepts.length === 0) return;
 
@@ -327,10 +358,15 @@ export async function runQuizPhase(
             signal,
             context: { topic },
             model: getQuizModel(),
-            onRetry: (info) =>
+            onRetry: (info) => {
+              if (rateLimitState && info.status === 429) {
+                rateLimitState.last429At = Date.now();
+                rateLimitState.consecutive429s++;
+              }
               useToastStore
                 .getState()
-                .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
+                .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`);
+            },
           },
           concept,
         );
@@ -374,51 +410,88 @@ export async function pushSummary(
   signal: AbortSignal | undefined,
   persist: () => Promise<void>,
   onNotify: (step: PipelineStep, label: string, error?: string) => void,
+  rateLimitState?: RateLimitState,
 ): Promise<void> {
   if (generatedConcepts.length === 0) return;
 
   onNotify('summary', 'Creating summary & final quiz\u2026');
-  try {
-    const parsed = await executePromptTask(
-      summaryTask,
-      {
-        persona,
-        signal,
-        context: { topic },
-        model: getSummaryModel(),
-        onRetry: (info) =>
-          useToastStore
-            .getState()
-            .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`),
-      },
-      generatedConcepts,
-    );
-    const summaryData: SummaryData = {
-      kind: 'summary',
-      recap: parsed.recap,
-      finalQuiz: parsed.finalQuiz.map((item) => quizItemToQuizData(item, SUMMARY_NODE_ID)),
-    };
 
-    nodes.push({
-      id: SUMMARY_NODE_ID,
-      type: 'summary',
-      data: summaryData,
-    });
+  let modelIndex = rateLimitState?.summaryModelIndex ?? 0;
+  const maxModels = rateLimitState ? SUMMARY_MODEL_CASCADE.length : 1;
+  let lastError: Error | null = null;
 
-    await persist();
-  } catch (err) {
-    debugLog(
-      'warn',
-      'pipeline',
-      'summary FAIL (non-fatal) err=%s',
-      err instanceof Error ? err.message : String(err),
-    );
-    onNotify(
-      'error',
-      'Failed to create summary',
-      err instanceof Error ? err.message : 'Unknown error',
-    );
+  while (modelIndex < maxModels) {
+    const currentModel = getSummaryModelAt(modelIndex);
+    try {
+      const parsed = await executePromptTask(
+        summaryTask,
+        {
+          persona,
+          signal,
+          context: { topic },
+          model: currentModel,
+          onRetry: (info) => {
+            if (rateLimitState && info.status === 429) {
+              rateLimitState.last429At = Date.now();
+              rateLimitState.consecutive429s++;
+            }
+            useToastStore
+              .getState()
+              .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`);
+          },
+        },
+        generatedConcepts,
+      );
+
+      const summaryData: SummaryData = {
+        kind: 'summary',
+        recap: parsed.recap,
+        finalQuiz: parsed.finalQuiz.map((item) => quizItemToQuizData(item, SUMMARY_NODE_ID)),
+      };
+
+      nodes.push({
+        id: SUMMARY_NODE_ID,
+        type: 'summary',
+        data: summaryData,
+      });
+
+      await persist();
+      return;
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') throw err;
+      lastError = err instanceof Error ? err : new Error(String(err));
+
+      debugLog(
+        'warn',
+        'pipeline',
+        'summary model=%s FAIL (non-fatal) err=%s',
+        currentModel,
+        lastError.message,
+      );
+
+      if (rateLimitState) {
+        rateLimitState.last429At = Date.now();
+        rateLimitState.consecutive429s++;
+        rateLimitState.summaryModelIndex = modelIndex + 1;
+        if (rateLimitState.summaryModelIndex >= SUMMARY_MODEL_CASCADE.length) {
+          rateLimitState.summaryModelIndex = SUMMARY_MODEL_CASCADE.length - 1;
+        }
+      }
+
+      modelIndex++;
+      if (modelIndex < maxModels) {
+        useToastStore.getState().add(`Summary model ${currentModel} failed, trying next\u2026`);
+      }
+    }
   }
+
+  debugLog(
+    'warn',
+    'pipeline',
+    'summary FAIL all models exhausted (non-fatal) err=%s',
+    lastError?.message ?? 'Unknown error',
+  );
+  onNotify('error', 'Failed to create summary', lastError?.message ?? 'Unknown error');
 }
 
 export async function runPipeline(
@@ -453,14 +526,15 @@ export async function runPipeline(
   await persist();
   debugLog('log', 'pipeline', 'phase 0: %d concept shells pushed', concepts.length);
 
-  // --- Phase 1: Content generation (medium model, sequential via adaptive concurrency) ---
+  resetIfCooled(rateLimitState);
+
+  // --- Phase 1: Content generation (model cascade) ---
   debugLog(
     'log',
     'pipeline',
-    'phase 1: generating %d concepts (concurrency=%s model=%s)',
+    'phase 1: generating %d concepts starting at model=%s',
     concepts.length,
-    rateLimitState.effectiveConcurrency,
-    getContentModel(),
+    getContentModelAt(rateLimitState.contentModelIndex),
   );
   const failedConcepts = await runContentPhase(
     nodes,
@@ -476,13 +550,46 @@ export async function runPipeline(
     rateLimitState,
   );
 
-  // --- Phase 2: Quiz generation (small model, parallel burst) ---
-  debugLog('log', 'pipeline', 'phase 2: quiz generation for %d concepts (model=%s)', generatedConcepts.length, getQuizModel());
-  await runQuizPhase(nodes, generatedConcepts, topic, persona, signal, persist, notify);
+  resetIfCooled(rateLimitState);
 
-  // --- Phase 3: Summary (medium model) ---
-  debugLog('log', 'pipeline', 'phase 3: summary start (model=%s)', getSummaryModel());
-  await pushSummary(nodes, generatedConcepts, topic, persona, signal, persist, notify);
+  // --- Phase 2: Quiz generation (small model, parallel burst) ---
+  debugLog(
+    'log',
+    'pipeline',
+    'phase 2: quiz generation for %d concepts (model=%s)',
+    generatedConcepts.length,
+    getQuizModel(),
+  );
+  await runQuizPhase(
+    nodes,
+    generatedConcepts,
+    topic,
+    persona,
+    signal,
+    persist,
+    notify,
+    rateLimitState,
+  );
+
+  resetIfCooled(rateLimitState);
+
+  // --- Phase 3: Summary (model cascade) ---
+  debugLog(
+    'log',
+    'pipeline',
+    'phase 3: summary start at model=%s',
+    getSummaryModelAt(rateLimitState.summaryModelIndex),
+  );
+  await pushSummary(
+    nodes,
+    generatedConcepts,
+    topic,
+    persona,
+    signal,
+    persist,
+    notify,
+    rateLimitState,
+  );
 
   notify(
     'done',
@@ -548,6 +655,40 @@ export async function retryFailedConcept(sessionId: string, conceptId: string): 
   );
 
   if (!success) return false;
+
+  const conceptInfo = generatedConcepts[0];
+  if (conceptInfo) {
+    try {
+      const quizzes = await executePromptTask(
+        quizTask,
+        {
+          persona: session.persona,
+          signal: undefined,
+          context: { topic: session.name },
+          model: getQuizModel(),
+        },
+        conceptInfo,
+      );
+      quizzes.forEach((item, qi) => {
+        nodes.push({
+          id: `${conceptId}-quiz-${qi}`,
+          type: 'quiz',
+          data: quizItemToQuizData(item, conceptId),
+          position: { x: 0, y: 0 },
+        });
+      });
+      await persist();
+    } catch (err) {
+      debugLog(
+        'warn',
+        'pipeline',
+        'retryFailedConcept quiz FAIL concept=%s err=%s',
+        conceptId,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
   return true;
 }
 

@@ -18,9 +18,12 @@ function parseQuizItem(raw: unknown, index: number): QuizItem {
   if (!VALID_FORMATS.includes(item.format as QuizFormat)) {
     throw new ParseError(`Quiz ${index}: invalid format "${String(item.format)}"`);
   }
-  if (typeof item.prompt !== 'string') throw new ParseError(`Quiz ${index}: missing or invalid "prompt"`);
-  if (typeof item.correctAnswer !== 'string') throw new ParseError(`Quiz ${index}: missing or invalid "correctAnswer"`);
-  if (typeof item.rationale !== 'string') throw new ParseError(`Quiz ${index}: missing or invalid "rationale"`);
+  if (typeof item.prompt !== 'string')
+    throw new ParseError(`Quiz ${index}: missing or invalid "prompt"`);
+  if (typeof item.correctAnswer !== 'string')
+    throw new ParseError(`Quiz ${index}: missing or invalid "correctAnswer"`);
+  if (typeof item.rationale !== 'string')
+    throw new ParseError(`Quiz ${index}: missing or invalid "rationale"`);
 
   return {
     format: item.format as QuizFormat,
@@ -29,7 +32,9 @@ function parseQuizItem(raw: unknown, index: number): QuizItem {
     blankedSentence: typeof item.blankedSentence === 'string' ? item.blankedSentence : undefined,
     items: Array.isArray(item.items) ? (item.items as string[]) : undefined,
     correctAnswer: item.correctAnswer,
-    acceptableAnswers: Array.isArray(item.acceptableAnswers) ? (item.acceptableAnswers as string[]) : undefined,
+    acceptableAnswers: Array.isArray(item.acceptableAnswers)
+      ? (item.acceptableAnswers as string[])
+      : undefined,
     rationale: item.rationale,
   };
 }

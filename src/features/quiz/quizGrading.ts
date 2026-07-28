@@ -7,6 +7,7 @@ export interface SubmitResult {
   grade: 'correct' | 'partial' | 'incorrect';
   rationale: string;
   idealAnswer: string;
+  gradingModel?: 'local' | 'llm' | 'fuzzy';
 }
 
 interface GradeQuizAnswerOptions {
@@ -31,6 +32,7 @@ export function localGrade(quiz: QuizData, given: string | string[]): SubmitResu
           ? quiz.rationale
           : `The correct answer is: ${quiz.correctAnswer}. ${quiz.rationale}`,
         idealAnswer: quiz.correctAnswer,
+        gradingModel: 'local',
       };
     }
     case 'fillBlank': {
@@ -47,6 +49,7 @@ export function localGrade(quiz: QuizData, given: string | string[]): SubmitResu
           ? quiz.rationale
           : `Expected something like "${quiz.correctAnswer}". ${quiz.rationale}`,
         idealAnswer: quiz.correctAnswer,
+        gradingModel: 'local',
       };
     }
     case 'ordering': {
@@ -68,6 +71,7 @@ export function localGrade(quiz: QuizData, given: string | string[]): SubmitResu
           ? quiz.rationale
           : `The expected order is: ${expected.join(' → ')}. ${quiz.rationale}`,
         idealAnswer: expected.join(', '),
+        gradingModel: 'local',
       };
     }
     default:
@@ -75,6 +79,7 @@ export function localGrade(quiz: QuizData, given: string | string[]): SubmitResu
         grade: 'incorrect',
         rationale: 'Cannot grade this format locally.',
         idealAnswer: quiz.correctAnswer,
+        gradingModel: 'local',
       };
   }
 }
@@ -108,7 +113,7 @@ export async function gradeQuizAnswer(
       },
     );
     debugLog('log', 'grade', 'LLM grade result grade=%s quiz_id=%s', result.grade, quizId);
-    return result;
+    return { ...result, gradingModel: 'llm' };
   } catch {
     debugLog('warn', 'grade', 'LLM grade FAIL fallback_to_fuzzy quiz_id=%s', quizId);
     const givenStr = normalize(typeof given === 'string' ? given : given.join(' '));
@@ -122,6 +127,7 @@ export async function gradeQuizAnswer(
         ? quiz.rationale
         : `Couldn't reach grader. Expected something like "${quiz.correctAnswer}".`,
       idealAnswer: quiz.correctAnswer,
+      gradingModel: 'fuzzy',
     };
   }
 }

@@ -32,6 +32,28 @@ export function getGradingModel(): string {
   return PROVIDER.gradingModel;
 }
 
+export const CONTENT_MODEL_CASCADE = [
+  'mistral-large-latest',
+  'mistral-medium-2508',
+  'mistral-medium-2505',
+  'mistral-small-latest',
+];
+
+export const SUMMARY_MODEL_CASCADE = [
+  'mistral-large-latest',
+  'mistral-medium-2508',
+  'mistral-medium-2505',
+  'mistral-small-latest',
+];
+
+export function getContentModelAt(index: number): string {
+  return CONTENT_MODEL_CASCADE[Math.min(index, CONTENT_MODEL_CASCADE.length - 1)];
+}
+
+export function getSummaryModelAt(index: number): string {
+  return SUMMARY_MODEL_CASCADE[Math.min(index, SUMMARY_MODEL_CASCADE.length - 1)];
+}
+
 export function getContentModel(): string {
   return PROVIDER.contentModel;
 }
