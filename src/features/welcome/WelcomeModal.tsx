@@ -366,7 +366,7 @@ export function WelcomeModal({
         <header className={styles.hero}>
           <div className={styles.eyebrow}>
             <Sparkles size={14} />
-            <span>Quizify · Learn anything, visually</span>
+            <span>Quizify · Knowledge that sticks</span>
           </div>
           <h1 id="welcome-heading" className={styles.heading}>
             Turn any topic into a guided lesson you actually remember.
@@ -389,7 +389,7 @@ export function WelcomeModal({
               id="url-input"
               className={styles.urlInput}
               type="text"
-              placeholder="Paste a URL or type a topic — e.g. an article link or 'agentic AI'"
+              placeholder="Paste a URL or type a topic"
               value={url}
               autoFocus
               onChange={(e) => {
@@ -402,8 +402,8 @@ export function WelcomeModal({
               autoComplete="off"
               spellCheck={false}
             />
-            {/* Show a hint on hover + a helper text below when the button
-                is disabled so users always know why they can't submit. */}
+            {/* Disabled reason stays on the button title — label + placeholder already
+                explain the empty state, so avoid a redundant hint under the field. */}
             <button
               className={styles.generateBtn}
               disabled={!submitEnabled}
@@ -417,9 +417,6 @@ export function WelcomeModal({
               <ArrowRight size={16} />
             </button>
           </div>
-          {!submitEnabled && submitDisabledReason && (
-            <p className={styles.generateHint}>{submitDisabledReason}</p>
-          )}
           {showStorageNotice && (
             <div className={styles.storageNotice}>
               <p role="note">
