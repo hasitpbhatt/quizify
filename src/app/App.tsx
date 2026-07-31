@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTheme } from './useTheme';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useSessionStore } from '@/shared/stores/sessionStore';
-import { Plus } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { WelcomeModal } from '@/features/welcome/WelcomeModal';
 import { Toolbar } from '@/features/toolbar/Toolbar';
@@ -22,7 +21,6 @@ import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { trackEvent } from '@/lib/analytics/events';
 import type { SourceProvenance } from '@/shared/types';
 import '@/styles/global.css';
-import styles from './App.module.css';
 
 export type JourneyStage = 'fetch' | 'outline' | PipelineStep;
 export type JourneyState = 'pending' | 'active' | 'done' | 'error';
@@ -320,12 +318,6 @@ export function App() {
           onCancelGeneration={handleCancel}
           onCycleTheme={cycleTheme}
         />
-        <div className={styles.actionBar}>
-          <button className={styles.actionBtn} onClick={goWelcome} type="button">
-            <Plus size={14} />
-            <span>Cancel generation</span>
-          </button>
-        </div>
         <ProgressScreen
           progress={progress}
           error={error}

@@ -125,8 +125,6 @@ export function MobileFocusView({
   const setTtsRate = useSettingsStore((s) => s.setTtsRate);
   const theme = useSettingsStore((s) => s.theme);
   const setTheme = useSettingsStore((s) => s.setTheme);
-  const showFullText = useNotebookStore((s) => s.showFullText);
-  const setShowFullText = useNotebookStore((s) => s.setShowFullText);
   const session = useSessionStore((state) =>
     state.currentId ? (state.sessions.find((item) => item.id === state.currentId) ?? null) : null,
   );
@@ -464,13 +462,6 @@ export function MobileFocusView({
 
       {notebookMode && (
         <div className={styles.mobilePacingBar}>
-          <button
-            className={styles.pacingToggle}
-            onClick={() => setShowFullText(!showFullText)}
-            type="button"
-          >
-            {showFullText ? 'Hide full text' : 'Show full text'}
-          </button>
           <span className={styles.pacingCue}>{navigationCue}</span>
         </div>
       )}

@@ -2,6 +2,30 @@
   height: calc(100vh - 48px);
   width: 100%;
   background: var(--bg-canvas);
+  position: relative;
+  overflow: hidden;
+}
+
+.scrollArea {
+  height: 100%;
+  overflow-y: auto;
+  padding-top: 48px;
+}
+
+.nodeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 28px;
+  padding: 24px 32px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.conceptColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 .nodeItem[role='button'] {
@@ -32,6 +56,79 @@
 
 .skipLink:focus {
   transform: translateY(0);
+}
+
+.exportOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+}
+
+.exportDialog {
+  width: 90%;
+  max-width: 400px;
+  padding: 24px;
+  background: var(--bg-canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+}
+
+.exportDialog h2 {
+  margin: 0 0 8px;
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-h2);
+}
+
+.exportDialog p {
+  margin: 0 0 16px;
+  font-size: var(--fs-small);
+  color: var(--text-secondary);
+}
+
+.exportActions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.exportActions button {
+  flex: 1;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ui);
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+
+.exportActions button:hover {
+  opacity: 0.9;
+}
+
+.exportCancel {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ui);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--fs-small);
+  cursor: pointer;
+}
+
+.exportCancel:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .looseNotes {
@@ -226,8 +323,7 @@
 }
 
 .recoveryItem button,
-.continueToQuiz,
-.finalQuizAction {
+.continueToQuiz {
   min-height: 44px;
   padding: 0 var(--space-3);
   border: 1px solid var(--border);
@@ -249,11 +345,10 @@
   cursor: wait;
 }
 
-.continueToQuiz,
-.finalQuizAction {
+.continueToQuiz {
   position: absolute;
   left: 50%;
-  bottom: 100px;
+  bottom: 80px;
   z-index: 24;
   transform: translateX(-50%);
   min-height: 44px;

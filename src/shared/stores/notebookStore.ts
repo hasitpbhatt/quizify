@@ -3,7 +3,6 @@ import type { TtsState } from '@/lib/llm/ttsManager';
 
 interface NotebookState {
   notebookMode: boolean;
-  showFullText: boolean;
   ttsPlaying: boolean;
   ttsPaused: boolean;
   currentSegmentNodeId: string | null;
@@ -12,7 +11,6 @@ interface NotebookState {
   completedTypingNodeIds: Record<string, true>;
 
   setCurrentSegment: (nodeId: string | null, index?: number, total?: number) => void;
-  setShowFullText: (show: boolean) => void;
   syncTtsState: (state: TtsState) => void;
   markTypingComplete: (nodeId: string) => void;
   hasTypingCompleted: (nodeId: string) => boolean;
@@ -21,7 +19,6 @@ interface NotebookState {
 export const useNotebookStore = create<NotebookState>((set, get) => ({
   // Notebook is the sole lesson surface.
   notebookMode: true,
-  showFullText: false,
   ttsPlaying: false,
   ttsPaused: false,
   currentSegmentNodeId: null,
@@ -35,8 +32,6 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
       segmentIndex: index ?? 0,
       totalSegments: total ?? 0,
     }),
-
-  setShowFullText: (show) => set({ showFullText: show }),
 
   markTypingComplete: (nodeId) =>
     set((state) =>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { AccessibleDialog } from '@/lib/components/AccessibleDialog';
-import { ChevronDown, Monitor, Moon, Sun, X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import styles from './Toolbar.module.css';
 
 interface ToolbarProps {
@@ -11,9 +11,13 @@ interface ToolbarProps {
   onCycleTheme?: () => void;
 }
 
-export function Toolbar({ isGenerating = false, onCancelGeneration, onCycleTheme }: ToolbarProps) {
+export function Toolbar({
+  isGenerating = false,
+  onCancelGeneration,
+  onCycleTheme: _onCycleTheme,
+}: ToolbarProps) {
   const { sessions, currentId, load, select, remove, updateCurrent } = useSessionStore();
-  const { theme } = useSettingsStore();
+  useSettingsStore();
   const [open, setOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -115,8 +119,6 @@ export function Toolbar({ isGenerating = false, onCancelGeneration, onCycleTheme
   const sessionToDelete = deleteCandidate
     ? sessions.find((s) => s.id === deleteCandidate)
     : undefined;
-  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
-
   return (
     <div className={styles.toolbar}>
       <span className={styles.brand}>
@@ -141,19 +143,6 @@ export function Toolbar({ isGenerating = false, onCancelGeneration, onCycleTheme
           type="button"
         >
           Cancel generation
-        </button>
-      )}
-
-      {onCycleTheme && (
-        <button
-          className={styles.themeToggle}
-          onClick={onCycleTheme}
-          title={`Theme: ${theme}`}
-          aria-label={`Theme: ${theme}`}
-          type="button"
-        >
-          <ThemeIcon size={14} />
-          <span>Theme: {theme}</span>
         </button>
       )}
 

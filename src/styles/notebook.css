@@ -14,7 +14,8 @@
 }
 
 /* --- Ruled-line background (like a physical notebook) --- */
-[data-notebook='true'] .nodeList {
+/* Continuous ruled-paper spanning the full scroll area */
+[data-notebook='true'] [class*='scrollArea'] {
   background-color: #faf8f5 !important;
   background-image:
     linear-gradient(
@@ -35,7 +36,18 @@
     100% 28px;
 }
 
-[data-theme='dark'] [data-notebook='true'] .nodeList {
+[data-notebook='true'] [class*='nodeGrid'] {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 24px 96px 96px 96px !important;
+  gap: 32px !important;
+}
+
+[data-notebook='true'] [class*='conceptColumn'] {
+  padding: 24px 0 0 0;
+}
+
+[data-theme='dark'] [data-notebook='true'] [class*='scrollArea'] {
   background-color: #12110e !important;
   background-image:
     linear-gradient(
@@ -53,24 +65,64 @@
     ) !important;
 }
 
+/* --- Strip card styling on concept/summary so ruled paper shows through --- */
+[data-notebook='true'] [data-node-type='concept'] [class*='node'],
+[data-notebook='true'] [data-node-type='summary'] [class*='node'] {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 4px 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  transition: none !important;
+  contain: layout style;
+}
+
+/* Quiz nodes keep a subtle card style in notebook mode */
+[data-notebook='true'] [data-node-type='quiz'] [class*='node'] {
+  background: var(--bg-glass) !important;
+  backdrop-filter: saturate(140%) blur(12px) !important;
+  -webkit-backdrop-filter: saturate(140%) blur(12px) !important;
+  border: 2px dashed rgba(84, 87, 232, 0.4) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: var(--space-4) !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+/* Note nodes keep sticky note styling */
+[data-notebook='true'] [data-node-type='note'] [class*='node'] {
+  background: var(--note-bg) !important;
+  border: none !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: var(--note-shadow) !important;
+  padding: var(--space-4) var(--space-5) !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  color: var(--note-text) !important;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
 /* Notebook text should never animate its position when the pointer crosses it. */
-[data-notebook='true'] .pulseHighlight {
+[data-notebook='true'] [class*='pulseHighlight'] {
   animation: none !important;
 }
 
-[data-notebook='true'] [class*='noteText'],
-[data-notebook='true'] [class*='note'] textarea {
+[data-notebook='true'] [class*='text'] {
   font-family: var(--font-canvas), 'Caveat', cursive !important;
   color: var(--note-text) !important;
 }
 
 /* --- Title / header styling for notebook mode --- */
-[data-notebook='true'] [class*='conceptTitle'],
-[data-notebook='true'] [class*='quizTitle'],
-[data-notebook='true'] [class*='summaryTitle'],
-[data-notebook='true'] [class*='conceptHeader'],
-[data-notebook='true'] [class*='quizHeader'],
-[data-notebook='true'] [class*='summaryHeader'] {
+[data-notebook='true'] [class*='title'],
+[data-notebook='true'] [class*='header'] {
   font-family: var(--font-canvas), 'Caveat', cursive !important;
   font-size: 1.8rem !important;
   font-weight: 700 !important;
@@ -426,9 +478,9 @@
 /* --- First-open orientation cue --- */
 .notebookOrientation {
   position: fixed;
-  top: 20px;
+  top: 64px;
   left: 20px;
-  z-index: 70;
+  z-index: 160;
   display: flex;
   align-items: flex-start;
   gap: 16px;
@@ -612,7 +664,7 @@
 /* --- Learning cue: resume/review prompt (notebook mode) --- */
 .notebookLearningCue {
   position: fixed;
-  top: 120px;
+  top: 200px;
   left: 20px;
   z-index: 70;
   display: flex;
