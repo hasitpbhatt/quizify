@@ -1,22 +1,23 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ttsManager } from '@/lib/llm/ttsManager';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
+import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useMediaQuery } from '@/shared/useMediaQuery';
 
 /**
  * useTypingAnimation
  *
- * Reveals text in sync with notebook narration.
- * Once a node has fully revealed, it stays complete on revisits so movement
- * around the notebook does not replay the typing effect.
+ * Reveals text character-by-character ONLY in sync with TTS narration.
+ * When TTS is disabled or not playing, text appears immediately (no animation).
+ * Once a node has fully revealed, it stays complete on revisits.
  */
 export function useTypingAnimation(
   nodeId: string,
   fullText: string,
   skipAnimation = false,
-  tickMs = 35,
 ) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
+  const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
   const hasTypingCompleted = useNotebookStore((s) => Boolean(s.completedTypingNodeIds[nodeId]));
   const markTypingComplete = useNotebookStore((s) => s.markTypingComplete);
 
@@ -25,14 +26,12 @@ export function useTypingAnimation(
     notebookMode &&
     fullText.length > 0 &&
     !skipAnimation &&
+    ttsEnabled &&
     !prefersReducedMotion &&
     !hasTypingCompleted;
 
-  const [revealed, setRevealed] = useState(() => (shouldAnimate ? 0 : fullText.length));
-  const targetRef = useRef(shouldAnimate ? 0 : fullText.length);
-  const hasReceivedProgressRef = useRef(false);
-  const fallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fallbackIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [revealed, setRevealed] = useState(fullText.length);
+  const targetRef = useRef(fullText.length);
   const fullTextRef = useRef(fullText);
   fullTextRef.current = fullText;
 
@@ -45,54 +44,18 @@ export function useTypingAnimation(
 
     setRevealed(0);
     targetRef.current = 0;
-    hasReceivedProgressRef.current = false;
-
-    // SpeechSynthesis is inconsistent about boundary events across browsers.
-    // Keep the UI moving if it never starts or never reports progress.
-    const startFallback = () => {
-      if (hasReceivedProgressRef.current) return;
-
-      fallbackIntervalRef.current = setInterval(() => {
-        targetRef.current = Math.min(fullText.length, targetRef.current + 1);
-        ttsManager.emitCharProgress(nodeId, targetRef.current);
-        if (targetRef.current >= fullText.length) {
-          if (fallbackIntervalRef.current) {
-            clearInterval(fallbackIntervalRef.current);
-            fallbackIntervalRef.current = null;
-          }
-          markTypingComplete(nodeId);
-          ttsManager.finishSegment(nodeId);
-        }
-      }, tickMs);
-    };
-
-    fallbackTimeoutRef.current = setTimeout(startFallback, 1000);
 
     const chaseInterval = setInterval(() => {
       setRevealed((prev) => Math.min(targetRef.current, prev + 1));
-    }, 20);
+    }, 50);
 
     const onStart = (nid: string) => {
       if (nid !== nodeId) return;
       targetRef.current = 0;
-      hasReceivedProgressRef.current = false;
-      if (fallbackTimeoutRef.current) {
-        clearTimeout(fallbackTimeoutRef.current);
-        fallbackTimeoutRef.current = null;
-      }
-      if (fallbackIntervalRef.current) {
-        clearInterval(fallbackIntervalRef.current);
-        fallbackIntervalRef.current = null;
-      }
-
-      // Give normal speech-boundary events time to arrive, then recover if
-      // this browser exposes speechSynthesis without emitting boundaries.
-      fallbackTimeoutRef.current = setTimeout(startFallback, 800);
     };
 
     const onProgress = (nid: string, charIndex: number) => {
       if (nid !== nodeId) return;
-      hasReceivedProgressRef.current = true;
       targetRef.current = Math.max(targetRef.current, Math.min(charIndex, fullText.length));
     };
 
@@ -109,19 +72,20 @@ export function useTypingAnimation(
       onSegmentEnd: onEnd,
     });
 
+    const safetyTimeout = setTimeout(() => {
+      if (targetRef.current >= fullText.length) return;
+      if (ttsManager.isPlaying && ttsManager.currentSegmentId === nodeId) return;
+      targetRef.current = fullText.length;
+      setRevealed(fullText.length);
+      markTypingComplete(nodeId);
+    }, 8000);
+
     return () => {
       ttsManager.unsubscribe(subId);
       clearInterval(chaseInterval);
-      if (fallbackTimeoutRef.current) {
-        clearTimeout(fallbackTimeoutRef.current);
-        fallbackTimeoutRef.current = null;
-      }
-      if (fallbackIntervalRef.current) {
-        clearInterval(fallbackIntervalRef.current);
-        fallbackIntervalRef.current = null;
-      }
+      clearTimeout(safetyTimeout);
     };
-  }, [nodeId, fullText, shouldAnimate, markTypingComplete, tickMs]);
+  }, [nodeId, fullText, shouldAnimate, markTypingComplete]);
 
   const skip = useCallback(() => {
     const text = fullTextRef.current;
@@ -129,14 +93,6 @@ export function useTypingAnimation(
     markTypingComplete(nodeId);
     targetRef.current = text.length;
     setRevealed(text.length);
-    if (fallbackTimeoutRef.current) {
-      clearTimeout(fallbackTimeoutRef.current);
-      fallbackTimeoutRef.current = null;
-    }
-    if (fallbackIntervalRef.current) {
-      clearInterval(fallbackIntervalRef.current);
-      fallbackIntervalRef.current = null;
-    }
   }, [nodeId, markTypingComplete]);
 
   return {

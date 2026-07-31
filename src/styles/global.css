@@ -35,14 +35,6 @@
   animation: pageEnter 0.25s var(--ease-out) both;
 }
 
-/* Global body styles */
-body {
-  font-family: var(--font-ui);
-  scroll-behavior: smooth;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
 /* Utility classes */
 .sr-only {
   position: absolute;
@@ -53,4 +45,77 @@ body {
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   border: 0;
+}
+
+/* --- Notebook controls bar --- */
+.notebookControls {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  background: var(--bg-glass);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  color: var(--text-primary);
+  transition: opacity var(--dur) var(--ease-out);
+}
+
+.notebookDivider {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 var(--space-2);
+}
+
+.notebookControls button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.notebookControls button:hover:not(:disabled) {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.notebookControls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  color: var(--text-tertiary);
+}
+
+.notebookControls .notebookRate {
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font-family: var(--font-ui), system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 0 6px;
+  cursor: pointer;
+}
+
+.notebookControls .notebookRate:focus-visible {
+  outline: 2px solid var(--accent-subtle);
+  outline-offset: 1px;
 }

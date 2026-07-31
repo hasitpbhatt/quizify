@@ -31,6 +31,7 @@ import {
   Moon,
   Plus,
   Sun,
+  Download,
 } from 'lucide-react';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
@@ -44,6 +45,8 @@ import { SummaryNode } from './nodes/SummaryNode';
 import { useKeyboardShortcuts } from '@/shared/useKeyboardShortcuts';
 import { useToastStore } from '@/shared/stores/toastStore';
 import { retryFailedConcept, skipFailedConcept } from '@/lib/pipeline';
+import { exportSessionJson } from '@/lib/export/json';
+import { downloadSessionMarkdown } from '@/lib/export/markdown';
 import {
   getNextLearningAction,
   normalizeLearningProgress,
@@ -55,8 +58,6 @@ import styles from './CanvasPage.module.css';
 function filterVisibleNodes(
   nodes: CanvasNode[],
   currentConceptIndex: number,
-  revealedQuizIds: Set<string>,
-  notebookMode: boolean,
 ): CanvasNode[] {
   // Build concept-index lookups once (O(N)) instead of calling
   // getConceptIndex (a linear find) per quiz — was O(N²).
@@ -84,7 +85,7 @@ function filterVisibleNodes(
     }
     if (n.data.kind === 'concept') {
       const c = n.data as ConceptData;
-      if (!notebookMode || c.index <= currentConceptIndex) {
+      if (c.index <= currentConceptIndex) {
         visibleNodeIds.add(n.id);
       }
       continue;
@@ -96,12 +97,8 @@ function filterVisibleNodes(
         : getConceptIndex(nodes, q.parentConceptId);
       if (parentIdx < 0) continue;
 
-      if (parentIdx < currentConceptIndex) {
+      if (parentIdx <= currentConceptIndex) {
         visibleNodeIds.add(n.id);
-      } else if (parentIdx === currentConceptIndex) {
-        if (!notebookMode || revealedQuizIds.has(n.id)) {
-          visibleNodeIds.add(n.id);
-        }
       }
       continue;
     }
@@ -134,8 +131,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const updateCurrent = useSessionStore((s) => s.updateCurrent);
   const isMobile = useIsMobile();
   const notebookMode = useNotebookStore((s) => s.notebookMode);
-  const showFullText = useNotebookStore((s) => s.showFullText);
-  const setShowFullText = useNotebookStore((s) => s.setShowFullText);
   const immersiveNotebook = notebookMode;
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
   const ttsRate = useSettingsStore((s) => s.ttsRate);
@@ -257,10 +252,6 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     if (immersiveNotebook && !ttsEnabled) revealCurrentQuizzes();
   }, [immersiveNotebook, ttsEnabled, revealCurrentQuizzes]);
 
-  useEffect(() => {
-    if (immersiveNotebook && showFullText) revealCurrentQuizzes();
-  }, [immersiveNotebook, showFullText, revealCurrentQuizzes]);
-
   const completedTypingNodeIds = useNotebookStore((s) => s.completedTypingNodeIds);
 
   // Typing completion must unlock quizzes even when TTS is muted or unavailable.
@@ -278,10 +269,8 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     return filterVisibleNodes(
       session.nodes,
       currentConceptIndex,
-      revealedQuizIds,
-      immersiveNotebook,
     );
-  }, [session, currentConceptIndex, revealedQuizIds, immersiveNotebook]);
+  }, [session, currentConceptIndex]);
 
   const { orderedVisibleNodes, looseNotes } = useMemo(() => {
     const baseNodes = visibleNodes.filter((node) => node.data.kind !== 'note');
@@ -334,6 +323,20 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
 
     return { orderedVisibleNodes: ordered, looseNotes: loose };
   }, [visibleNodes]);
+
+  const conceptGroups = useMemo(() => {
+    const groups: CanvasNode[][] = [];
+    for (const node of orderedVisibleNodes) {
+      if (node.data.kind === 'concept') {
+        groups.push([node]);
+      } else if (groups.length > 0) {
+        groups[groups.length - 1].push(node);
+      } else {
+        groups.push([node]);
+      }
+    }
+    return groups;
+  }, [orderedVisibleNodes]);
 
   const handleNodeClick = useCallback(
     (canvasNode: CanvasNode) => {
@@ -430,6 +433,19 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const [captionVisible, setCaptionVisible] = useState<boolean>(false);
   const [captionAnnouncement, setCaptionAnnouncement] = useState<string>('');
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+
+  const handleExportJson = useCallback(() => {
+    if (!session) return;
+    exportSessionJson(session);
+    setShowExport(false);
+  }, [session]);
+
+  const handleExportMarkdown = useCallback(() => {
+    if (!session) return;
+    downloadSessionMarkdown(session);
+    setShowExport(false);
+  }, [session]);
 
   const [showOutline, setShowOutline] = useState(false);
 
@@ -498,19 +514,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     };
 
     const onCharProgress = (_nodeId: string, _charIndex: number) => {
-      if (showFullText) return;
-      // Scroll the concept into view as typing progresses.
-      if (containerRef.current) {
-        const conceptEl = containerRef.current.querySelector(
-          `[data-concept-id="${currentConcept.id}"]`,
-        );
-        if (conceptEl) {
-          const rect = conceptEl.getBoundingClientRect();
-          if (rect.bottom > window.innerHeight - 80 || rect.top < 0) {
-            conceptEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-        }
-      }
+      // No-op: auto-scroll on every character was too jumpy.
     };
 
     const subId = ttsManager.subscribe(currentConcept.id, {
@@ -825,12 +829,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const showProgress = isGenerating && progress && progress.stage !== 'done';
   const failedConcepts = concepts.filter((concept) => concept.data.generationStatus === 'failed');
   const hasHiddenCurrentQuizzes = currentQuizIds.some((id) => !revealedQuizIds.has(id));
-  const summaryAvailable =
-    currentConceptIndex >= concepts.length &&
-    (session?.nodes.some((node) => node.id === SUMMARY_NODE_ID) ?? false);
-  const completionCopy = summaryAvailable
-    ? "You reviewed every concept. Take the final quiz whenever you're ready."
-    : 'You reviewed every concept, but the final quiz was not generated. Review concepts or try generating it again later.';
+  const completionCopy = 'You reviewed every concept.';
   const sourceExplanation =
     session?.sourceProvenance === 'fetched'
       ? 'Fetched directly from the source URL and cached locally.'
@@ -867,6 +866,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         role={isActionable ? 'button' : undefined}
         tabIndex={isActionable ? 0 : undefined}
         aria-label={accessibleLabel}
+        data-node-type={kind}
         data-concept-id={kind === 'concept' ? canvasNode.id : undefined}
         id={
           kind === 'concept' && (canvasNode.data as ConceptData).index === 0
@@ -947,94 +947,101 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         aria-label="Lesson"
         tabIndex={-1}
       >
-        <a className={styles.skipLink} href="#quizify-first-concept">
-          Skip to lesson
-        </a>
-        {nextAction?.kind === 'complete' && (
-          <section className={styles.completionBanner} aria-label="Lesson complete">
-            <strong>Lesson complete</strong>
-            <span>{completionCopy}</span>
-          </section>
-        )}
-        <div className={styles.nodeList}>{orderedVisibleNodes.map(renderNode)}</div>
-        {looseNotes.length > 0 && (
-          <section className={styles.looseNotes} aria-labelledby="loose-notes-heading">
-            <h2 id="loose-notes-heading">Loose notes</h2>
-            <div className={styles.nodeList}>{looseNotes.map(renderNode)}</div>
-          </section>
-        )}
-
-        {showProgress && (
-          <div className={styles.progressBadge}>
-            <span className={styles.progressDot} aria-hidden />
-            {progress.label}
+        <div className={styles.scrollArea}>
+          <a className={styles.skipLink} href="#quizify-first-concept">
+            Skip to lesson
+          </a>
+          {nextAction?.kind === 'complete' && (
+            <section className={styles.completionBanner} aria-label="Lesson complete">
+              <strong>Lesson complete</strong>
+              <span>{completionCopy}</span>
+            </section>
+          )}
+          <div className={styles.nodeGrid}>
+            {conceptGroups.map((group, idx) => (
+              <div key={idx} className={styles.conceptColumn}>
+                {group.map(renderNode)}
+              </div>
+            ))}
           </div>
-        )}
+          {looseNotes.length > 0 && (
+            <section className={styles.looseNotes} aria-labelledby="loose-notes-heading">
+              <h2 id="loose-notes-heading">Loose notes</h2>
+              <div className={styles.nodeGrid}>{looseNotes.map(renderNode)}</div>
+            </section>
+          )}
 
-        {failedConcepts.length > 0 && (
-          <section className={styles.recoveryPanel} aria-label="Lesson generation issues">
-            <AlertTriangle size={16} aria-hidden />
-            <div className={styles.recoveryCopy}>
-              <strong>
-                {failedConcepts.length} concept{failedConcepts.length === 1 ? '' : 's'} need
-                attention
-              </strong>
-              <span>Retry now or skip to keep learning.</span>
+          {showProgress && (
+            <div className={styles.progressBadge}>
+              <span className={styles.progressDot} aria-hidden />
+              {progress.label}
             </div>
-            <div className={styles.recoveryActions}>
-              {failedConcepts.map((concept) => (
-                <div key={concept.id} className={styles.recoveryItem}>
-                  <span>{concept.data.title}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRetryConcept(concept.id)}
-                    disabled={retryingConceptIds.has(concept.id)}
-                  >
-                    <RefreshCw size={12} aria-hidden />
-                    {retryingConceptIds.has(concept.id) ? 'Retrying' : 'Retry'}
-                  </button>
-                  <button type="button" onClick={() => handleSkipConcept(concept.id)}>
-                    Skip
-                  </button>
-                </div>
-              ))}
+          )}
+
+          {failedConcepts.length > 0 && (
+            <section className={styles.recoveryPanel} aria-label="Lesson generation issues">
+              <AlertTriangle size={16} aria-hidden />
+              <div className={styles.recoveryCopy}>
+                <strong>
+                  {failedConcepts.length} concept{failedConcepts.length === 1 ? '' : 's'} need
+                  attention
+                </strong>
+                <span>Retry now or skip to keep learning.</span>
+              </div>
+              <div className={styles.recoveryActions}>
+                {failedConcepts.map((concept) => (
+                  <div key={concept.id} className={styles.recoveryItem}>
+                    <span>{concept.data.title}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRetryConcept(concept.id)}
+                      disabled={retryingConceptIds.has(concept.id)}
+                    >
+                      <RefreshCw size={12} aria-hidden />
+                      {retryingConceptIds.has(concept.id) ? 'Retrying' : 'Retry'}
+                    </button>
+                    <button type="button" onClick={() => handleSkipConcept(concept.id)}>
+                      Skip
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {notebookMode && captionVisible && caption && (
+            <div className="notebookCaption" aria-hidden="true">
+              {caption}
             </div>
-          </section>
-        )}
+          )}
 
-        {notebookMode && captionVisible && caption && (
-          <div className="notebookCaption" aria-hidden="true">
-            {caption}
-          </div>
-        )}
-
-        {notebookMode && (
-          <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-            {captionAnnouncement}
-          </div>
-        )}
-
-        {notebookMode && showOrientationCue && (
-          <div className="notebookOrientation" role="status" aria-live="polite">
-            <div className="notebookOrientationCopy">
-              <span className="notebookOrientationLabel">Start here</span>
-              <span className="notebookOrientationText">
-                This lesson is centered on the current concept. Let the narration guide you, then
-                open the quiz when you’re ready.
-              </span>
+          {notebookMode && (
+            <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+              {captionAnnouncement}
             </div>
-            <button
-              className="notebookOrientationClose"
-              onClick={dismissOrientationCue}
-              type="button"
-            >
-              Got it
-            </button>
-          </div>
-        )}
+          )}
 
-        {notebookMode && showLearningCue && nextAction && (
-          <div className="notebookLearningCue" role="status" aria-live="polite">
+          {notebookMode && showOrientationCue && (
+            <div className="notebookOrientation" role="status" aria-live="polite">
+              <div className="notebookOrientationCopy">
+                <span className="notebookOrientationLabel">Start here</span>
+                <span className="notebookOrientationText">
+                  This lesson is centered on the current concept. Let the narration guide you, then
+                  open the quiz when you're ready.
+                </span>
+              </div>
+              <button
+                className="notebookOrientationClose"
+                onClick={dismissOrientationCue}
+                type="button"
+              >
+                Got it
+              </button>
+            </div>
+          )}
+
+          {notebookMode && showLearningCue && nextAction && (
+            <div className="notebookLearningCue" role="status" aria-live="polite">
             <div className="notebookLearningCueCopy">
               <span className="notebookLearningCueText">
                 {nextAction.kind === 'review'
@@ -1066,21 +1073,11 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
           </div>
         )}
 
+        </div>{/* end scrollArea */}
+
         {notebookMode && hasHiddenCurrentQuizzes && currentQuizIds.length > 0 && (
           <button className={styles.continueToQuiz} type="button" onClick={revealCurrentQuizzes}>
             Continue to quiz
-          </button>
-        )}
-
-        {notebookMode && summaryAvailable && (
-          <button
-            className={styles.finalQuizAction}
-            type="button"
-            onClick={() => setSummaryQuiz(true)}
-          >
-            {Object.keys(session?.scores ?? {}).length > 0
-              ? 'Review final results'
-              : 'Take final quiz'}
           </button>
         )}
 
@@ -1117,21 +1114,12 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                 <Plus size={14} />
               </button>
               <button
-                onClick={() => setShowFullText(!showFullText)}
-                title={showFullText ? 'Hide full text' : 'Show full text'}
-                aria-label={showFullText ? 'Hide full text' : 'Show full text'}
-                type="button"
-              >
-                {showFullText ? 'Hide full text' : 'Show full text'}
-              </button>
-              <button
                 onClick={handleKbHelp}
                 title="Keyboard shortcuts"
                 aria-label="Keyboard shortcuts"
                 type="button"
               >
                 <CircleHelp size={14} />
-                <span>Shortcuts</span>
               </button>
               <button
                 onClick={cycleTheme}
@@ -1140,8 +1128,32 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                 type="button"
               >
                 <ThemeIcon size={14} />
-                <span>Theme: {theme}</span>
               </button>
+              <button
+                onClick={() => setShowExport(true)}
+                title="Export session"
+                aria-label="Export session"
+                type="button"
+              >
+                <Download size={14} />
+              </button>
+              {showExport && (
+                <AccessibleDialog
+                  labelledBy="export-heading"
+                  onClose={() => setShowExport(false)}
+                  initialFocusSelector="button:first-of-type"
+                  overlayClassName={styles.exportOverlay}
+                  panelClassName={styles.exportDialog}
+                >
+                  <h2 id="export-heading">Export Session</h2>
+                  <p>Choose a format to export your study session.</p>
+                  <div className={styles.exportActions}>
+                    <button onClick={handleExportJson} type="button">JSON</button>
+                    <button onClick={handleExportMarkdown} type="button">Markdown</button>
+                  </div>
+                  <button onClick={() => setShowExport(false)} type="button" className={styles.exportCancel}>Cancel</button>
+                </AccessibleDialog>
+              )}
               <button
                 onClick={() => setShowOutline((v) => !v)}
                 title="Table of contents"

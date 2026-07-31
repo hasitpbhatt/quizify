@@ -1,7 +1,9 @@
 # AGENTS.md — Cheat sheet for AI agents working on Quizify
 
-Read this first, then [`docs/roadmap.md`](docs/roadmap.md) for product direction and
-[`docs/architecture.md`](docs/architecture.md) for system diagrams and fetch flow.
+Read this first, then:
+- [`docs/roadmap.md`](docs/roadmap.md) — product direction
+- [`docs/architecture.md`](docs/architecture.md) — system diagrams and fetch flow
+- [`docs/spec/ux-decisions.md`](docs/spec/ux-decisions.md) — **approved UX decisions (do not deviate without confirmation)**
 
 ## What this app is
 
