@@ -11,7 +11,11 @@ interface ToolbarProps {
   onCycleTheme?: () => void;
 }
 
-export function Toolbar({ isGenerating = false, onCancelGeneration, onCycleTheme: _onCycleTheme }: ToolbarProps) {
+export function Toolbar({
+  isGenerating = false,
+  onCancelGeneration,
+  onCycleTheme: _onCycleTheme,
+}: ToolbarProps) {
   const { sessions, currentId, load, select, remove, updateCurrent } = useSessionStore();
   useSettingsStore();
   const [open, setOpen] = useState(false);
@@ -141,8 +145,6 @@ export function Toolbar({ isGenerating = false, onCancelGeneration, onCycleTheme
           Cancel generation
         </button>
       )}
-
-
 
       <div className={styles.sessionSelect} ref={ref} onKeyDown={handleKeyDown}>
         <button

@@ -55,10 +55,7 @@ import {
 import '@/styles/notebook.css';
 import styles from './CanvasPage.module.css';
 
-function filterVisibleNodes(
-  nodes: CanvasNode[],
-  currentConceptIndex: number,
-): CanvasNode[] {
+function filterVisibleNodes(nodes: CanvasNode[], currentConceptIndex: number): CanvasNode[] {
   // Build concept-index lookups once (O(N)) instead of calling
   // getConceptIndex (a linear find) per quiz — was O(N²).
   const conceptIndexMap = new Map<string, number>();
@@ -266,10 +263,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
 
   const visibleNodes = useMemo(() => {
     if (!session) return [];
-    return filterVisibleNodes(
-      session.nodes,
-      currentConceptIndex,
-    );
+    return filterVisibleNodes(session.nodes, currentConceptIndex);
   }, [session, currentConceptIndex]);
 
   const { orderedVisibleNodes, looseNotes } = useMemo(() => {
@@ -1042,38 +1036,42 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
 
           {notebookMode && showLearningCue && nextAction && (
             <div className="notebookLearningCue" role="status" aria-live="polite">
-            <div className="notebookLearningCueCopy">
-              <span className="notebookLearningCueText">
-                {nextAction.kind === 'review'
-                  ? 'A quick review is ready'
-                  : nextAction.kind === 'continue'
-                    ? `Continue with ${conceptTitles.get(nextAction.conceptId) ?? 'the current concept'}`
-                    : nextAction.kind === 'start'
-                      ? `Begin with ${conceptTitles.get(nextAction.conceptId) ?? 'the first concept'}`
-                      : 'You have covered this lesson'}
-              </span>
-            </div>
-            {nextAction.kind !== 'complete' && (
-              <button className="notebookLearningCueAction" onClick={handleCueAction} type="button">
-                {nextAction.kind === 'review'
-                  ? 'Review now'
-                  : nextAction.kind === 'continue'
-                    ? 'Continue'
-                    : 'Start lesson'}
+              <div className="notebookLearningCueCopy">
+                <span className="notebookLearningCueText">
+                  {nextAction.kind === 'review'
+                    ? 'A quick review is ready'
+                    : nextAction.kind === 'continue'
+                      ? `Continue with ${conceptTitles.get(nextAction.conceptId) ?? 'the current concept'}`
+                      : nextAction.kind === 'start'
+                        ? `Begin with ${conceptTitles.get(nextAction.conceptId) ?? 'the first concept'}`
+                        : 'You have covered this lesson'}
+                </span>
+              </div>
+              {nextAction.kind !== 'complete' && (
+                <button
+                  className="notebookLearningCueAction"
+                  onClick={handleCueAction}
+                  type="button"
+                >
+                  {nextAction.kind === 'review'
+                    ? 'Review now'
+                    : nextAction.kind === 'continue'
+                      ? 'Continue'
+                      : 'Start lesson'}
+                </button>
+              )}
+              <button
+                className="notebookLearningCueClose"
+                onClick={dismissLearningCueLocal}
+                type="button"
+                aria-label="Dismiss"
+              >
+                ✕
               </button>
-            )}
-            <button
-              className="notebookLearningCueClose"
-              onClick={dismissLearningCueLocal}
-              type="button"
-              aria-label="Dismiss"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        </div>{/* end scrollArea */}
+            </div>
+          )}
+        </div>
+        {/* end scrollArea */}
 
         {notebookMode && hasHiddenCurrentQuizzes && currentQuizIds.length > 0 && (
           <button className={styles.continueToQuiz} type="button" onClick={revealCurrentQuizzes}>
@@ -1148,10 +1146,20 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                   <h2 id="export-heading">Export Session</h2>
                   <p>Choose a format to export your study session.</p>
                   <div className={styles.exportActions}>
-                    <button onClick={handleExportJson} type="button">JSON</button>
-                    <button onClick={handleExportMarkdown} type="button">Markdown</button>
+                    <button onClick={handleExportJson} type="button">
+                      JSON
+                    </button>
+                    <button onClick={handleExportMarkdown} type="button">
+                      Markdown
+                    </button>
                   </div>
-                  <button onClick={() => setShowExport(false)} type="button" className={styles.exportCancel}>Cancel</button>
+                  <button
+                    onClick={() => setShowExport(false)}
+                    type="button"
+                    className={styles.exportCancel}
+                  >
+                    Cancel
+                  </button>
                 </AccessibleDialog>
               )}
               <button

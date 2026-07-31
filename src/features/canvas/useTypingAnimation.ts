@@ -11,11 +11,7 @@ import { useMediaQuery } from '@/shared/useMediaQuery';
  * When TTS is disabled or not playing, text appears immediately (no animation).
  * Once a node has fully revealed, it stays complete on revisits.
  */
-export function useTypingAnimation(
-  nodeId: string,
-  fullText: string,
-  skipAnimation = false,
-) {
+export function useTypingAnimation(nodeId: string, fullText: string, skipAnimation = false) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
   const hasTypingCompleted = useNotebookStore((s) => Boolean(s.completedTypingNodeIds[nodeId]));
