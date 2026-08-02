@@ -111,6 +111,73 @@ async function fetchSubjectFromLlm(subject: string): Promise<string> {
   return callLlm(prompt);
 }
 
+async function fetchBookSummary(url: string): Promise<string> {
+  const fetchTimeout = async (url: string, init?: RequestInit): Promise<Response> => {
+    const ac = new AbortController();
+    const timeout = setTimeout(
+      () => ac.abort(new DOMException('Fetch timed out', 'TimeoutError')),
+      FETCH_TIMEOUT_MS,
+    );
+    try {
+      const signal = init?.signal ? anySignal(init.signal, ac.signal) : ac.signal;
+      return await fetch(url, { ...init, signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  const summarySites = [
+    `https://blinkist.com/en/summaries/${encodeURIComponent(url)}`,
+    `https://www.getabstracts.com/books/${encodeURIComponent(url)}`,
+    `https://jamesclear.com/books/${encodeURIComponent(url)}`,
+  ];
+
+  const abortController = new AbortController();
+  const promises = summarySites.map(async (site) => {
+    try {
+      const response = await fetchTimeout(site, {
+        headers: {
+          'User-Agent': 'Quizify/1.0 (research tool)',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+        signal: abortController.signal,
+      });
+      if (!response.ok) return null;
+      const text = await response.text();
+      if (text.length > 300) {
+        return text;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
+
+  try {
+    const results = await Promise.race([
+      Promise.all(promises),
+      new Promise<null[]>((_, reject) => setTimeout(() => reject(null), 8000)),
+    ]);
+
+    for (const content of results) {
+      if (content) {
+        debugLog('log', 'fetch', 'book-summary OK len=%d', content.length);
+        return content;
+      }
+    }
+  } catch {
+    debugLog('warn', 'fetch', 'book-summary failed to fetch any site');
+  }
+
+  return '';
+}
+
+function isBookTitle(input: string): boolean {
+  return /^(?:[A-Z][a-zA-Z0-9\s]*\s+by\s+[A-Z][a-zA-Z0-9\s]*|(?:[A-Z][a-zA-Z0-9\s]+)\s*-\s*[A-Z][a-zA-Z0-9\s]+)$/i.test(
+    input.trim(),
+  );
+}
+
 function extractSubjectFromUrl(input: string): string {
   try {
     const url = new URL(input);
@@ -156,15 +223,27 @@ export async function fetchSourceContent(
 
   if (!content) {
     if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    const subject = isLikelyUrl(input) ? extractSubjectFromUrl(input) : input;
-    debugLog('warn', 'fetch', 'LLM subject_fallback subject=%s', subject.slice(0, 100));
-    try {
-      content = await fetchSubjectFromLlm(subject);
-      source = 'llm';
-    } catch (err) {
-      throw new Error(
-        `Couldn't generate content for "${input}". ${err instanceof Error ? err.message : 'LLM call failed.'}`,
-      );
+
+    if (isBookTitle(input)) {
+      debugLog('log', 'fetch', 'book-title detected, trying summary sites');
+      const bookContent = await fetchBookSummary(input);
+      if (bookContent && bookContent.length > 50) {
+        content = bookContent;
+        source = 'cfproxy';
+      }
+    }
+
+    if (!content) {
+      const subject = isLikelyUrl(input) ? extractSubjectFromUrl(input) : input;
+      debugLog('warn', 'fetch', 'LLM subject_fallback subject=%s', subject.slice(0, 100));
+      try {
+        content = await fetchSubjectFromLlm(subject);
+        source = 'llm';
+      } catch (err) {
+        throw new Error(
+          `Couldn't generate content for "${input}". ${err instanceof Error ? err.message : 'LLM call failed.'}`,
+        );
+      }
     }
   }
 

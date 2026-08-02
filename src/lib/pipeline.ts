@@ -390,11 +390,20 @@ export async function runQuizPhase(
       const { conceptId, quizzes } = result.value;
       quizzes.forEach((item, qi) => {
         const quizId = `${conceptId}-quiz-${qi}`;
-        nodes.push({
-          id: quizId,
-          type: 'quiz',
-          data: quizItemToQuizData(item, conceptId),
-        });
+        const conceptIdx = nodes.findIndex((n) => n.id === conceptId);
+        if (conceptIdx !== -1) {
+          nodes.splice(conceptIdx + 1, 0, {
+            id: quizId,
+            type: 'quiz',
+            data: quizItemToQuizData(item, conceptId),
+          });
+        } else {
+          nodes.push({
+            id: quizId,
+            type: 'quiz',
+            data: quizItemToQuizData(item, conceptId),
+          });
+        }
       });
     }
   }
@@ -669,13 +678,22 @@ export async function retryFailedConcept(sessionId: string, conceptId: string): 
         },
         conceptInfo,
       );
+      const conceptIdx = nodes.findIndex((n) => n.id === conceptId);
       quizzes.forEach((item, qi) => {
-        nodes.push({
-          id: `${conceptId}-quiz-${qi}`,
-          type: 'quiz',
-          data: quizItemToQuizData(item, conceptId),
-          position: { x: 0, y: 0 },
-        });
+        const quizId = `${conceptId}-quiz-${qi}`;
+        if (conceptIdx !== -1) {
+          nodes.splice(conceptIdx + 1 + qi, 0, {
+            id: quizId,
+            type: 'quiz',
+            data: quizItemToQuizData(item, conceptId),
+          });
+        } else {
+          nodes.push({
+            id: quizId,
+            type: 'quiz',
+            data: quizItemToQuizData(item, conceptId),
+          });
+        }
       });
       await persist();
     } catch (err) {

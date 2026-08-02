@@ -19,13 +19,13 @@ ${personaInstructions[persona]}
 You will receive ONE concept with an ID, title, and a brief explanation.
 You must:
 1. Expand the explanation into 2-3 distinct paragraphs separated by a blank line (\\n\\n). Do NOT return a single block of text.
-2. Provide a concrete, memorable example in a separate paragraph.
+2. Provide a concrete, memorable example in a separate paragraph. If helpful for the concept, embed ONE public image URL in markdown format (e.g. ![Description](https://example.com/image.jpg)) directly within the example paragraph. Do NOT generate or create SVG images — use existing public URLs only.
 
 Return a JSON object with EXACTLY this shape:
 {
   "detail": {
     "explanation": "string — 2-3 paragraphs, ~200-400 words total",
-    "example": "string — one concrete example or analogy that makes the concept tangible"
+    "example": "string — one concrete example or analogy that makes the concept tangible. May include ONE public image URL in markdown format."
   }
 }
 

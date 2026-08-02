@@ -10,6 +10,60 @@ const BROWSER_HEADERS = {
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
 };
 
+async function fetchBookSummaryDev(title: string, author?: string): Promise<string> {
+  const titleSlug = title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').trim();
+  const authorSlug = author ? author.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').trim() : '';
+
+  const candidates: string[] = [];
+  if (authorSlug) {
+    candidates.push(`https://blinkist.com/en/books/${authorSlug}/${titleSlug}`);
+    candidates.push(`https://jamesclear.com/books/${titleSlug}`);
+  }
+  candidates.push(
+    `https://blinkist.com/en/books/${titleSlug}`,
+    `https://jamesclear.com/books/${titleSlug}`,
+    `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/\s+/g, '_'))}`,
+  );
+
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(candidate, { headers: BROWSER_HEADERS });
+      if (!response.ok) continue;
+      const text = await response.text();
+      if (text.length > 300) return text;
+    } catch {
+      // try next
+    }
+  }
+
+  const apiKey = process.env.EXA_API_KEY;
+  if (apiKey) {
+    try {
+      const query = author ? `${title} ${author} book summary` : `${title} book summary`;
+      const response = await fetch('https://api.exa.ai/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+        },
+        body: JSON.stringify({ query, numResults: 3, type: 'auto', useAutoprompt: true }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const contents = data.results
+          ?.filter((r: { text: string }) => r.text && r.text.length > 100)
+          ?.map((r: { text: string }) => r.text)
+          ?.join('\n\n');
+        if (contents) return contents;
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  throw new Error('No book summary found');
+}
+
 function devProxyPlugin(): import('vite').Plugin {
   return {
     name: 'dev-proxy',
@@ -83,30 +137,53 @@ function devProxyPlugin(): import('vite').Plugin {
         }
       });
 
-      server.middlewares.use('/api/fetch', async (req: IncomingMessage, res: ServerResponse) => {
-        const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
-        const target = url.searchParams.get('url');
-        if (!target) {
-          res.statusCode = 400;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: 'Missing url query param' }));
-          return;
-        }
-        try {
-          const response = await fetch(target, { headers: BROWSER_HEADERS });
-          const text = await response.text();
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-          res.statusCode = response.ok ? 200 : response.status;
-          res.end(text);
-        } catch {
-          res.statusCode = 502;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: 'Proxy fetch failed' }));
-        }
-      });
+       server.middlewares.use('/api/fetch', async (req: IncomingMessage, res: ServerResponse) => {
+         const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+         const target = url.searchParams.get('url');
+         if (!target) {
+           res.statusCode = 400;
+           res.setHeader('Content-Type', 'application/json');
+           res.end(JSON.stringify({ error: 'Missing url query param' }));
+           return;
+         }
+         try {
+           const response = await fetch(target, { headers: BROWSER_HEADERS });
+           const text = await response.text();
+           res.setHeader('Access-Control-Allow-Origin', '*');
+           res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+           res.statusCode = response.ok ? 200 : response.status;
+           res.end(text);
+         } catch {
+           res.statusCode = 502;
+           res.setHeader('Content-Type', 'application/json');
+           res.end(JSON.stringify({ error: 'Proxy fetch failed' }));
+         }
+       });
 
-      // Debug endpoint to check env loading (POST to avoid Vite SPA fallback)
+       server.middlewares.use('/api/book-summary', async (req: IncomingMessage, res: ServerResponse) => {
+         const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+         const title = url.searchParams.get('title');
+         if (!title) {
+           res.statusCode = 400;
+           res.setHeader('Content-Type', 'application/json');
+           res.end(JSON.stringify({ error: 'Missing title query param' }));
+           return;
+         }
+         const author = url.searchParams.get('author') ?? undefined;
+         try {
+           const summary = await fetchBookSummaryDev(title, author);
+           res.setHeader('Access-Control-Allow-Origin', '*');
+           res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+           res.statusCode = 200;
+           res.end(summary);
+         } catch {
+           res.statusCode = 502;
+           res.setHeader('Content-Type', 'application/json');
+           res.end(JSON.stringify({ error: 'Book summary proxy failed' }));
+         }
+       });
+
+       // Debug endpoint to check env loading (POST to avoid Vite SPA fallback)
       server.middlewares.use('/__debug', async (req: IncomingMessage, res: ServerResponse) => {
         if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
         const envPath = path.resolve(process.cwd(), '.env');

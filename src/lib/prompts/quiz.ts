@@ -18,7 +18,7 @@ export function buildQuizSystemPrompt(persona: Persona, topic: string): string {
 ${personaInstructions[persona]}
 
 You will receive one concept with its ID, title, explanation, and example.
-Generate 2-3 quiz questions that test understanding of this concept.
+Generate 2-3 quiz questions that test understanding of this concept. Questions should be scenario-based and applied, not abstract. When helpful, embed ONE public image URL in markdown format (e.g. ![Description](https://example.com/image.jpg)) within the question text. Do NOT generate or create SVG images — use existing public URLs only.
 
 Quiz formats available:
 - "multipleChoice": 4 options, one correct
@@ -32,7 +32,7 @@ Return a JSON array of quiz question objects with EXACTLY this shape:
 [
   {
     "format": "multipleChoice" | "trueFalse" | "shortAnswer" | "freeText" | "fillBlank" | "ordering",
-    "prompt": "string — the question text",
+    "prompt": "string — the question text. May include ONE public image URL in markdown format if helpful.",
     "options": ["string"] | null,
     "blankedSentence": "string | null — only for fillBlank",
     "items": ["string"] | null — only for ordering",

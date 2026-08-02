@@ -8,6 +8,7 @@ import { ttsManager } from '@/lib/llm/ttsManager';
 import type { ConceptData } from '@/shared/types';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
+import { ConceptExamples } from '@/features/canvas/components/ConceptExamples';
 
 interface ConceptNodeProps {
   id: string;
@@ -19,7 +20,11 @@ interface ConceptNodeProps {
 
 function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNodeProps) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
-  const textToRead = `${data.title}. ${data.explanation}`;
+  const exampleText =
+    data.example && data.example !== 'Loading...' && data.example !== 'Generating...'
+      ? ` Example: ${data.example}`
+      : '';
+  const textToRead = `${data.title}. ${data.explanation}${exampleText}`;
   const skipTyping = data.index < currentConceptIndex;
   const { revealed, isAnimating, skipAnimation } = useTypingAnimation(id, textToRead, skipTyping);
 
@@ -165,6 +170,7 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
           ))
         )}
       </div>
+      <ConceptExamples example={data.example} />
       {hasFailed && (
         <div role="alert" className={styles.generationError}>
           This concept could not be generated. Use Retry or Skip in the lesson recovery panel.
