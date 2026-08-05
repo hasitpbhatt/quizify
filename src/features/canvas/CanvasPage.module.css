@@ -241,6 +241,21 @@
   }
 }
 
+.streamingNotice {
+  margin: 0 auto 16px;
+  width: fit-content;
+  max-width: min(90vw, 560px);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  color: var(--text-secondary);
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 6px 16px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+
 .buildingState {
   height: calc(100vh - 48px);
   display: flex;

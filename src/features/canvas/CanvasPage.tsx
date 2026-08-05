@@ -603,12 +603,14 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     prefersReducedMotion,
   ]);
 
-  // Stop TTS narration when exiting notebook mode or while content is still generating
+  // Stop TTS narration when exiting notebook mode. Narration may start while
+  // the pipeline is still generating — the auto-enqueue effect only reads
+  // concepts whose body has been populated, so partial content is never read.
   useEffect(() => {
-    if (!notebookMode || isGenerating) {
+    if (!notebookMode) {
       ttsManager.stop();
     }
-  }, [notebookMode, isGenerating]);
+  }, [notebookMode]);
 
   // Sync ttsManager state → notebookStore so buttons reflect real TTS state
   useEffect(() => {
@@ -821,6 +823,8 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   }
 
   const showProgress = isGenerating && progress && progress.stage !== 'done';
+  const showStreamingNotice =
+    isGenerating && !!currentConcept && currentQuizIds.length === 0 && visibleNodes.length > 0;
   const failedConcepts = concepts.filter((concept) => concept.data.generationStatus === 'failed');
   const hasHiddenCurrentQuizzes = currentQuizIds.some((id) => !revealedQuizIds.has(id));
   const completionCopy = 'You reviewed every concept.';
@@ -969,6 +973,12 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
             <div className={styles.progressBadge}>
               <span className={styles.progressDot} aria-hidden />
               {progress.label}
+            </div>
+          )}
+
+          {showStreamingNotice && (
+            <div className={styles.streamingNotice} role="status">
+              More sections are generating — review this one, then continue as they arrive.
             </div>
           )}
 

@@ -161,6 +161,10 @@ export function MobileFocusView({
     if (!notebookMode || !node || prefersReducedMotion || !ttsEnabled) return;
     if (node.data.kind === 'concept') {
       if (ttsManager.hasSegment(node.id)) return;
+      // Don't enqueue shell text (outline blurb): if we did, the hasSegment
+      // dedup would permanently block the real explanation once it lands.
+      // Mirrors the desktop auto-enqueue guard in CanvasPage.
+      if ((node.data as ConceptData).example === 'Loading...') return;
       const text = node.data.title + '. ' + node.data.explanation;
       ttsManager.enqueue({ nodeId: node.id, text });
     } else if (node.data.kind === 'summary') {
@@ -327,6 +331,12 @@ export function MobileFocusView({
         <div className={styles.progressBar}>
           <span className={styles.progressDot} />
           <span className={styles.progressLabel}>{progress.label}</span>
+        </div>
+      )}
+
+      {isGenerating && node?.data.kind === 'concept' && (
+        <div className={styles.streamingNotice} role="status">
+          More sections are generating — review this one, then continue as they arrive.
         </div>
       )}
 

@@ -17,6 +17,21 @@ export function getUnlockedConceptIndex(nodes: CanvasNode[]): number {
     }
   }
 
+  // NOTE: this index serves double duty — progression gating AND the notebook's
+  // narration target (CanvasPage reads currentConceptIndex off it). Parking here
+  // is what lets narration/typing stream per-concept as content lands instead of
+  // waiting for the whole lesson to finish.
+  //
+  // While any concept is still generating, park on the first ready concept
+  // (even with zero quizzes) so its narration can start immediately. Once
+  // generation completes, a ready concept without quizzes must not block
+  // progression, so it is passed through.
+  //
+  // Failure path: a failed concept is surfaced via its recovery panel only after
+  // the ready concepts before it have been passed through — it does not preempt
+  // the stream of usable content ahead of it.
+  const anyGenerating = concepts.some((c) => c.data.generationStatus === 'generating');
+
   for (let i = 0; i < concepts.length; i++) {
     const generationStatus = concepts[i].data.generationStatus;
     if (generationStatus === 'skipped') continue;
@@ -26,7 +41,10 @@ export function getUnlockedConceptIndex(nodes: CanvasNode[]): number {
     // A ready concept without quizzes should never block the lesson. When
     // quizzes exist, one meaningful attempt is enough to continue; incorrect
     // answers remain scheduled for review instead of trapping the learner.
-    if (quizzes.length === 0) continue;
+    if (quizzes.length === 0) {
+      if (anyGenerating) return i;
+      continue;
+    }
     const allAttempted = quizzes.every((q) => q.data.attempts.length > 0);
     if (!allAttempted) return i;
   }

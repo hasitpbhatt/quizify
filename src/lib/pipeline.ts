@@ -212,7 +212,12 @@ export async function processOneConcept(
       if (rateLimitState) {
         rateLimitState.last429At = Date.now();
         rateLimitState.consecutive429s++;
-        rateLimitState.contentModelIndex = modelIndex + 1;
+        // Monotonic: content workers run concurrently, so never let a straggler
+        // on a lower tier downgrade the shared cascade index another worker raised.
+        rateLimitState.contentModelIndex = Math.max(
+          rateLimitState.contentModelIndex,
+          modelIndex + 1,
+        );
         if (rateLimitState.contentModelIndex >= CONTENT_MODEL_CASCADE.length) {
           rateLimitState.contentModelIndex = CONTENT_MODEL_CASCADE.length - 1;
         }
@@ -310,7 +315,7 @@ export async function runContentPhase(
 
   await runWithConcurrency(
     concepts,
-    () => 1,
+    () => 3,
     async (concept, i) => {
       const lastNodeId = await processOneConcept(
         nodes,
@@ -326,6 +331,21 @@ export async function runContentPhase(
         rateLimitState,
       );
       conceptLastNodeIds[i] = lastNodeId;
+      if (lastNodeId) {
+        // Interleave: generate this concept's quizzes as soon as its content
+        // lands so it becomes answerable before the rest of the lesson finishes
+        // (first practice no longer waits for the full content phase).
+        const conceptInfo = generatedConcepts.find((c) => c.id === concept.id);
+        await generateQuizForConcept(
+          nodes,
+          conceptInfo,
+          topic,
+          persona,
+          signal,
+          persist,
+          rateLimitState,
+        );
+      }
       if (!lastNodeId) failed++;
       completed++;
       onNotify('detail', `Generating content (${completed}/${total} done\u2026)`);
@@ -334,81 +354,73 @@ export async function runContentPhase(
   return failed;
 }
 
-export async function runQuizPhase(
+/**
+ * Generate quizzes for a single concept and splice them right after its node,
+ * then persist. Non-fatal on failure (the concept stays, just without quizzes,
+ * which progression treats as auto-pass). Idempotent: skips concepts that
+ * already have quizzes.
+ */
+export async function generateQuizForConcept(
   nodes: CanvasNode[],
-  generatedConcepts: ConceptInfo[],
+  conceptInfo: ConceptInfo | undefined,
   topic: string,
   persona: Persona,
   signal: AbortSignal | undefined,
   persist: () => Promise<void>,
-  onNotify: (step: PipelineStep, label: string, error?: string) => void,
   rateLimitState?: RateLimitState,
 ): Promise<void> {
-  if (generatedConcepts.length === 0) return;
-
-  onNotify('quiz', `Generating quizzes (${generatedConcepts.length} concepts)\u2026`);
-
-  const results = await Promise.allSettled(
-    generatedConcepts.map(async (concept) => {
-      try {
-        const quizzes = await executePromptTask(
-          quizTask,
-          {
-            persona,
-            signal,
-            context: { topic },
-            model: getQuizModel(),
-            onRetry: (info) => {
-              if (rateLimitState && info.status === 429) {
-                rateLimitState.last429At = Date.now();
-                rateLimitState.consecutive429s++;
-              }
-              useToastStore
-                .getState()
-                .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`);
-            },
-          },
-          concept,
-        );
-        return { conceptId: concept.id, quizzes } as const;
-      } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') throw err;
-        debugLog(
-          'warn',
-          'pipeline',
-          'quiz FAIL concept=%s err=%s',
-          concept.id,
-          err instanceof Error ? err.message : String(err),
-        );
-        return null;
-      }
-    }),
-  );
-
-  for (const result of results) {
-    if (result.status === 'fulfilled' && result.value) {
-      const { conceptId, quizzes } = result.value;
-      quizzes.forEach((item, qi) => {
-        const quizId = `${conceptId}-quiz-${qi}`;
-        const conceptIdx = nodes.findIndex((n) => n.id === conceptId);
-        if (conceptIdx !== -1) {
-          nodes.splice(conceptIdx + 1, 0, {
-            id: quizId,
-            type: 'quiz',
-            data: quizItemToQuizData(item, conceptId),
-          });
-        } else {
-          nodes.push({
-            id: quizId,
-            type: 'quiz',
-            data: quizItemToQuizData(item, conceptId),
-          });
-        }
-      });
-    }
+  if (!conceptInfo) return;
+  if (
+    nodes.some(
+      (n) => n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === conceptInfo.id,
+    )
+  ) {
+    return;
   }
-
-  await persist();
+  try {
+    const quizzes = await executePromptTask(
+      quizTask,
+      {
+        persona,
+        signal,
+        context: { topic },
+        model: getQuizModel(),
+        onRetry: (info) => {
+          if (rateLimitState && info.status === 429) {
+            rateLimitState.last429At = Date.now();
+            rateLimitState.consecutive429s++;
+          }
+          useToastStore
+            .getState()
+            .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`);
+        },
+      },
+      conceptInfo,
+    );
+    if (!Array.isArray(quizzes) || quizzes.length === 0) return;
+    // find + splice synchronously so a concurrently-generating sibling can't
+    // shift this concept's index between the lookup and the inserts.
+    const conceptIdx = nodes.findIndex((n) => n.id === conceptInfo.id);
+    if (conceptIdx === -1) return;
+    quizzes.forEach((item, qi) => {
+      nodes.splice(conceptIdx + 1 + qi, 0, {
+        id: `${conceptInfo.id}-quiz-${qi}`,
+        type: 'quiz',
+        data: quizItemToQuizData(item, conceptInfo.id),
+      });
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err;
+    debugLog(
+      'warn',
+      'pipeline',
+      'quiz FAIL concept=%s err=%s',
+      conceptInfo.id,
+      err instanceof Error ? err.message : String(err),
+    );
+  } finally {
+    await persist();
+  }
 }
 
 export async function pushSummary(
@@ -561,26 +573,8 @@ export async function runPipeline(
 
   resetIfCooled(rateLimitState);
 
-  // --- Phase 2: Quiz generation (small model, parallel burst) ---
-  debugLog(
-    'log',
-    'pipeline',
-    'phase 2: quiz generation for %d concepts (model=%s)',
-    generatedConcepts.length,
-    getQuizModel(),
-  );
-  await runQuizPhase(
-    nodes,
-    generatedConcepts,
-    topic,
-    persona,
-    signal,
-    persist,
-    notify,
-    rateLimitState,
-  );
-
-  resetIfCooled(rateLimitState);
+  // Note: quizzes were generated per-concept inside runContentPhase (interleaved
+  // with content) so each concept becomes answerable as soon as its content lands.
 
   // --- Phase 3: Summary (model cascade) ---
   debugLog(

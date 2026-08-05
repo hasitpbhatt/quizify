@@ -159,6 +159,47 @@ describe('CanvasPage — notebook-mode TTS gating', () => {
     expect(ttsMock.start).toHaveBeenCalledTimes(1);
     expect(ttsMock.stop).toHaveBeenCalledTimes(1);
   });
+
+  it('streams TTS for the first ready concept while a later concept is still generating', async () => {
+    // Phase 1 of generation: concept 0 has content but no quiz yet, concept 1 is
+    // still generating. getUnlockedConceptIndex must park at concept 0 so its
+    // narration starts immediately despite isGenerating being true.
+    const c0 = factories.mockConceptNode({
+      data: {
+        kind: 'concept',
+        index: 0,
+        title: 'Quantum Computing',
+        explanation: 'Uses qubits instead of classical bits.',
+        example: 'Superposition example.',
+        generationStatus: 'ready' as const,
+      },
+    });
+    const c1 = factories.mockConceptNode({
+      id: 'concept-2',
+      data: {
+        kind: 'concept',
+        index: 1,
+        title: 'Second Concept',
+        explanation: 'Explanation of the second concept.',
+        example: 'Loading...',
+        generationStatus: 'generating' as const,
+      },
+    });
+    const session = factories.mockSession([c0, c1], []);
+    await sessionsDb.putSession(session);
+    useSessionStore.setState({ sessions: [session], currentId: session.id, loaded: true });
+
+    render(<CanvasPage isGenerating />);
+
+    await waitFor(() => {
+      expect(ttsMock.enqueue).toHaveBeenCalledTimes(1);
+    });
+    expect(ttsMock.enqueue).toHaveBeenCalledWith({
+      nodeId: c0.id,
+      text: 'Quantum Computing. Uses qubits instead of classical bits.',
+    });
+    expect(ttsMock.start).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('CanvasPage — notebook-mode reduced-motion quiz reveal (NB-1)', () => {

@@ -61,6 +61,18 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
     };
   }, [isPlaying]);
 
+  // Only one audio source should be audible at a time. If the notebook
+  // narration (ttsManager) starts playing, pause this node's standalone
+  // "Listen" audio so the two never overlap.
+  useEffect(() => {
+    return ttsManager.subscribeState((state) => {
+      if (state === 'playing' && audioRef.current && !audioRef.current.paused) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+    });
+  }, []);
+
   const handlePlay = useCallback(async () => {
     if (isPlaying) {
       if (audioRef.current) {
@@ -71,6 +83,12 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
       }
       setIsPlaying(false);
       return;
+    }
+
+    // Stop the notebook narration before playing standalone audio so the two
+    // don't overlap; the state listener above handles the reverse direction.
+    if (ttsManager.isPlaying) {
+      ttsManager.stop();
     }
 
     setIsLoading(true);
