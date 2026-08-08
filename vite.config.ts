@@ -137,6 +137,63 @@ function devProxyPlugin(): import('vite').Plugin {
         }
       });
 
+       server.middlewares.use('/api/agents', async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method === 'OPTIONS') {
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          res.statusCode = 204;
+          res.end();
+          return;
+        }
+
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.setHeader('Allow', 'POST, OPTIONS');
+          res.end('Method not allowed');
+          return;
+        }
+
+        let body = '';
+        for await (const chunk of req) {
+          body += chunk;
+        }
+
+        const envPath = path.resolve(process.cwd(), '.env');
+        let mistralApiKey = '';
+        try {
+          const envContent = fs.readFileSync(envPath, 'utf8');
+          const match = envContent.match(/^MISTRAL_API_KEY=(.+)$/m);
+          if (match) mistralApiKey = match[1].trim();
+        } catch {
+          // leave empty → agents core will surface the missing-key error
+        }
+
+        let jsonBody: unknown;
+        try {
+          jsonBody = JSON.parse(body);
+        } catch {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+          return;
+        }
+
+        try {
+          const { handleAgentsRequest } = await import('./functions/_agents-core');
+          const response = await handleAgentsRequest(jsonBody as Parameters<typeof handleAgentsRequest>[0], mistralApiKey);
+          const buf = Buffer.from(await response.arrayBuffer());
+          res.setHeader('Content-Type', response.headers.get('Content-Type') ?? 'application/json');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.statusCode = response.status;
+          res.end(buf);
+        } catch {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Agents request failed.' }));
+        }
+      });
+
        server.middlewares.use('/api/fetch', async (req: IncomingMessage, res: ServerResponse) => {
          const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
          const target = url.searchParams.get('url');

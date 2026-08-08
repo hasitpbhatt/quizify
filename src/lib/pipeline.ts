@@ -6,6 +6,8 @@ import {
   type ConceptData,
   type QuizData,
   type SummaryData,
+  type NoteData,
+  type ImageData,
 } from '@/shared/types';
 import { executePromptTask } from '@/lib/llm/promptTask';
 import { contentTask } from '@/lib/tasks/contentTask';
@@ -18,6 +20,8 @@ import {
   CONTENT_MODEL_CASCADE,
   SUMMARY_MODEL_CASCADE,
 } from '@/lib/llm/providers';
+import { generateConceptImage, runCodeWorkbench } from '@/lib/llm/agents';
+import { putImage } from '@/lib/db/imagesDb';
 import { debugLog } from '@/lib/debug';
 import type { QuizItem } from '@/lib/llm/contentParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
@@ -307,6 +311,7 @@ export async function runContentPhase(
   persist: () => Promise<void>,
   onNotify: (step: PipelineStep, label: string, error?: string) => void,
   rateLimitState: RateLimitState,
+  sessionId?: string,
 ): Promise<number> {
   const total = concepts.length;
   let completed = 0;
@@ -345,6 +350,9 @@ export async function runContentPhase(
           persist,
           rateLimitState,
         );
+        // Agent enrichments (code workbench + diagram) run after the quiz tail
+        // persists so they never delay first practice; each is non-fatal.
+        await enrichConceptWithAgents(nodes, conceptInfo, topic, sessionId, signal, persist);
       }
       if (!lastNodeId) failed++;
       completed++;
@@ -421,6 +429,196 @@ export async function generateQuizForConcept(
   } finally {
     await persist();
   }
+}
+
+/**
+ * Index just past a concept's node and any quiz/image/note children spliced
+ * after it, so agent enrichments insert after the whole block.
+ */
+function findConceptTailIndex(nodes: CanvasNode[], conceptId: string): number {
+  const conceptIdx = nodes.findIndex((n) => n.id === conceptId);
+  if (conceptIdx === -1) return nodes.length;
+  let idx = conceptIdx + 1;
+  while (idx < nodes.length) {
+    const d = nodes[idx].data;
+    const belongs =
+      (d.kind === 'quiz' && d.parentConceptId === conceptId) ||
+      (d.kind === 'image' && d.parentConceptId === conceptId) ||
+      (d.kind === 'note' && d.linkedConceptId === conceptId);
+    if (!belongs) break;
+    idx++;
+  }
+  return idx;
+}
+
+async function persistAgentConversation(
+  sessionId: string | undefined,
+  conceptId: string,
+  kind: 'image' | 'code',
+  conversationId: string,
+): Promise<void> {
+  if (!sessionId || !conversationId) return;
+  const session = await sessionsDb.getSession(sessionId);
+  if (!session) return;
+  const concepts = { ...session.agentConversations?.concepts };
+  const entry = { ...concepts[conceptId] };
+  entry[kind] = conversationId;
+  concepts[conceptId] = entry;
+  await useSessionStore
+    .getState()
+    .updateCurrent({ agentConversations: { ...session.agentConversations, concepts } }, sessionId);
+}
+
+async function getAgentConversationId(
+  sessionId: string | undefined,
+  conceptId: string,
+  kind: 'image' | 'code',
+): Promise<string | undefined> {
+  if (!sessionId) return undefined;
+  const session = await sessionsDb.getSession(sessionId);
+  return session?.agentConversations?.concepts?.[conceptId]?.[kind];
+}
+
+/**
+ * Code-interpreter workbench for a concept: the model decides whether the
+ * concept involves computation; if it returns code + output, a `note` node
+ * with the verified example is spliced after the concept's quiz tail.
+ * Non-fatal. The conversation id is persisted for stateful follow-ups.
+ */
+export async function enrichConceptWithCode(
+  nodes: CanvasNode[],
+  conceptInfo: ConceptInfo | undefined,
+  topic: string,
+  sessionId: string | undefined,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  if (!conceptInfo) return;
+  if (
+    nodes.some(
+      (n) => n.data.kind === 'note' && (n.data as NoteData).linkedConceptId === conceptInfo.id,
+    )
+  ) {
+    return;
+  }
+
+  let result: Awaited<ReturnType<typeof runCodeWorkbench>>;
+  try {
+    const conversationId = await getAgentConversationId(sessionId, conceptInfo.id, 'code');
+    result = await runCodeWorkbench(conceptInfo.title, topic, { conversationId, signal });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err;
+    debugLog(
+      'warn',
+      'pipeline',
+      'code workbench FAIL concept=%s err=%s',
+      conceptInfo.id,
+      err instanceof Error ? err.message : String(err),
+    );
+    return;
+  }
+
+  if (!result.code || !result.codeOutput) return;
+
+  await persistAgentConversation(sessionId, conceptInfo.id, 'code', result.conversationId);
+
+  const tail = findConceptTailIndex(nodes, conceptInfo.id);
+  nodes.splice(tail, 0, {
+    id: `${conceptInfo.id}-workbench`,
+    type: 'note',
+    data: {
+      kind: 'note',
+      linkedConceptId: conceptInfo.id,
+      text: `Worked example (verified by computation)\n\n${result.code}\n\n${result.codeOutput}`,
+    },
+  });
+}
+
+/**
+ * Image-generation diagram for a concept: stores the blob in the IDB `images`
+ * store and splices an `image` node after the concept's quiz tail.
+ * Non-fatal. The conversation id is persisted for regeneration follow-ups.
+ */
+export async function enrichConceptWithImage(
+  nodes: CanvasNode[],
+  conceptInfo: ConceptInfo | undefined,
+  topic: string,
+  sessionId: string | undefined,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  if (!conceptInfo) return;
+  if (
+    nodes.some(
+      (n) => n.data.kind === 'image' && (n.data as ImageData).parentConceptId === conceptInfo.id,
+    )
+  ) {
+    return;
+  }
+
+  let result: Awaited<ReturnType<typeof generateConceptImage>>;
+  try {
+    const conversationId = await getAgentConversationId(sessionId, conceptInfo.id, 'image');
+    result = await generateConceptImage(conceptInfo.title, topic, { conversationId, signal });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err;
+    debugLog(
+      'warn',
+      'pipeline',
+      'image FAIL concept=%s err=%s',
+      conceptInfo.id,
+      err instanceof Error ? err.message : String(err),
+    );
+    return;
+  }
+
+  if (sessionId) {
+    try {
+      await putImage(sessionId, `${conceptInfo.id}-diagram`, result.blob, result.mime);
+    } catch (err) {
+      debugLog(
+        'warn',
+        'pipeline',
+        'image store FAIL concept=%s err=%s',
+        conceptInfo.id,
+        err instanceof Error ? err.message : String(err),
+      );
+      return;
+    }
+  }
+
+  await persistAgentConversation(sessionId, conceptInfo.id, 'image', result.conversationId);
+
+  const nodeId = `${conceptInfo.id}-diagram`;
+  const tail = findConceptTailIndex(nodes, conceptInfo.id);
+  nodes.splice(tail, 0, {
+    id: nodeId,
+    type: 'image',
+    data: {
+      kind: 'image',
+      parentConceptId: conceptInfo.id,
+      caption: `Diagram: ${conceptInfo.title}`,
+      blobKey: sessionId ? `${sessionId}:${nodeId}` : nodeId,
+      mime: result.mime,
+      fileName: result.fileName,
+    },
+  });
+}
+
+/**
+ * Run the non-blocking agent enrichments (code workbench, then image diagram)
+ * for a concept and persist the spliced nodes. Non-fatal per enrichment.
+ */
+export async function enrichConceptWithAgents(
+  nodes: CanvasNode[],
+  conceptInfo: ConceptInfo | undefined,
+  topic: string,
+  sessionId: string | undefined,
+  signal: AbortSignal | undefined,
+  persist: () => Promise<void>,
+): Promise<void> {
+  if (!conceptInfo) return;
+  await enrichConceptWithCode(nodes, conceptInfo, topic, sessionId, signal);
+  await enrichConceptWithImage(nodes, conceptInfo, topic, sessionId, signal);
+  await persist();
 }
 
 export async function pushSummary(
@@ -569,6 +767,7 @@ export async function runPipeline(
     persist,
     notify,
     rateLimitState,
+    sessionId,
   );
 
   resetIfCooled(rateLimitState);
