@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export const SEED_SESSION_ID = 'e2e-canvas-restore';
 
@@ -112,6 +112,9 @@ export async function seedDatabase(page: Page): Promise<void> {
         }
         if (!db.objectStoreNames.contains('sessions')) {
           db.createObjectStore('sessions', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('images')) {
+          db.createObjectStore('images', { keyPath: 'key' });
         }
       };
       request.onsuccess = (event) => {

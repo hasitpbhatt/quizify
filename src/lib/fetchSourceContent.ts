@@ -1,15 +1,18 @@
 import { truncateByParagraphs } from '@/lib/truncate';
 import { getCachedSourceEntry, setCachedSource } from '@/lib/db/sourceCache';
 import { chat } from '@/lib/llm/chat';
+import { fetchSourceWithWebSearch } from '@/lib/llm/agents';
 import { debugLog } from '@/lib/debug';
 import { anySignal } from '@/lib/llm/utils';
 import type { Persona, SourceProvenance } from '@/shared/types';
+import type { AgentCitation } from '@/lib/llm/agents';
 
 export interface SourceResult {
   content: string;
-  source: 'cache' | 'cfproxy' | 'llm';
+  source: 'cache' | 'cfproxy' | 'agent' | 'llm';
   provenance: SourceProvenance;
   url: string;
+  citations?: AgentCitation[];
 }
 
 export function isLikelyUrl(input: string): boolean {
@@ -111,6 +114,73 @@ async function fetchSubjectFromLlm(subject: string): Promise<string> {
   return callLlm(prompt);
 }
 
+async function fetchBookSummary(url: string): Promise<string> {
+  const fetchTimeout = async (url: string, init?: RequestInit): Promise<Response> => {
+    const ac = new AbortController();
+    const timeout = setTimeout(
+      () => ac.abort(new DOMException('Fetch timed out', 'TimeoutError')),
+      FETCH_TIMEOUT_MS,
+    );
+    try {
+      const signal = init?.signal ? anySignal(init.signal, ac.signal) : ac.signal;
+      return await fetch(url, { ...init, signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  const summarySites = [
+    `https://blinkist.com/en/summaries/${encodeURIComponent(url)}`,
+    `https://www.getabstracts.com/books/${encodeURIComponent(url)}`,
+    `https://jamesclear.com/books/${encodeURIComponent(url)}`,
+  ];
+
+  const abortController = new AbortController();
+  const promises = summarySites.map(async (site) => {
+    try {
+      const response = await fetchTimeout(site, {
+        headers: {
+          'User-Agent': 'Quizify/1.0 (research tool)',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+        signal: abortController.signal,
+      });
+      if (!response.ok) return null;
+      const text = await response.text();
+      if (text.length > 300) {
+        return text;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
+
+  try {
+    const results = await Promise.race([
+      Promise.all(promises),
+      new Promise<null[]>((_, reject) => setTimeout(() => reject(null), 8000)),
+    ]);
+
+    for (const content of results) {
+      if (content) {
+        debugLog('log', 'fetch', 'book-summary OK len=%d', content.length);
+        return content;
+      }
+    }
+  } catch {
+    debugLog('warn', 'fetch', 'book-summary failed to fetch any site');
+  }
+
+  return '';
+}
+
+function isBookTitle(input: string): boolean {
+  return /^(?:[A-Z][a-zA-Z0-9\s]*\s+by\s+[A-Z][a-zA-Z0-9\s]*|(?:[A-Z][a-zA-Z0-9\s]+)\s*-\s*[A-Z][a-zA-Z0-9\s]+)$/i.test(
+    input.trim(),
+  );
+}
+
 function extractSubjectFromUrl(input: string): string {
   try {
     const url = new URL(input);
@@ -137,34 +207,82 @@ export async function fetchSourceContent(
       source: 'cache',
       provenance: cached.provenance ?? 'legacy-unknown',
       url: input,
+      citations: cached.citations,
     };
   }
 
   let content: string | null = null;
   let source: SourceResult['source'] | null = null;
+  let citations: AgentCitation[] | undefined;
 
-  if (isLikelyUrl(input)) {
-    const fallback = await raceProxies(input);
-    if (fallback) {
-      content = fallback.content;
-      source = fallback.source;
-      debugLog('log', 'fetch', 'proxy OK source=%s len=%d', source, content.length);
-    } else {
-      debugLog('warn', 'fetch', 'proxy failed');
+  const subject = isLikelyUrl(input) ? extractSubjectFromUrl(input) : input;
+
+  // Web search (agents) is the primary grounding path. It replaces the raw-URL
+  // fetch when possible; the proxy chain below remains as a fallback.
+  if (!content && !isBookTitle(input)) {
+    try {
+      debugLog('log', 'fetch', 'agent web_search subject=%s', subject.slice(0, 100));
+      const result = await fetchSourceWithWebSearch(subject, { signal: opts.signal });
+      if (result.content && result.content.length >= 50) {
+        content = result.content;
+        source = 'agent';
+        citations = result.citations;
+        debugLog(
+          'log',
+          'fetch',
+          'agent web_search OK len=%d citations=%d',
+          content.length,
+          citations.length,
+        );
+      } else {
+        debugLog('warn', 'fetch', 'agent web_search returned empty/too-short content');
+      }
+    } catch (err) {
+      if (opts.signal?.aborted) throw err;
+      debugLog(
+        'warn',
+        'fetch',
+        'agent web_search failed: %s',
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  if (!content) {
+    if (isLikelyUrl(input)) {
+      const fallback = await raceProxies(input);
+      if (fallback) {
+        content = fallback.content;
+        source = fallback.source;
+        debugLog('log', 'fetch', 'proxy OK source=%s len=%d', source, content.length);
+      } else {
+        debugLog('warn', 'fetch', 'proxy failed');
+      }
     }
   }
 
   if (!content) {
     if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    const subject = isLikelyUrl(input) ? extractSubjectFromUrl(input) : input;
-    debugLog('warn', 'fetch', 'LLM subject_fallback subject=%s', subject.slice(0, 100));
-    try {
-      content = await fetchSubjectFromLlm(subject);
-      source = 'llm';
-    } catch (err) {
-      throw new Error(
-        `Couldn't generate content for "${input}". ${err instanceof Error ? err.message : 'LLM call failed.'}`,
-      );
+
+    if (isBookTitle(input)) {
+      debugLog('log', 'fetch', 'book-title detected, trying summary sites');
+      const bookContent = await fetchBookSummary(input);
+      if (bookContent && bookContent.length > 50) {
+        content = bookContent;
+        source = 'cfproxy';
+      }
+    }
+
+    if (!content) {
+      debugLog('warn', 'fetch', 'LLM subject_fallback subject=%s', subject.slice(0, 100));
+      try {
+        content = await fetchSubjectFromLlm(subject);
+        source = 'llm';
+      } catch (err) {
+        throw new Error(
+          `Couldn't generate content for "${input}". ${err instanceof Error ? err.message : 'LLM call failed.'}`,
+        );
+      }
     }
   }
 
@@ -175,7 +293,7 @@ export async function fetchSourceContent(
   const truncated = truncateByParagraphs(content);
 
   const provenance: SourceProvenance = source === 'cfproxy' ? 'fetched' : 'topic-generated';
-  await setCachedSource(input, truncated, provenance);
+  await setCachedSource(input, truncated, provenance, citations);
 
-  return { content: truncated, source: source ?? 'llm', provenance, url: input };
+  return { content: truncated, source: source ?? 'llm', provenance, url: input, citations };
 }

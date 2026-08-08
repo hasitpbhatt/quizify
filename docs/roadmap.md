@@ -819,6 +819,15 @@ Product:
 Engineering:
 
 - Reorder [src/lib/pipeline.ts](src/lib/pipeline.ts) around first useful output.
+  - Done (interleaved quizzes): content and each concept's quizzes now generate in
+    `runContentPhase` (concurrency 3), with quizzes spliced + persisted right after
+    their concept's content lands. First narration is instant (parking rule in
+    `getUnlockedConceptIndex`) and first *practice* arrives as soon as concept 0's
+    quiz is ready, instead of waiting for the whole content phase. Because quizzes
+    persist per-concept, there is no "all content flashes visible" state.
+  - Observe latency + concurrency of the interleaved phase in production; if the
+    serialized content-then-quiz per worker stalls completion, consider a decoupled
+    quiz-producer queue (higher concurrency) vs. the current same-slot approach.
 - Add idempotency and partial-result recovery.
 - Cache normalized sources and safe generated artifacts.
 

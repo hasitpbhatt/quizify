@@ -98,6 +98,26 @@ describe('getUnlockedConceptIndex', () => {
     ];
     expect(getUnlockedConceptIndex(nodes)).toBe(2);
   });
+
+  it('parks on the first ready concept while a later concept is still generating', () => {
+    const c1 = conceptNode('c1', 0);
+    const c2 = conceptNode('c2', 1);
+    const nodes = [
+      { ...c1, data: { ...c1.data, generationStatus: 'ready' as const } },
+      { ...c2, data: { ...c2.data, generationStatus: 'generating' as const } },
+    ];
+    expect(getUnlockedConceptIndex(nodes)).toBe(0);
+  });
+
+  it('still skips ready concepts without quizzes once generation is complete', () => {
+    const c1 = conceptNode('c1', 0);
+    const c2 = conceptNode('c2', 1);
+    const nodes = [
+      { ...c1, data: { ...c1.data, generationStatus: 'ready' as const } },
+      { ...c2, data: { ...c2.data, generationStatus: 'ready' as const } },
+    ];
+    expect(getUnlockedConceptIndex(nodes)).toBe(2);
+  });
 });
 
 describe('getConceptIndex', () => {
