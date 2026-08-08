@@ -6,6 +6,8 @@ import {
   type ConceptData,
   type QuizData,
   type SummaryData,
+  type NoteData,
+  type ImageData,
 } from '@/shared/types';
 import { executePromptTask } from '@/lib/llm/promptTask';
 import { contentTask } from '@/lib/tasks/contentTask';
@@ -18,6 +20,8 @@ import {
   CONTENT_MODEL_CASCADE,
   SUMMARY_MODEL_CASCADE,
 } from '@/lib/llm/providers';
+import { generateConceptImage, runCodeWorkbench } from '@/lib/llm/agents';
+import { putImage } from '@/lib/db/imagesDb';
 import { debugLog } from '@/lib/debug';
 import type { QuizItem } from '@/lib/llm/contentParser';
 import { useSessionStore } from '@/shared/stores/sessionStore';
@@ -212,7 +216,12 @@ export async function processOneConcept(
       if (rateLimitState) {
         rateLimitState.last429At = Date.now();
         rateLimitState.consecutive429s++;
-        rateLimitState.contentModelIndex = modelIndex + 1;
+        // Monotonic: content workers run concurrently, so never let a straggler
+        // on a lower tier downgrade the shared cascade index another worker raised.
+        rateLimitState.contentModelIndex = Math.max(
+          rateLimitState.contentModelIndex,
+          modelIndex + 1,
+        );
         if (rateLimitState.contentModelIndex >= CONTENT_MODEL_CASCADE.length) {
           rateLimitState.contentModelIndex = CONTENT_MODEL_CASCADE.length - 1;
         }
@@ -302,6 +311,7 @@ export async function runContentPhase(
   persist: () => Promise<void>,
   onNotify: (step: PipelineStep, label: string, error?: string) => void,
   rateLimitState: RateLimitState,
+  sessionId?: string,
 ): Promise<number> {
   const total = concepts.length;
   let completed = 0;
@@ -310,7 +320,7 @@ export async function runContentPhase(
 
   await runWithConcurrency(
     concepts,
-    () => 1,
+    () => 3,
     async (concept, i) => {
       const lastNodeId = await processOneConcept(
         nodes,
@@ -326,6 +336,24 @@ export async function runContentPhase(
         rateLimitState,
       );
       conceptLastNodeIds[i] = lastNodeId;
+      if (lastNodeId) {
+        // Interleave: generate this concept's quizzes as soon as its content
+        // lands so it becomes answerable before the rest of the lesson finishes
+        // (first practice no longer waits for the full content phase).
+        const conceptInfo = generatedConcepts.find((c) => c.id === concept.id);
+        await generateQuizForConcept(
+          nodes,
+          conceptInfo,
+          topic,
+          persona,
+          signal,
+          persist,
+          rateLimitState,
+        );
+        // Agent enrichments (code workbench + diagram) run after the quiz tail
+        // persists so they never delay first practice; each is non-fatal.
+        await enrichConceptWithAgents(nodes, conceptInfo, topic, sessionId, signal, persist);
+      }
       if (!lastNodeId) failed++;
       completed++;
       onNotify('detail', `Generating content (${completed}/${total} done\u2026)`);
@@ -334,80 +362,262 @@ export async function runContentPhase(
   return failed;
 }
 
-export async function runQuizPhase(
+/**
+ * Generate quizzes for a single concept and splice them right after its node,
+ * then persist. Non-fatal on failure (the concept stays, just without quizzes,
+ * which progression treats as auto-pass). Idempotent: skips concepts that
+ * already have quizzes.
+ */
+export async function generateQuizForConcept(
   nodes: CanvasNode[],
-  generatedConcepts: ConceptInfo[],
+  conceptInfo: ConceptInfo | undefined,
   topic: string,
   persona: Persona,
   signal: AbortSignal | undefined,
   persist: () => Promise<void>,
-  onNotify: (step: PipelineStep, label: string, error?: string) => void,
   rateLimitState?: RateLimitState,
 ): Promise<void> {
-  if (generatedConcepts.length === 0) return;
-
-  onNotify('quiz', `Generating quizzes (${generatedConcepts.length} concepts)\u2026`);
-
-  const results = await Promise.allSettled(
-    generatedConcepts.map(async (concept) => {
-      try {
-        const quizzes = await executePromptTask(
-          quizTask,
-          {
-            persona,
-            signal,
-            context: { topic },
-            model: getQuizModel(),
-            onRetry: (info) => {
-              if (rateLimitState && info.status === 429) {
-                rateLimitState.last429At = Date.now();
-                rateLimitState.consecutive429s++;
-              }
-              useToastStore
-                .getState()
-                .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`);
-            },
-          },
-          concept,
-        );
-        return { conceptId: concept.id, quizzes } as const;
-      } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') throw err;
-        debugLog(
-          'warn',
-          'pipeline',
-          'quiz FAIL concept=%s err=%s',
-          concept.id,
-          err instanceof Error ? err.message : String(err),
-        );
-        return null;
-      }
-    }),
-  );
-
-  for (const result of results) {
-    if (result.status === 'fulfilled' && result.value) {
-      const { conceptId, quizzes } = result.value;
-      quizzes.forEach((item, qi) => {
-        const quizId = `${conceptId}-quiz-${qi}`;
-        const conceptIdx = nodes.findIndex((n) => n.id === conceptId);
-        if (conceptIdx !== -1) {
-          nodes.splice(conceptIdx + 1, 0, {
-            id: quizId,
-            type: 'quiz',
-            data: quizItemToQuizData(item, conceptId),
-          });
-        } else {
-          nodes.push({
-            id: quizId,
-            type: 'quiz',
-            data: quizItemToQuizData(item, conceptId),
-          });
-        }
+  if (!conceptInfo) return;
+  if (
+    nodes.some(
+      (n) => n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === conceptInfo.id,
+    )
+  ) {
+    return;
+  }
+  try {
+    const quizzes = await executePromptTask(
+      quizTask,
+      {
+        persona,
+        signal,
+        context: { topic },
+        model: getQuizModel(),
+        onRetry: (info) => {
+          if (rateLimitState && info.status === 429) {
+            rateLimitState.last429At = Date.now();
+            rateLimitState.consecutive429s++;
+          }
+          useToastStore
+            .getState()
+            .add(`API busy, retrying\u2026 (${info.attempt + 1}/${info.maxRetries + 1})`);
+        },
+      },
+      conceptInfo,
+    );
+    if (!Array.isArray(quizzes) || quizzes.length === 0) return;
+    // find + splice synchronously so a concurrently-generating sibling can't
+    // shift this concept's index between the lookup and the inserts.
+    const conceptIdx = nodes.findIndex((n) => n.id === conceptInfo.id);
+    if (conceptIdx === -1) return;
+    quizzes.forEach((item, qi) => {
+      nodes.splice(conceptIdx + 1 + qi, 0, {
+        id: `${conceptInfo.id}-quiz-${qi}`,
+        type: 'quiz',
+        data: quizItemToQuizData(item, conceptInfo.id),
       });
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err;
+    debugLog(
+      'warn',
+      'pipeline',
+      'quiz FAIL concept=%s err=%s',
+      conceptInfo.id,
+      err instanceof Error ? err.message : String(err),
+    );
+  } finally {
+    await persist();
+  }
+}
+
+/**
+ * Index just past a concept's node and any quiz/image/note children spliced
+ * after it, so agent enrichments insert after the whole block.
+ */
+function findConceptTailIndex(nodes: CanvasNode[], conceptId: string): number {
+  const conceptIdx = nodes.findIndex((n) => n.id === conceptId);
+  if (conceptIdx === -1) return nodes.length;
+  let idx = conceptIdx + 1;
+  while (idx < nodes.length) {
+    const d = nodes[idx].data;
+    const belongs =
+      (d.kind === 'quiz' && d.parentConceptId === conceptId) ||
+      (d.kind === 'image' && d.parentConceptId === conceptId) ||
+      (d.kind === 'note' && d.linkedConceptId === conceptId);
+    if (!belongs) break;
+    idx++;
+  }
+  return idx;
+}
+
+async function persistAgentConversation(
+  sessionId: string | undefined,
+  conceptId: string,
+  kind: 'image' | 'code',
+  conversationId: string,
+): Promise<void> {
+  if (!sessionId || !conversationId) return;
+  const session = await sessionsDb.getSession(sessionId);
+  if (!session) return;
+  const concepts = { ...session.agentConversations?.concepts };
+  const entry = { ...concepts[conceptId] };
+  entry[kind] = conversationId;
+  concepts[conceptId] = entry;
+  await useSessionStore
+    .getState()
+    .updateCurrent({ agentConversations: { ...session.agentConversations, concepts } }, sessionId);
+}
+
+async function getAgentConversationId(
+  sessionId: string | undefined,
+  conceptId: string,
+  kind: 'image' | 'code',
+): Promise<string | undefined> {
+  if (!sessionId) return undefined;
+  const session = await sessionsDb.getSession(sessionId);
+  return session?.agentConversations?.concepts?.[conceptId]?.[kind];
+}
+
+/**
+ * Code-interpreter workbench for a concept: the model decides whether the
+ * concept involves computation; if it returns code + output, a `note` node
+ * with the verified example is spliced after the concept's quiz tail.
+ * Non-fatal. The conversation id is persisted for stateful follow-ups.
+ */
+export async function enrichConceptWithCode(
+  nodes: CanvasNode[],
+  conceptInfo: ConceptInfo | undefined,
+  topic: string,
+  sessionId: string | undefined,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  if (!conceptInfo) return;
+  if (
+    nodes.some(
+      (n) => n.data.kind === 'note' && (n.data as NoteData).linkedConceptId === conceptInfo.id,
+    )
+  ) {
+    return;
+  }
+
+  let result: Awaited<ReturnType<typeof runCodeWorkbench>>;
+  try {
+    const conversationId = await getAgentConversationId(sessionId, conceptInfo.id, 'code');
+    result = await runCodeWorkbench(conceptInfo.title, topic, { conversationId, signal });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err;
+    debugLog(
+      'warn',
+      'pipeline',
+      'code workbench FAIL concept=%s err=%s',
+      conceptInfo.id,
+      err instanceof Error ? err.message : String(err),
+    );
+    return;
+  }
+
+  if (!result.code || !result.codeOutput) return;
+
+  await persistAgentConversation(sessionId, conceptInfo.id, 'code', result.conversationId);
+
+  const tail = findConceptTailIndex(nodes, conceptInfo.id);
+  nodes.splice(tail, 0, {
+    id: `${conceptInfo.id}-workbench`,
+    type: 'note',
+    data: {
+      kind: 'note',
+      linkedConceptId: conceptInfo.id,
+      text: `Worked example (verified by computation)\n\n${result.code}\n\n${result.codeOutput}`,
+    },
+  });
+}
+
+/**
+ * Image-generation diagram for a concept: stores the blob in the IDB `images`
+ * store and splices an `image` node after the concept's quiz tail.
+ * Non-fatal. The conversation id is persisted for regeneration follow-ups.
+ */
+export async function enrichConceptWithImage(
+  nodes: CanvasNode[],
+  conceptInfo: ConceptInfo | undefined,
+  topic: string,
+  sessionId: string | undefined,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  if (!conceptInfo) return;
+  if (
+    nodes.some(
+      (n) => n.data.kind === 'image' && (n.data as ImageData).parentConceptId === conceptInfo.id,
+    )
+  ) {
+    return;
+  }
+
+  let result: Awaited<ReturnType<typeof generateConceptImage>>;
+  try {
+    const conversationId = await getAgentConversationId(sessionId, conceptInfo.id, 'image');
+    result = await generateConceptImage(conceptInfo.title, topic, { conversationId, signal });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err;
+    debugLog(
+      'warn',
+      'pipeline',
+      'image FAIL concept=%s err=%s',
+      conceptInfo.id,
+      err instanceof Error ? err.message : String(err),
+    );
+    return;
+  }
+
+  if (sessionId) {
+    try {
+      await putImage(sessionId, `${conceptInfo.id}-diagram`, result.blob, result.mime);
+    } catch (err) {
+      debugLog(
+        'warn',
+        'pipeline',
+        'image store FAIL concept=%s err=%s',
+        conceptInfo.id,
+        err instanceof Error ? err.message : String(err),
+      );
+      return;
     }
   }
 
+  await persistAgentConversation(sessionId, conceptInfo.id, 'image', result.conversationId);
+
+  const nodeId = `${conceptInfo.id}-diagram`;
+  const tail = findConceptTailIndex(nodes, conceptInfo.id);
+  nodes.splice(tail, 0, {
+    id: nodeId,
+    type: 'image',
+    data: {
+      kind: 'image',
+      parentConceptId: conceptInfo.id,
+      caption: `Diagram: ${conceptInfo.title}`,
+      blobKey: sessionId ? `${sessionId}:${nodeId}` : nodeId,
+      mime: result.mime,
+      fileName: result.fileName,
+    },
+  });
+}
+
+/**
+ * Run the non-blocking agent enrichments (code workbench, then image diagram)
+ * for a concept and persist the spliced nodes. Non-fatal per enrichment.
+ */
+export async function enrichConceptWithAgents(
+  nodes: CanvasNode[],
+  conceptInfo: ConceptInfo | undefined,
+  topic: string,
+  sessionId: string | undefined,
+  signal: AbortSignal | undefined,
+  persist: () => Promise<void>,
+): Promise<void> {
+  if (!conceptInfo) return;
+  await enrichConceptWithCode(nodes, conceptInfo, topic, sessionId, signal);
+  await enrichConceptWithImage(nodes, conceptInfo, topic, sessionId, signal);
   await persist();
 }
 
@@ -557,30 +767,13 @@ export async function runPipeline(
     persist,
     notify,
     rateLimitState,
+    sessionId,
   );
 
   resetIfCooled(rateLimitState);
 
-  // --- Phase 2: Quiz generation (small model, parallel burst) ---
-  debugLog(
-    'log',
-    'pipeline',
-    'phase 2: quiz generation for %d concepts (model=%s)',
-    generatedConcepts.length,
-    getQuizModel(),
-  );
-  await runQuizPhase(
-    nodes,
-    generatedConcepts,
-    topic,
-    persona,
-    signal,
-    persist,
-    notify,
-    rateLimitState,
-  );
-
-  resetIfCooled(rateLimitState);
+  // Note: quizzes were generated per-concept inside runContentPhase (interleaved
+  // with content) so each concept becomes answerable as soon as its content lands.
 
   // --- Phase 3: Summary (model cascade) ---
   debugLog(

@@ -23,6 +23,19 @@ function errStatus(status: number, body?: string) {
   return { ok: false, status, text: () => Promise.resolve(body ?? 'Error') };
 }
 
+function agentResp(content: string, citations: unknown[] = []) {
+  return {
+    ok: true, status: 200,
+    json: () => Promise.resolve({
+      conversationId: 'conv_s',
+      text: content,
+      citations,
+      toolResults: [],
+      images: [],
+    }),
+  };
+}
+
 function urlOf(info: RequestInfo | URL): string {
   if (typeof info === 'string') return info;
   if (typeof info === 'object' && info !== null) {
@@ -95,6 +108,47 @@ describe('fetchSourceContent', () => {
       const result = await fetchSourceContent('https://example.com', { persona: 'student' });
       expect(result.content).toBe(LONG);
       expect(result.source).toBe('cfproxy');
+    });
+  });
+
+  describe('agent web_search (primary grounding)', () => {
+    it('uses web_search before the proxy chain and attaches citations', async () => {
+      mockWith({
+        '/api/agents': () => Promise.resolve(agentResp(LONG, [{ title: 'Src', url: 'https://e.com' }])),
+      });
+      const result = await fetchSourceContent('https://example.com', { persona: 'student' });
+      expect(result.source).toBe('agent');
+      expect(result.content).toBe(LONG);
+      expect(result.citations).toEqual([{ title: 'Src', url: 'https://e.com' }]);
+    });
+
+    it('falls back to the proxy chain when web_search returns too-short content', async () => {
+      mockWith({
+        '/api/agents': () => Promise.resolve(agentResp(SHORT)),
+        '/api/fetch': () => Promise.resolve(ok(LONG)),
+      });
+      const result = await fetchSourceContent('https://example.com', { persona: 'student' });
+      expect(result.source).toBe('cfproxy');
+      expect(result.content).toBe(LONG);
+    });
+
+    it('falls back to the proxy chain when web_search errors', async () => {
+      mockWith({
+        '/api/agents': () => Promise.resolve(errStatus(500)),
+        '/api/fetch': () => Promise.resolve(ok(LONG)),
+      });
+      const result = await fetchSourceContent('https://example.com', { persona: 'student' });
+      expect(result.source).toBe('cfproxy');
+      expect(result.content).toBe(LONG);
+    });
+
+    it('uses web_search for topic (non-URL) subjects too', async () => {
+      mockWith({
+        '/api/agents': () => Promise.resolve(agentResp(LONG)),
+      });
+      const result = await fetchSourceContent('gravity', { persona: 'student' });
+      expect(result.source).toBe('agent');
+      expect(result.content).toBe(LONG);
     });
   });
 

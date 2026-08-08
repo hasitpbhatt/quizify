@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 
 const DB_NAME = 'quizify';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBPDatabase<unknown>> | null = null;
 
@@ -15,6 +15,9 @@ export function getDb(): Promise<IDBPDatabase<unknown>> {
         if (oldVersion < 2) {
           db.createObjectStore('sessions', { keyPath: 'id' });
         }
+        if (oldVersion < 3) {
+          db.createObjectStore('images', { keyPath: 'key' });
+        }
       },
     });
   }
@@ -24,4 +27,5 @@ export function getDb(): Promise<IDBPDatabase<unknown>> {
 export const STORES = {
   SOURCE_CACHE: 'source_cache',
   SESSIONS: 'sessions',
+  IMAGES: 'images',
 } as const;

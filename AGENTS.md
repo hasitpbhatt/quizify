@@ -130,6 +130,11 @@ docs/
 - **2026-07-27** — Canonical roadmap added at `docs/roadmap.md`. Removed conflicting
   product/implementation/design specs, audits, and obsolete plans. Architecture and
   this file rewritten for the notebook product (not React Flow).
+- **2026-08-05** — Interleaved quiz generation: `runQuizPhase` removed; each concept's
+  quizzes generate + persist right after its content in `runContentPhase`
+  (`generateQuizForConcept`). Latency work (conc. 3, parking rule, TTS stop gate) plus
+  UX hardening: standalone Listen pauses when narration starts; streaming notice pill
+  on desktop (`CanvasPage`) + mobile (`MobileFocusView`).
 - **2026-07-20** — External CORS proxies removed; server-side fetch only. URL-summary
   LLM fallback replaced with subject extraction + educational generation.
 - **2026-07-07** — Parallel concept generation + persist mutex; notebook view + TTS

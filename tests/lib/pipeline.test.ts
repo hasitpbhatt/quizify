@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { CanvasNode, CanvasEdge } from '@/shared/types';
-import { makeQuizItem, makeContentResponse, makeQuizItemArray, makeSummaryResponse, resetCounter } from '../factories';
+import { makeQuizItem, makeContentResponse, makeQuizItemArray, makeSummaryResponse, resetCounter, makeCanvasNode, makeQuizData } from '../factories';
 
 const mockExecute = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/llm/promptTask', () => ({
@@ -12,6 +12,23 @@ vi.mock('@/shared/stores/sessionStore', () => ({
   useSessionStore: {
     getState: () => ({ updateCurrent: mockUpdateCurrent }),
   },
+}));
+
+const mockGenerateConceptImage = vi.hoisted(() => vi.fn());
+const mockRunCodeWorkbench = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/llm/agents', () => ({
+  generateConceptImage: mockGenerateConceptImage,
+  runCodeWorkbench: mockRunCodeWorkbench,
+}));
+
+const mockPutImage = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/db/imagesDb', () => ({
+  putImage: mockPutImage,
+}));
+
+const mockSessionsDbGetSession = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/db/sessionsDb', () => ({
+  getSession: mockSessionsDbGetSession,
 }));
 
 vi.mock('@/shared/stores/toastStore', () => ({
@@ -27,7 +44,10 @@ import {
   runWithConcurrency,
   processOneConcept,
   runContentPhase,
-  runQuizPhase,
+  generateQuizForConcept,
+  enrichConceptWithCode,
+  enrichConceptWithImage,
+  enrichConceptWithAgents,
   pushSummary,
   runPipeline,
   createRateLimitState,
@@ -42,6 +62,20 @@ beforeEach(() => {
   mockExecute.mockReset();
   mockUpdateCurrent.mockReset();
   mockExecute.mockResolvedValue(makeContentResponse());
+  mockGenerateConceptImage.mockResolvedValue({
+    blob: new Blob(['img'], { type: 'image/jpeg' }),
+    mime: 'image/jpeg',
+    fileName: 'diagram.jpg',
+    conversationId: 'conv_img',
+  });
+  mockRunCodeWorkbench.mockResolvedValue({
+    text: '',
+    code: undefined,
+    codeOutput: undefined,
+    conversationId: 'conv_code',
+  });
+  mockPutImage.mockResolvedValue(undefined);
+  mockSessionsDbGetSession.mockResolvedValue(undefined);
 });
 
 describe('quizItemToQuizData', () => {
@@ -270,66 +304,242 @@ describe('runContentPhase', () => {
     expect(tails).toEqual(['c1', 'c2']);
     expect(notify).toHaveBeenCalledWith('detail', expect.stringContaining('2/2'));
   });
+
+  it('processes concepts with parallelism, not strictly sequentially', async () => {
+    const concepts = [
+      { id: 'c1', title: 'One', explanation: 'E1' },
+      { id: 'c2', title: 'Two', explanation: 'E2' },
+      { id: 'c3', title: 'Three', explanation: 'E3' },
+    ];
+    let active = 0;
+    let maxActive = 0;
+    mockExecute.mockImplementation(async () => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      await Promise.resolve();
+      active--;
+      return makeContentResponse();
+    });
+
+    const nodes: CanvasNode[] = concepts.map((c, i) => ({
+      id: c.id,
+      type: 'concept' as const,
+      position: { x: 0, y: 0 },
+      data: { kind: 'concept' as const, index: i, title: c.title, explanation: c.explanation, example: '' },
+    }));
+    const edges: CanvasEdge[] = [];
+    const generated: ConceptInfo[] = [];
+    const tails: (string | null)[] = [];
+    const persist = vi.fn().mockResolvedValue(undefined);
+    const notify = vi.fn();
+
+    await runContentPhase(nodes, edges, generated, tails, concepts, 'Topic', 'curious' as Persona, undefined, persist, notify, createRateLimitState());
+
+    expect(maxActive).toBeGreaterThan(1);
+    expect(generated).toHaveLength(3);
+  });
 });
 
 // ---------------------------------------------------------------------------
-// runQuizPhase
+// generateQuizForConcept
 // ---------------------------------------------------------------------------
 
-describe('runQuizPhase', () => {
-  it('creates quiz nodes for all concepts', async () => {
+function conceptNode(id: string, index: number): CanvasNode {
+  return {
+    id,
+    type: 'concept' as const,
+    position: { x: 0, y: 0 },
+    data: { kind: 'concept' as const, index, title: id, explanation: 'E', example: '' },
+  };
+}
+
+const c1Info: ConceptInfo = { id: 'c1', title: 'One', explanation: 'E1', example: 'Ex1' };
+
+describe('generateQuizForConcept', () => {
+  it('splices quiz nodes right after the concept and persists once', async () => {
     mockExecute.mockResolvedValue(makeQuizItemArray(2));
 
-    const nodes: CanvasNode[] = [];
-    const generated: ConceptInfo[] = [
-      { id: 'c1', title: 'One', explanation: 'E1', example: 'Ex1' },
-      { id: 'c2', title: 'Two', explanation: 'E2', example: 'Ex2' },
-    ];
+    const nodes = [conceptNode('c1', 0)];
     const persist = vi.fn().mockResolvedValue(undefined);
-    const notify = vi.fn();
 
-    await runQuizPhase(nodes, generated, 'Topic', 'curious' as Persona, undefined, persist, notify, createRateLimitState());
+    await generateQuizForConcept(
+      nodes, c1Info, 'Topic', 'curious' as Persona, undefined, persist, createRateLimitState(),
+    );
 
-    // 2 concepts × 2 quizzes each = 4 quiz nodes
-    expect(nodes).toHaveLength(4);
-    expect(nodes[0].id).toBe('c1-quiz-0');
-    expect(nodes[1].id).toBe('c1-quiz-1');
-    expect(nodes[2].id).toBe('c2-quiz-0');
-    expect(nodes[3].id).toBe('c2-quiz-1');
+    expect(nodes.map((n) => n.id)).toEqual(['c1', 'c1-quiz-0', 'c1-quiz-1']);
     expect(persist).toHaveBeenCalledOnce();
   });
 
-  it('does nothing when no concepts generated', async () => {
-    const nodes: CanvasNode[] = [];
+  it('does nothing when concept info is missing', async () => {
+    const nodes = [conceptNode('c1', 0)];
     const persist = vi.fn().mockResolvedValue(undefined);
-    const notify = vi.fn();
 
-    await runQuizPhase(nodes, [], 'Topic', 'curious' as Persona, undefined, persist, notify, createRateLimitState());
+    await generateQuizForConcept(
+      nodes, undefined, 'Topic', 'curious' as Persona, undefined, persist, createRateLimitState(),
+    );
 
-    expect(nodes).toHaveLength(0);
+    expect(mockExecute).not.toHaveBeenCalled();
     expect(persist).not.toHaveBeenCalled();
   });
 
-  it('handles quiz LLM failure gracefully (non-fatal for individual concepts)', async () => {
-    mockExecute
-      .mockResolvedValueOnce(makeQuizItemArray(1))
-      .mockRejectedValueOnce(new Error('Quiz API down'));
-
-    const nodes: CanvasNode[] = [];
-    const generated: ConceptInfo[] = [
-      { id: 'c1', title: 'One', explanation: 'E1', example: 'Ex1' },
-      { id: 'c2', title: 'Two', explanation: 'E2', example: 'Ex2' },
+  it('is idempotent — skips concepts that already have quizzes', async () => {
+    const nodes = [
+      conceptNode('c1', 0),
+      makeCanvasNode({ id: 'c1-quiz-0', type: 'quiz', data: makeQuizData({ parentConceptId: 'c1' }) }),
     ];
     const persist = vi.fn().mockResolvedValue(undefined);
-    const notify = vi.fn();
+
+    await generateQuizForConcept(
+      nodes, c1Info, 'Topic', 'curious' as Persona, undefined, persist, createRateLimitState(),
+    );
+
+    expect(mockExecute).not.toHaveBeenCalled();
+    expect(persist).not.toHaveBeenCalled();
+  });
+
+  it('handles quiz LLM failure gracefully (non-fatal)', async () => {
+    mockExecute.mockRejectedValue(new Error('Quiz API down'));
+
+    const nodes = [conceptNode('c1', 0)];
+    const persist = vi.fn().mockResolvedValue(undefined);
 
     await expect(
-      runQuizPhase(nodes, generated, 'Topic', 'curious' as Persona, undefined, persist, notify, createRateLimitState()),
+      generateQuizForConcept(
+        nodes, c1Info, 'Topic', 'curious' as Persona, undefined, persist, createRateLimitState(),
+      ),
     ).resolves.toBeUndefined();
 
-    // Only c1's quiz was created; c2's failed
     expect(nodes).toHaveLength(1);
-    expect(nodes[0].id).toBe('c1-quiz-0');
+    expect(persist).toHaveBeenCalledOnce();
+  });
+
+  it('ignores non-array task output instead of crashing', async () => {
+    mockExecute.mockResolvedValue(makeContentResponse());
+
+    const nodes = [conceptNode('c1', 0)];
+    const persist = vi.fn().mockResolvedValue(undefined);
+
+    await generateQuizForConcept(
+      nodes, c1Info, 'Topic', 'curious' as Persona, undefined, persist, createRateLimitState(),
+    );
+
+    expect(nodes).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// enrichConceptWithCode / enrichConceptWithImage / enrichConceptWithAgents
+// ---------------------------------------------------------------------------
+
+describe('enrichConceptWithCode', () => {
+  it('splices a workbench note after the concept when code+output present', async () => {
+    mockRunCodeWorkbench.mockResolvedValue({
+      text: '',
+      code: 'print(6*7)',
+      codeOutput: '42',
+      conversationId: 'conv_code',
+    });
+
+    const nodes = [conceptNode('c1', 0)];
+    await enrichConceptWithCode(nodes, c1Info, 'Topic', 'sess1', undefined);
+
+    expect(nodes.map((n) => n.id)).toEqual(['c1', 'c1-workbench']);
+    expect(nodes[1].type).toBe('note');
+    const note = nodes[1].data as { kind: string; linkedConceptId?: string; text: string };
+    expect(note.kind).toBe('note');
+    expect(note.linkedConceptId).toBe('c1');
+    expect(note.text).toContain('print(6*7)');
+    expect(note.text).toContain('42');
+  });
+
+  it('does not splice when the model did not produce code', async () => {
+    const nodes = [conceptNode('c1', 0)];
+    await enrichConceptWithCode(nodes, c1Info, 'Topic', 'sess1', undefined);
+    expect(nodes).toHaveLength(1);
+  });
+
+  it('is non-fatal on agents failure', async () => {
+    mockRunCodeWorkbench.mockRejectedValue(new Error('agents down'));
+    const nodes = [conceptNode('c1', 0)];
+    await expect(
+      enrichConceptWithCode(nodes, c1Info, 'Topic', 'sess1', undefined),
+    ).resolves.toBeUndefined();
+    expect(nodes).toHaveLength(1);
+  });
+
+  it('skips when concept info is missing', async () => {
+    const nodes = [conceptNode('c1', 0)];
+    await enrichConceptWithCode(nodes, undefined, 'Topic', 'sess1', undefined);
+    expect(mockRunCodeWorkbench).not.toHaveBeenCalled();
+  });
+});
+
+describe('enrichConceptWithImage', () => {
+  it('stores the blob and splices an image node after the concept', async () => {
+    mockGenerateConceptImage.mockResolvedValue({
+      blob: new Blob(['img'], { type: 'image/png' }),
+      mime: 'image/png',
+      fileName: 'diagram.jpg',
+      conversationId: 'conv_img',
+    });
+
+    const nodes = [conceptNode('c1', 0)];
+    await enrichConceptWithImage(nodes, c1Info, 'Topic', 'sess1', undefined);
+
+    expect(mockPutImage).toHaveBeenCalledWith('sess1', 'c1-diagram', expect.any(Blob), 'image/png');
+    expect(nodes.map((n) => n.id)).toEqual(['c1', 'c1-diagram']);
+    const img = nodes[1].data as { kind: string; mime: string; caption?: string; blobKey: string };
+    expect(img.kind).toBe('image');
+    expect(img.mime).toBe('image/png');
+    expect(img.blobKey).toBe('sess1:c1-diagram');
+    expect(img.caption).toContain('One');
+  });
+
+  it('is non-fatal when agents fail', async () => {
+    mockGenerateConceptImage.mockRejectedValue(new Error('agents down'));
+    const nodes = [conceptNode('c1', 0)];
+    await expect(
+      enrichConceptWithImage(nodes, c1Info, 'Topic', 'sess1', undefined),
+    ).resolves.toBeUndefined();
+    expect(nodes).toHaveLength(1);
+    expect(mockPutImage).not.toHaveBeenCalled();
+  });
+
+  it('is non-fatal when blob storage fails (does not splice node)', async () => {
+    mockPutImage.mockRejectedValue(new Error('storage full'));
+    const nodes = [conceptNode('c1', 0)];
+    await enrichConceptWithImage(nodes, c1Info, 'Topic', 'sess1', undefined);
+    expect(nodes).toHaveLength(1);
+  });
+});
+
+describe('enrichConceptWithAgents', () => {
+  it('runs code then image and persists once', async () => {
+    mockRunCodeWorkbench.mockResolvedValue({
+      code: 'print(1)', codeOutput: '1', conversationId: 'conv_code',
+    });
+    mockGenerateConceptImage.mockResolvedValue({
+      blob: new Blob(['x'], { type: 'image/jpeg' }),
+      mime: 'image/jpeg',
+      fileName: 'a.jpg',
+      conversationId: 'conv_img',
+    });
+
+    const nodes = [conceptNode('c1', 0)];
+    const persist = vi.fn().mockResolvedValue(undefined);
+    await enrichConceptWithAgents(nodes, c1Info, 'Topic', 'sess1', undefined, persist);
+
+    // code workbench note + image node spliced after the concept
+    expect(nodes.map((n) => n.id)).toEqual(['c1', 'c1-workbench', 'c1-diagram']);
+    expect(persist).toHaveBeenCalledOnce();
+  });
+
+  it('does nothing when concept info is missing', async () => {
+    const persist = vi.fn().mockResolvedValue(undefined);
+    await enrichConceptWithAgents([], undefined, 'Topic', 'sess1', undefined, persist);
+    expect(mockRunCodeWorkbench).not.toHaveBeenCalled();
+    expect(mockGenerateConceptImage).not.toHaveBeenCalled();
+    expect(persist).not.toHaveBeenCalled();
   });
 });
 
@@ -410,18 +620,23 @@ describe('runPipeline', () => {
   }
 
   it('orchestrates all phases and returns nodes/edges', async () => {
-    mockExecute
-      // Phase 1: content (2 concepts)
-      .mockResolvedValueOnce(contentFor('One'))
-      .mockResolvedValueOnce(contentFor('Two'))
-      // Phase 2: quiz (2 concepts × 2 quizzes each)
-      .mockResolvedValueOnce(makeQuizItemArray(2))
-      .mockResolvedValueOnce(makeQuizItemArray(2))
-      // Phase 3: summary
-      .mockResolvedValueOnce(makeSummaryResponse({
-        recap: ['R1'],
-        finalQuiz: [makeQuizItem({ prompt: 'Final?' })],
-      }));
+    // Dispatch by task id instead of call order — quiz generation is now
+    // interleaved with content inside runContentPhase, so the invocation order
+    // is nondeterministic across concurrent workers.
+    mockExecute.mockImplementation((task: { id: string }, _opts: unknown, input: unknown) => {
+      switch (task.id) {
+        case 'content':
+          return Promise.resolve(contentFor((input as { title: string }).title));
+        case 'quiz':
+          return Promise.resolve(makeQuizItemArray(2));
+        case 'summary':
+          return Promise.resolve(
+            makeSummaryResponse({ recap: ['R1'], finalQuiz: [makeQuizItem({ prompt: 'Final?' })] }),
+          );
+        default:
+          return Promise.resolve(makeContentResponse());
+      }
+    });
 
     const onProgress = vi.fn();
     const result = await runPipeline('Test Title', concepts, 'curious' as Persona, 'https://example.com', onProgress);
@@ -449,12 +664,13 @@ describe('runPipeline', () => {
   });
 
   it('completes even when summary LLM fails', async () => {
-    mockExecute
-      .mockResolvedValueOnce(contentFor('One'))
-      .mockResolvedValueOnce(contentFor('Two'))
-      .mockResolvedValueOnce(makeQuizItemArray(2))
-      .mockResolvedValueOnce(makeQuizItemArray(2))
-      .mockRejectedValueOnce(new Error('Summary fail'));
+    mockExecute.mockImplementation((task: { id: string }, _opts: unknown, input: unknown) => {
+      if (task.id === 'summary') return Promise.reject(new Error('Summary fail'));
+      if (task.id === 'quiz') return Promise.resolve(makeQuizItemArray(2));
+      if (task.id === 'content')
+        return Promise.resolve(contentFor((input as { title: string }).title));
+      return Promise.resolve(makeContentResponse());
+    });
 
     const result = await runPipeline('Test', concepts, 'curious' as Persona);
 

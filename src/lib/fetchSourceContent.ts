@@ -1,15 +1,18 @@
 import { truncateByParagraphs } from '@/lib/truncate';
 import { getCachedSourceEntry, setCachedSource } from '@/lib/db/sourceCache';
 import { chat } from '@/lib/llm/chat';
+import { fetchSourceWithWebSearch } from '@/lib/llm/agents';
 import { debugLog } from '@/lib/debug';
 import { anySignal } from '@/lib/llm/utils';
 import type { Persona, SourceProvenance } from '@/shared/types';
+import type { AgentCitation } from '@/lib/llm/agents';
 
 export interface SourceResult {
   content: string;
-  source: 'cache' | 'cfproxy' | 'llm';
+  source: 'cache' | 'cfproxy' | 'agent' | 'llm';
   provenance: SourceProvenance;
   url: string;
+  citations?: AgentCitation[];
 }
 
 export function isLikelyUrl(input: string): boolean {
@@ -204,20 +207,57 @@ export async function fetchSourceContent(
       source: 'cache',
       provenance: cached.provenance ?? 'legacy-unknown',
       url: input,
+      citations: cached.citations,
     };
   }
 
   let content: string | null = null;
   let source: SourceResult['source'] | null = null;
+  let citations: AgentCitation[] | undefined;
 
-  if (isLikelyUrl(input)) {
-    const fallback = await raceProxies(input);
-    if (fallback) {
-      content = fallback.content;
-      source = fallback.source;
-      debugLog('log', 'fetch', 'proxy OK source=%s len=%d', source, content.length);
-    } else {
-      debugLog('warn', 'fetch', 'proxy failed');
+  const subject = isLikelyUrl(input) ? extractSubjectFromUrl(input) : input;
+
+  // Web search (agents) is the primary grounding path. It replaces the raw-URL
+  // fetch when possible; the proxy chain below remains as a fallback.
+  if (!content && !isBookTitle(input)) {
+    try {
+      debugLog('log', 'fetch', 'agent web_search subject=%s', subject.slice(0, 100));
+      const result = await fetchSourceWithWebSearch(subject, { signal: opts.signal });
+      if (result.content && result.content.length >= 50) {
+        content = result.content;
+        source = 'agent';
+        citations = result.citations;
+        debugLog(
+          'log',
+          'fetch',
+          'agent web_search OK len=%d citations=%d',
+          content.length,
+          citations.length,
+        );
+      } else {
+        debugLog('warn', 'fetch', 'agent web_search returned empty/too-short content');
+      }
+    } catch (err) {
+      if (opts.signal?.aborted) throw err;
+      debugLog(
+        'warn',
+        'fetch',
+        'agent web_search failed: %s',
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  if (!content) {
+    if (isLikelyUrl(input)) {
+      const fallback = await raceProxies(input);
+      if (fallback) {
+        content = fallback.content;
+        source = fallback.source;
+        debugLog('log', 'fetch', 'proxy OK source=%s len=%d', source, content.length);
+      } else {
+        debugLog('warn', 'fetch', 'proxy failed');
+      }
     }
   }
 
@@ -234,7 +274,6 @@ export async function fetchSourceContent(
     }
 
     if (!content) {
-      const subject = isLikelyUrl(input) ? extractSubjectFromUrl(input) : input;
       debugLog('warn', 'fetch', 'LLM subject_fallback subject=%s', subject.slice(0, 100));
       try {
         content = await fetchSubjectFromLlm(subject);
@@ -254,7 +293,7 @@ export async function fetchSourceContent(
   const truncated = truncateByParagraphs(content);
 
   const provenance: SourceProvenance = source === 'cfproxy' ? 'fetched' : 'topic-generated';
-  await setCachedSource(input, truncated, provenance);
+  await setCachedSource(input, truncated, provenance, citations);
 
-  return { content: truncated, source: source ?? 'llm', provenance, url: input };
+  return { content: truncated, source: source ?? 'llm', provenance, url: input, citations };
 }

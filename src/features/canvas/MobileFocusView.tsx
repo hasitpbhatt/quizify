@@ -1,7 +1,15 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import type { CanvasNode, QuizData, ConceptData, NoteData, SummaryData } from '@/shared/types';
+import type {
+  CanvasNode,
+  QuizData,
+  ConceptData,
+  NoteData,
+  SummaryData,
+  ImageData,
+} from '@/shared/types';
 import { QuizInteraction } from '@/features/quiz/QuizInteraction';
 import { SummaryQuizInteraction } from '@/features/quiz/SummaryQuizInteraction';
+import { ImageNode } from './nodes/ImageNode';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useSessionStore } from '@/shared/stores/sessionStore';
@@ -45,6 +53,7 @@ function formatKind(node: CanvasNode): string {
       .trim();
   }
   if (d.kind === 'note') return 'Note';
+  if (d.kind === 'image') return 'Diagram';
   if (d.kind === 'summary') return 'Summary';
   return 'Node';
 }
@@ -61,6 +70,9 @@ function renderContent(node: CanvasNode): { title?: string; body: string } {
   }
   if (d.kind === 'note') {
     return { body: d.text };
+  }
+  if (d.kind === 'image') {
+    return { body: '' };
   }
   if (d.kind === 'summary') {
     return { title: d.recap.length + ' recap points', body: d.recap.join('\n') };
@@ -161,6 +173,10 @@ export function MobileFocusView({
     if (!notebookMode || !node || prefersReducedMotion || !ttsEnabled) return;
     if (node.data.kind === 'concept') {
       if (ttsManager.hasSegment(node.id)) return;
+      // Don't enqueue shell text (outline blurb): if we did, the hasSegment
+      // dedup would permanently block the real explanation once it lands.
+      // Mirrors the desktop auto-enqueue guard in CanvasPage.
+      if ((node.data as ConceptData).example === 'Loading...') return;
       const text = node.data.title + '. ' + node.data.explanation;
       ttsManager.enqueue({ nodeId: node.id, text });
     } else if (node.data.kind === 'summary') {
@@ -330,6 +346,12 @@ export function MobileFocusView({
         </div>
       )}
 
+      {isGenerating && node?.data.kind === 'concept' && (
+        <div className={styles.streamingNotice} role="status">
+          More sections are generating — review this one, then continue as they arrive.
+        </div>
+      )}
+
       {lessonComplete && !isGeneratingProgress && (
         <div className={styles.completionBanner} role="status">
           <strong>Lesson complete!</strong> Take the final quiz or review any concept from the
@@ -379,6 +401,11 @@ export function MobileFocusView({
                   .map((p, i) => (
                     <p key={i}>{p}</p>
                   ))}
+              </div>
+            )}
+            {node.data.kind === 'image' && (
+              <div className={styles.body}>
+                <ImageNode id={node.id} data={node.data as ImageData} />
               </div>
             )}
             {node.data.kind === 'quiz' && (

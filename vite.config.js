@@ -41,6 +41,17 @@ var __asyncValues = (this && this.__asyncValues) || function (o) {
     function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
     function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
 };
+var __values = (this && this.__values) || function(o) {
+    var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
+    if (m) return m.call(o);
+    if (o && typeof o.length === "number") return {
+        next: function () {
+            if (o && i >= o.length) o = void 0;
+            return { value: o && o[i++], done: !o };
+        }
+    };
+    throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
+};
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -50,6 +61,95 @@ var BROWSER_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
 };
+function fetchBookSummaryDev(title, author) {
+    return __awaiter(this, void 0, void 0, function () {
+        var titleSlug, authorSlug, candidates, candidates_1, candidates_1_1, candidate, response, text, _a, e_1_1, apiKey, query, response, data, contents, _b;
+        var e_1, _c;
+        var _d, _e, _f;
+        return __generator(this, function (_g) {
+            switch (_g.label) {
+                case 0:
+                    titleSlug = title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').trim();
+                    authorSlug = author ? author.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').trim() : '';
+                    candidates = [];
+                    if (authorSlug) {
+                        candidates.push("https://blinkist.com/en/books/".concat(authorSlug, "/").concat(titleSlug));
+                        candidates.push("https://jamesclear.com/books/".concat(titleSlug));
+                    }
+                    candidates.push("https://blinkist.com/en/books/".concat(titleSlug), "https://jamesclear.com/books/".concat(titleSlug), "https://en.wikipedia.org/wiki/".concat(encodeURIComponent(title.replace(/\s+/g, '_'))));
+                    _g.label = 1;
+                case 1:
+                    _g.trys.push([1, 9, 10, 11]);
+                    candidates_1 = __values(candidates), candidates_1_1 = candidates_1.next();
+                    _g.label = 2;
+                case 2:
+                    if (!!candidates_1_1.done) return [3 /*break*/, 8];
+                    candidate = candidates_1_1.value;
+                    _g.label = 3;
+                case 3:
+                    _g.trys.push([3, 6, , 7]);
+                    return [4 /*yield*/, fetch(candidate, { headers: BROWSER_HEADERS })];
+                case 4:
+                    response = _g.sent();
+                    if (!response.ok)
+                        return [3 /*break*/, 7];
+                    return [4 /*yield*/, response.text()];
+                case 5:
+                    text = _g.sent();
+                    if (text.length > 300)
+                        return [2 /*return*/, text];
+                    return [3 /*break*/, 7];
+                case 6:
+                    _a = _g.sent();
+                    return [3 /*break*/, 7];
+                case 7:
+                    candidates_1_1 = candidates_1.next();
+                    return [3 /*break*/, 2];
+                case 8: return [3 /*break*/, 11];
+                case 9:
+                    e_1_1 = _g.sent();
+                    e_1 = { error: e_1_1 };
+                    return [3 /*break*/, 11];
+                case 10:
+                    try {
+                        if (candidates_1_1 && !candidates_1_1.done && (_c = candidates_1.return)) _c.call(candidates_1);
+                    }
+                    finally { if (e_1) throw e_1.error; }
+                    return [7 /*endfinally*/];
+                case 11:
+                    apiKey = process.env.EXA_API_KEY;
+                    if (!apiKey) return [3 /*break*/, 17];
+                    _g.label = 12;
+                case 12:
+                    _g.trys.push([12, 16, , 17]);
+                    query = author ? "".concat(title, " ").concat(author, " book summary") : "".concat(title, " book summary");
+                    return [4 /*yield*/, fetch('https://api.exa.ai/search', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'x-api-key': apiKey,
+                            },
+                            body: JSON.stringify({ query: query, numResults: 3, type: 'auto', useAutoprompt: true }),
+                        })];
+                case 13:
+                    response = _g.sent();
+                    if (!response.ok) return [3 /*break*/, 15];
+                    return [4 /*yield*/, response.json()];
+                case 14:
+                    data = _g.sent();
+                    contents = (_f = (_e = (_d = data.results) === null || _d === void 0 ? void 0 : _d.filter(function (r) { return r.text && r.text.length > 100; })) === null || _e === void 0 ? void 0 : _e.map(function (r) { return r.text; })) === null || _f === void 0 ? void 0 : _f.join('\n\n');
+                    if (contents)
+                        return [2 /*return*/, contents];
+                    _g.label = 15;
+                case 15: return [3 /*break*/, 17];
+                case 16:
+                    _b = _g.sent();
+                    return [3 /*break*/, 17];
+                case 17: throw new Error('No book summary found');
+            }
+        });
+    });
+}
 function devProxyPlugin() {
     return {
         name: 'dev-proxy',
@@ -60,9 +160,9 @@ function devProxyPlugin() {
             // post-hook from configureServer would run *after* Vite's internals,
             // which is too late for the default provider's /api/chat path.
             server.middlewares.use('/api/chat', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-                var body, chunk, e_1_1, envPath, mistralApiKey, debugInfo, envContent, match, mistralResponse, text, _a;
+                var body, chunk, e_2_1, envPath, mistralApiKey, debugInfo, envContent, match, mistralResponse, text, _a;
                 var _b, req_1, req_1_1;
-                var _c, e_1, _d, _e;
+                var _c, e_2, _d, _e;
                 return __generator(this, function (_f) {
                     switch (_f.label) {
                         case 0:
@@ -101,8 +201,8 @@ function devProxyPlugin() {
                             return [3 /*break*/, 2];
                         case 5: return [3 /*break*/, 12];
                         case 6:
-                            e_1_1 = _f.sent();
-                            e_1 = { error: e_1_1 };
+                            e_2_1 = _f.sent();
+                            e_2 = { error: e_2_1 };
                             return [3 /*break*/, 12];
                         case 7:
                             _f.trys.push([7, , 10, 11]);
@@ -113,7 +213,7 @@ function devProxyPlugin() {
                             _f.label = 9;
                         case 9: return [3 /*break*/, 11];
                         case 10:
-                            if (e_1) throw e_1.error;
+                            if (e_2) throw e_2.error;
                             return [7 /*endfinally*/];
                         case 11: return [7 /*endfinally*/];
                         case 12:
@@ -171,6 +271,111 @@ function devProxyPlugin() {
                     }
                 });
             }); });
+            server.middlewares.use('/api/agents', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
+                var body, chunk, e_3_1, envPath, mistralApiKey, envContent, match, jsonBody, handleAgentsRequest, response, buf, _a, _b, _c;
+                var _d, req_2, req_2_1;
+                var _e, e_3, _f, _g;
+                var _h;
+                return __generator(this, function (_j) {
+                    switch (_j.label) {
+                        case 0:
+                            if (req.method === 'OPTIONS') {
+                                res.setHeader('Access-Control-Allow-Origin', '*');
+                                res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+                                res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+                                res.statusCode = 204;
+                                res.end();
+                                return [2 /*return*/];
+                            }
+                            if (req.method !== 'POST') {
+                                res.statusCode = 405;
+                                res.setHeader('Allow', 'POST, OPTIONS');
+                                res.end('Method not allowed');
+                                return [2 /*return*/];
+                            }
+                            body = '';
+                            _j.label = 1;
+                        case 1:
+                            _j.trys.push([1, 6, 7, 12]);
+                            _d = true, req_2 = __asyncValues(req);
+                            _j.label = 2;
+                        case 2: return [4 /*yield*/, req_2.next()];
+                        case 3:
+                            if (!(req_2_1 = _j.sent(), _e = req_2_1.done, !_e)) return [3 /*break*/, 5];
+                            _g = req_2_1.value;
+                            _d = false;
+                            chunk = _g;
+                            body += chunk;
+                            _j.label = 4;
+                        case 4:
+                            _d = true;
+                            return [3 /*break*/, 2];
+                        case 5: return [3 /*break*/, 12];
+                        case 6:
+                            e_3_1 = _j.sent();
+                            e_3 = { error: e_3_1 };
+                            return [3 /*break*/, 12];
+                        case 7:
+                            _j.trys.push([7, , 10, 11]);
+                            if (!(!_d && !_e && (_f = req_2.return))) return [3 /*break*/, 9];
+                            return [4 /*yield*/, _f.call(req_2)];
+                        case 8:
+                            _j.sent();
+                            _j.label = 9;
+                        case 9: return [3 /*break*/, 11];
+                        case 10:
+                            if (e_3) throw e_3.error;
+                            return [7 /*endfinally*/];
+                        case 11: return [7 /*endfinally*/];
+                        case 12:
+                            envPath = path.resolve(process.cwd(), '.env');
+                            mistralApiKey = '';
+                            try {
+                                envContent = fs.readFileSync(envPath, 'utf8');
+                                match = envContent.match(/^MISTRAL_API_KEY=(.+)$/m);
+                                if (match)
+                                    mistralApiKey = match[1].trim();
+                            }
+                            catch (_k) {
+                                // leave empty → agents core will surface the missing-key error
+                            }
+                            try {
+                                jsonBody = JSON.parse(body);
+                            }
+                            catch (_l) {
+                                res.statusCode = 400;
+                                res.setHeader('Content-Type', 'application/json');
+                                res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+                                return [2 /*return*/];
+                            }
+                            _j.label = 13;
+                        case 13:
+                            _j.trys.push([13, 17, , 18]);
+                            return [4 /*yield*/, import('./functions/_agents-core')];
+                        case 14:
+                            handleAgentsRequest = (_j.sent()).handleAgentsRequest;
+                            return [4 /*yield*/, handleAgentsRequest(jsonBody, mistralApiKey)];
+                        case 15:
+                            response = _j.sent();
+                            _b = (_a = Buffer).from;
+                            return [4 /*yield*/, response.arrayBuffer()];
+                        case 16:
+                            buf = _b.apply(_a, [_j.sent()]);
+                            res.setHeader('Content-Type', (_h = response.headers.get('Content-Type')) !== null && _h !== void 0 ? _h : 'application/json');
+                            res.setHeader('Access-Control-Allow-Origin', '*');
+                            res.statusCode = response.status;
+                            res.end(buf);
+                            return [3 /*break*/, 18];
+                        case 17:
+                            _c = _j.sent();
+                            res.statusCode = 502;
+                            res.setHeader('Content-Type', 'application/json');
+                            res.end(JSON.stringify({ error: 'Agents request failed.' }));
+                            return [3 /*break*/, 18];
+                        case 18: return [2 /*return*/];
+                    }
+                });
+            }); });
             server.middlewares.use('/api/fetch', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
                 var url, target, response, text, _a;
                 var _b, _c;
@@ -206,6 +411,42 @@ function devProxyPlugin() {
                             res.end(JSON.stringify({ error: 'Proxy fetch failed' }));
                             return [3 /*break*/, 5];
                         case 5: return [2 /*return*/];
+                    }
+                });
+            }); });
+            server.middlewares.use('/api/book-summary', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
+                var url, title, author, summary, _a;
+                var _b, _c, _d;
+                return __generator(this, function (_e) {
+                    switch (_e.label) {
+                        case 0:
+                            url = new URL((_b = req.url) !== null && _b !== void 0 ? _b : '/', "http://".concat((_c = req.headers.host) !== null && _c !== void 0 ? _c : 'localhost'));
+                            title = url.searchParams.get('title');
+                            if (!title) {
+                                res.statusCode = 400;
+                                res.setHeader('Content-Type', 'application/json');
+                                res.end(JSON.stringify({ error: 'Missing title query param' }));
+                                return [2 /*return*/];
+                            }
+                            author = (_d = url.searchParams.get('author')) !== null && _d !== void 0 ? _d : undefined;
+                            _e.label = 1;
+                        case 1:
+                            _e.trys.push([1, 3, , 4]);
+                            return [4 /*yield*/, fetchBookSummaryDev(title, author)];
+                        case 2:
+                            summary = _e.sent();
+                            res.setHeader('Access-Control-Allow-Origin', '*');
+                            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+                            res.statusCode = 200;
+                            res.end(summary);
+                            return [3 /*break*/, 4];
+                        case 3:
+                            _a = _e.sent();
+                            res.statusCode = 502;
+                            res.setHeader('Content-Type', 'application/json');
+                            res.end(JSON.stringify({ error: 'Book summary proxy failed' }));
+                            return [3 /*break*/, 4];
+                        case 4: return [2 /*return*/];
                     }
                 });
             }); });
