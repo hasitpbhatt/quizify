@@ -391,8 +391,9 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
     if (!sessionId || !liveSession) return;
 
     // `note-${Date.now()}` collides for two notes in the same millisecond,
-    // duplicating both the node id and the React key.
-    const uid = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    // duplicating both the node id and the React key. crypto.randomUUID is
+    // available in all secure contexts (localhost / https).
+    const uid = crypto.randomUUID();
     const noteId = `note-${uid}`;
     const linkedConceptId = currentConcept?.id;
     const noteNode: CanvasNode = {
