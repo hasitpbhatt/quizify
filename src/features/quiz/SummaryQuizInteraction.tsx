@@ -91,7 +91,11 @@ export function SummaryQuizInteraction({
 }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [results, setResults] = useState<Record<number, boolean>>(() => parseScores(initialScores));
-  const [, setCumulativeScores] = useState(initialScores);
+  const [cumulativeScores] = useState(initialScores);
+  // Cumulative scores are a write-through cache for the session store. The ref
+  // (not state) lets the persist call live in the event handler instead of
+  // inside a React state updater.
+  const cumulativeScoresRef = useRef(cumulativeScores);
   const [showResults, setShowResults] = useState(false);
   const [grading, setGrading] = useState(false);
   const [announcement, setAnnouncement] = useState('');
@@ -119,19 +123,20 @@ export function SummaryQuizInteraction({
         next[currentIndex] = correct;
         return next;
       });
-      setCumulativeScores((prev) => {
-        const key = String(currentIndex);
-        const previous = prev[key] ?? { best: 0, attempts: 0 };
-        const next = {
-          ...prev,
-          [key]: {
-            best: Math.max(previous.best, correct ? 1 : 0),
-            attempts: previous.attempts + 1,
-          },
-        };
-        onUpdateScores(next);
-        return next;
-      });
+      // Persist OUTSIDE any state updater: `onUpdateScores` is `updateCurrent({ scores })`,
+      // an IndexedDB write. React 18 <StrictMode> double-invokes updaters in dev, which
+      // made this a duplicated render-phase side effect (double IDB write).
+      const key = String(currentIndex);
+      const previous = cumulativeScoresRef.current[key] ?? { best: 0, attempts: 0 };
+      const nextScores = {
+        ...cumulativeScoresRef.current,
+        [key]: {
+          best: Math.max(previous.best, correct ? 1 : 0),
+          attempts: previous.attempts + 1,
+        },
+      };
+      cumulativeScoresRef.current = nextScores;
+      onUpdateScores(nextScores);
       if (!correct) {
         setReview({
           rationale:

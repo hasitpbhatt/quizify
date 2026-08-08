@@ -31,23 +31,31 @@ const mockNotebookState = vi.hoisted(() => ({
 
 const mockMarkTypingComplete = vi.hoisted(() => vi.fn());
 const mockHasTypingCompleted = vi.hoisted(() => vi.fn());
+const mockResetTypingForSession = vi.hoisted(() => vi.fn());
 
 vi.mock('@/shared/stores/notebookStore', () => ({
-  useNotebookStore: (selector: (s: typeof mockNotebookState & {
-    markTypingComplete: typeof mockMarkTypingComplete;
-    hasTypingCompleted: typeof mockHasTypingCompleted;
-  }) => unknown) =>
+  useNotebookStore: (
+    selector: (
+      s: typeof mockNotebookState & {
+        markTypingComplete: typeof mockMarkTypingComplete;
+        hasTypingCompleted: typeof mockHasTypingCompleted;
+        resetTypingForSession: typeof mockResetTypingForSession;
+      },
+    ) => unknown,
+  ) =>
     selector({
       ...mockNotebookState,
       markTypingComplete: mockMarkTypingComplete,
       hasTypingCompleted: mockHasTypingCompleted,
+      resetTypingForSession: mockResetTypingForSession,
     }),
 }));
 
 const mockSettingsState = vi.hoisted(() => ({ ttsEnabled: false }));
 
 vi.mock('@/shared/stores/settingsStore', () => ({
-  useSettingsStore: (selector: (s: { ttsEnabled: boolean }) => unknown) => selector(mockSettingsState),
+  useSettingsStore: (selector: (s: { ttsEnabled: boolean }) => unknown) =>
+    selector(mockSettingsState),
 }));
 
 interface TypingSub {
@@ -110,23 +118,34 @@ describe('notebook mode + TTS enabled', () => {
 
   it('subscribes to TTS events for the node', () => {
     renderHook(() => useTypingAnimation('n1', 'hello'));
-    expect(mockTts.subscribe).toHaveBeenCalledWith('n1', expect.objectContaining({
-      onSegmentStart: expect.any(Function),
-      onCharProgress: expect.any(Function),
-      onSegmentEnd: expect.any(Function),
-    }));
+    expect(mockTts.subscribe).toHaveBeenCalledWith(
+      'n1',
+      expect.objectContaining({
+        onSegmentStart: expect.any(Function),
+        onCharProgress: expect.any(Function),
+        onSegmentEnd: expect.any(Function),
+      }),
+    );
   });
 
   it('reveals text in sync with onCharProgress (50ms chase per char)', () => {
     const { result } = renderHook(() => useTypingAnimation('n1', 'x'.repeat(100)));
     const sub = getSub();
 
-    act(() => { sub.onCharProgress!('n1', 30); });
-    act(() => { vi.advanceTimersByTime(50 * 30); });
+    act(() => {
+      sub.onCharProgress!('n1', 30);
+    });
+    act(() => {
+      vi.advanceTimersByTime(50 * 30);
+    });
     expect(result.current.revealed).toBe(30);
 
-    act(() => { sub.onCharProgress!('n1', 80); });
-    act(() => { vi.advanceTimersByTime(50 * 50); });
+    act(() => {
+      sub.onCharProgress!('n1', 80);
+    });
+    act(() => {
+      vi.advanceTimersByTime(50 * 50);
+    });
     expect(result.current.revealed).toBe(80);
     expect(result.current.isAnimating).toBe(true);
   });
@@ -135,12 +154,20 @@ describe('notebook mode + TTS enabled', () => {
     const { result } = renderHook(() => useTypingAnimation('n1', 'x'.repeat(100)));
     const sub = getSub();
 
-    act(() => { sub.onCharProgress!('n1', 80); });
-    act(() => { vi.advanceTimersByTime(50 * 80); });
+    act(() => {
+      sub.onCharProgress!('n1', 80);
+    });
+    act(() => {
+      vi.advanceTimersByTime(50 * 80);
+    });
     expect(result.current.revealed).toBe(80);
 
-    act(() => { sub.onCharProgress!('n1', 30); });
-    act(() => { vi.advanceTimersByTime(2000); });
+    act(() => {
+      sub.onCharProgress!('n1', 30);
+    });
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
     expect(result.current.revealed).toBe(80);
   });
 
@@ -148,7 +175,9 @@ describe('notebook mode + TTS enabled', () => {
     const { result } = renderHook(() => useTypingAnimation('n1', 'hello'));
     const sub = getSub();
 
-    act(() => { sub.onSegmentEnd!('n1'); });
+    act(() => {
+      sub.onSegmentEnd!('n1');
+    });
 
     expect(result.current.revealed).toBe(5);
     expect(result.current.isAnimating).toBe(false);
@@ -164,7 +193,9 @@ describe('notebook mode + TTS enabled', () => {
   it('skip reveals full text, marks complete, and finishes the segment', () => {
     const { result } = renderHook(() => useTypingAnimation('n1', 'hello'));
 
-    act(() => { result.current.skipAnimation(); });
+    act(() => {
+      result.current.skipAnimation();
+    });
 
     expect(result.current.revealed).toBe(5);
     expect(result.current.isAnimating).toBe(false);
@@ -182,7 +213,9 @@ describe('notebook mode + TTS enabled', () => {
   it('safety timeout reveals text when narration never started', () => {
     const { result } = renderHook(() => useTypingAnimation('n1', 'hello world'));
 
-    act(() => { vi.advanceTimersByTime(8000); });
+    act(() => {
+      vi.advanceTimersByTime(8000);
+    });
 
     expect(result.current.revealed).toBe(11);
     expect(result.current.isAnimating).toBe(false);
@@ -195,17 +228,25 @@ describe('notebook mode + TTS enabled', () => {
     const { result } = renderHook(() => useTypingAnimation('n1', 'x'.repeat(200)));
     const sub = getSub();
 
-    act(() => { sub.onCharProgress!('n1', 40); });
-    act(() => { vi.advanceTimersByTime(50 * 40); });
+    act(() => {
+      sub.onCharProgress!('n1', 40);
+    });
+    act(() => {
+      vi.advanceTimersByTime(50 * 40);
+    });
     expect(result.current.revealed).toBe(40);
 
-    act(() => { vi.advanceTimersByTime(8000); });
+    act(() => {
+      vi.advanceTimersByTime(8000);
+    });
 
     expect(result.current.revealed).toBe(40);
     expect(result.current.isAnimating).toBe(true);
     expect(mockMarkTypingComplete).not.toHaveBeenCalled();
 
-    act(() => { sub.onSegmentEnd!('n1'); });
+    act(() => {
+      sub.onSegmentEnd!('n1');
+    });
     expect(result.current.revealed).toBe(200);
     expect(mockMarkTypingComplete).toHaveBeenCalledWith('n1');
   });
@@ -234,7 +275,9 @@ describe('typing completion cache', () => {
     const first = renderHook(() => useTypingAnimation('n1', 'hello world'));
     const sub = getSub();
 
-    act(() => { sub.onSegmentEnd!('n1'); });
+    act(() => {
+      sub.onSegmentEnd!('n1');
+    });
     first.unmount();
     expect(mockNotebookState.completedTypingNodeIds.n1).toBe(true);
 

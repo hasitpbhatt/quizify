@@ -33,6 +33,41 @@ export function isLikelyUrl(input: string): boolean {
   }
 }
 
+/**
+ * Cheap sanity check for cached/proxied payloads. The cf proxy legitimately
+ * returns raw HTML articles, so this must NOT reject every HTML document — it
+ * rejects known SPA-shell/bot-interstitial markers, or HTML with almost no
+ * visible text (our own dev SPA fallback serves index.html on a 200).
+ */
+const SHELL_MARKERS = [
+  '<div id="root"',
+  "<div id='root'",
+  '<div id=root',
+  'cf-browser-verification',
+  'just a moment...',
+  'attention required! | cloudflare',
+  'enable javascript and cookies to continue',
+  'checking your browser before accessing',
+];
+const MIN_VISIBLE_TEXT_CHARS = 500;
+
+export function isLikelyHtmlShell(content: string): boolean {
+  const head = content.slice(0, 4000).toLowerCase();
+  if (SHELL_MARKERS.some((marker) => head.includes(marker))) return true;
+
+  const looksLikeHtmlDocument =
+    head.includes('<!doctype html') || head.includes('<html') || head.includes('<body');
+  if (!looksLikeHtmlDocument) return false;
+
+  const visibleText = content
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return visibleText.length < MIN_VISIBLE_TEXT_CHARS;
+}
+
 const FETCH_TIMEOUT_MS = 8_000;
 
 async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
@@ -51,70 +86,84 @@ async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Respon
 
 const DEV_PROXY = '/__proxy?url=';
 
-async function fetchViaViteProxy(url: string): Promise<Response> {
-  return fetchWithTimeout(`${DEV_PROXY}${encodeURIComponent(url)}`);
+async function fetchViaViteProxy(url: string, signal?: AbortSignal): Promise<Response> {
+  return fetchWithTimeout(`${DEV_PROXY}${encodeURIComponent(url)}`, { signal });
 }
 
-async function fetchViaCfProxy(url: string): Promise<Response> {
-  return fetchWithTimeout(`/api/fetch?url=${encodeURIComponent(url)}`);
+async function fetchViaCfProxy(url: string, signal?: AbortSignal): Promise<Response> {
+  return fetchWithTimeout(`/api/fetch?url=${encodeURIComponent(url)}`, { signal });
 }
 
 async function raceProxies(
   url: string,
+  signal?: AbortSignal,
 ): Promise<{ content: string; source: SourceResult['source'] } | null> {
   const absolute = url.startsWith('http') ? url : `https://${url}`;
+
+  const isShell = (text: string, label: string): boolean => {
+    if (isLikelyHtmlShell(text)) {
+      debugLog('warn', 'fetch', '%s returned an HTML shell — discarding', label);
+      return true;
+    }
+    return false;
+  };
 
   debugLog('log', 'fetch', 'proxy start url=%s', absolute);
 
   if (import.meta.env.DEV) {
     try {
-      const res = await fetchViaViteProxy(absolute);
+      const res = await fetchViaViteProxy(absolute, signal);
       if (res.ok) {
         const text = await res.text();
-        if (text.length > 200) {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        if (text.length > 200 && !isShell(text, 'vite proxy')) {
           debugLog('log', 'fetch', 'vite proxy OK len=%d', text.length);
           return { content: text, source: 'cfproxy' };
         }
       }
-    } catch {
+    } catch (err) {
+      if (signal?.aborted) throw err;
       debugLog('warn', 'fetch', 'vite proxy failed');
     }
   }
 
   try {
-    const res = await fetchViaCfProxy(absolute);
+    const res = await fetchViaCfProxy(absolute, signal);
     if (res.ok) {
       const text = await res.text();
-      if (text.length > 200) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      if (text.length > 200 && !isShell(text, 'cf proxy')) {
         debugLog('log', 'fetch', 'cf proxy OK len=%d', text.length);
         return { content: text, source: 'cfproxy' };
       }
     }
-  } catch {
+  } catch (err) {
+    if (signal?.aborted) throw err;
     debugLog('warn', 'fetch', 'cf proxy failed');
   }
 
   return null;
 }
 
-async function callLlm(prompt: string): Promise<string> {
+async function callLlm(prompt: string, signal?: AbortSignal): Promise<string> {
   const response = await chat([{ role: 'user', content: prompt }], {
     maxTokens: 4000,
     temperature: 0.3,
+    signal,
   });
   return response.content;
 }
 
-async function fetchSubjectFromLlm(subject: string): Promise<string> {
+async function fetchSubjectFromLlm(subject: string, signal?: AbortSignal): Promise<string> {
   const prompt =
     `You are a research assistant. The user wants to learn about "${subject}". ` +
     `Produce a detailed educational overview covering: key definitions, core concepts, ` +
     `important examples, common pitfalls, and real-world applications. ` +
     `Output only the content, no disclaimers. Format in clear paragraphs with section headers.`;
-  return callLlm(prompt);
+  return callLlm(prompt, signal);
 }
 
-async function fetchBookSummary(url: string): Promise<string> {
+async function fetchBookSummary(url: string, signal?: AbortSignal): Promise<string> {
   const fetchTimeout = async (url: string, init?: RequestInit): Promise<Response> => {
     const ac = new AbortController();
     const timeout = setTimeout(
@@ -136,6 +185,8 @@ async function fetchBookSummary(url: string): Promise<string> {
   ];
 
   const abortController = new AbortController();
+  const requestSignal = signal ? anySignal(signal, abortController.signal) : abortController.signal;
+
   const promises = summarySites.map(async (site) => {
     try {
       const response = await fetchTimeout(site, {
@@ -143,7 +194,7 @@ async function fetchBookSummary(url: string): Promise<string> {
           'User-Agent': 'Quizify/1.0 (research tool)',
           Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         },
-        signal: abortController.signal,
+        signal: requestSignal,
       });
       if (!response.ok) return null;
       const text = await response.text();
@@ -168,7 +219,8 @@ async function fetchBookSummary(url: string): Promise<string> {
         return content;
       }
     }
-  } catch {
+  } catch (err) {
+    if (signal?.aborted) throw err;
     debugLog('warn', 'fetch', 'book-summary failed to fetch any site');
   }
 
@@ -176,7 +228,10 @@ async function fetchBookSummary(url: string): Promise<string> {
 }
 
 function isBookTitle(input: string): boolean {
-  return /^(?:[A-Z][a-zA-Z0-9\s]*\s+by\s+[A-Z][a-zA-Z0-9\s]*|(?:[A-Z][a-zA-Z0-9\s]+)\s*-\s*[A-Z][a-zA-Z0-9\s]+)$/i.test(
+  // No /i flag: the [A-Z] classes are the whole point — this must only match
+  // Title Case ("Atomic Habits by James Clear"), not ordinary lowercase topics
+  // like "learning by doing" or "async - await", which belong on the web_search path.
+  return /^(?:[A-Z][a-zA-Z0-9\s]*\s+by\s+[A-Z][a-zA-Z0-9\s]*|(?:[A-Z][a-zA-Z0-9\s]+)\s*-\s*[A-Z][a-zA-Z0-9\s]+)$/.test(
     input.trim(),
   );
 }
@@ -201,14 +256,20 @@ export async function fetchSourceContent(
 ): Promise<SourceResult> {
   const cached = await getCachedSourceEntry(input);
   if (cached) {
-    debugLog('log', 'fetch', 'cache HIT url=%s len=%d', input, cached.content.length);
-    return {
-      content: cached.content,
-      source: 'cache',
-      provenance: cached.provenance ?? 'legacy-unknown',
-      url: input,
-      citations: cached.citations,
-    };
+    if (isLikelyHtmlShell(cached.content)) {
+      // Poisoned entry (SPA shell / bot interstitial). Treat as a MISS rather
+      // than serving garbage for the rest of the 24h TTL.
+      debugLog('warn', 'fetch', 'cache POISONED (html shell) url=%s — re-fetching', input);
+    } else {
+      debugLog('log', 'fetch', 'cache HIT url=%s len=%d', input, cached.content.length);
+      return {
+        content: cached.content,
+        source: 'cache',
+        provenance: cached.provenance ?? 'legacy-unknown',
+        url: input,
+        citations: cached.citations,
+      };
+    }
   }
 
   let content: string | null = null;
@@ -250,7 +311,7 @@ export async function fetchSourceContent(
 
   if (!content) {
     if (isLikelyUrl(input)) {
-      const fallback = await raceProxies(input);
+      const fallback = await raceProxies(input, opts.signal);
       if (fallback) {
         content = fallback.content;
         source = fallback.source;
@@ -266,7 +327,7 @@ export async function fetchSourceContent(
 
     if (isBookTitle(input)) {
       debugLog('log', 'fetch', 'book-title detected, trying summary sites');
-      const bookContent = await fetchBookSummary(input);
+      const bookContent = await fetchBookSummary(input, opts.signal);
       if (bookContent && bookContent.length > 50) {
         content = bookContent;
         source = 'cfproxy';
@@ -276,9 +337,13 @@ export async function fetchSourceContent(
     if (!content) {
       debugLog('warn', 'fetch', 'LLM subject_fallback subject=%s', subject.slice(0, 100));
       try {
-        content = await fetchSubjectFromLlm(subject);
+        content = await fetchSubjectFromLlm(subject, opts.signal);
         source = 'llm';
       } catch (err) {
+        // A user cancel is not a generation failure — never mask it.
+        if (opts.signal?.aborted || (err instanceof DOMException && err.name === 'AbortError')) {
+          throw err;
+        }
         throw new Error(
           `Couldn't generate content for "${input}". ${err instanceof Error ? err.message : 'LLM call failed.'}`,
         );
@@ -292,8 +357,18 @@ export async function fetchSourceContent(
 
   const truncated = truncateByParagraphs(content);
 
-  const provenance: SourceProvenance = source === 'cfproxy' ? 'fetched' : 'topic-generated';
-  await setCachedSource(input, truncated, provenance, citations);
+  // Agent web search is grounded content with citations, so it must not raise
+  // App.tsx's "we couldn't read the page" trust checkpoint. Only the true LLM
+  // fallback stays 'topic-generated'.
+  const provenance: SourceProvenance =
+    source === 'cfproxy' || source === 'agent' ? 'fetched' : 'topic-generated';
+  if (opts.signal?.aborted) {
+    // A cancelled run must not seed the cache; otherwise a retry silently
+    // returns the cancelled run's content.
+    debugLog('warn', 'fetch', 'aborted before cache write — skipping cache write url=%s', input);
+  } else {
+    await setCachedSource(input, truncated, provenance, citations);
+  }
 
   return { content: truncated, source: source ?? 'llm', provenance, url: input, citations };
 }

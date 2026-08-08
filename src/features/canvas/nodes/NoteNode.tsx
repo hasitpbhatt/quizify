@@ -29,10 +29,7 @@ export async function undoLastDeletedNote(): Promise<boolean> {
   nodes.splice(Math.min(snapshot.index, nodes.length), 0, snapshot.node);
   await useSessionStore
     .getState()
-    .updateCurrent(
-      { nodes, edges: [...(session.edges ?? []), ...snapshot.edges] },
-      snapshot.sessionId,
-    );
+    .replaceNodes(nodes, [...(session.edges ?? []), ...snapshot.edges], snapshot.sessionId);
   lastDeletedNote = null;
   return true;
 }
@@ -42,6 +39,7 @@ function NoteNodeInner({ id, data, linkedConceptTitle }: NoteNodeProps) {
   const [draft, setDraft] = useState(data.text);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const updateCurrent = useSessionStore((s) => s.updateCurrent);
+  const replaceNodes = useSessionStore((s) => s.replaceNodes);
   const rotation = useRef<number | null>(null);
   if (rotation.current === null) {
     let hash = 0;
@@ -111,7 +109,7 @@ function NoteNodeInner({ id, data, linkedConceptTitle }: NoteNodeProps) {
         index: authoritative.nodes.findIndex((node) => node.id === id),
       };
     }
-    await updateCurrent({ nodes: updatedNodes, edges: updatedEdges });
+    await replaceNodes(updatedNodes, updatedEdges, currentId);
     useToastStore.getState().add('Note deleted', 'info', {
       label: 'Undo',
       onClick: () => {

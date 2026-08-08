@@ -382,7 +382,18 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const handleAddNote = useCallback(() => {
     if (!session) return;
 
-    const noteId = `note-${Date.now()}`;
+    // Pin the write target AND take the node snapshot from the same getState()
+    // read: `currentId` can change between render and this callback (Home ->
+    // Generate), and the closed-over `session` is a stale render snapshot under
+    // key-repeat on "N" (several keydowns land before React re-renders).
+    const { currentId: sessionId, sessions } = useSessionStore.getState();
+    const liveSession = sessionId ? sessions.find((s) => s.id === sessionId) : undefined;
+    if (!sessionId || !liveSession) return;
+
+    // `note-${Date.now()}` collides for two notes in the same millisecond,
+    // duplicating both the node id and the React key.
+    const uid = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const noteId = `note-${uid}`;
     const linkedConceptId = currentConcept?.id;
     const noteNode: CanvasNode = {
       id: noteId,
@@ -390,9 +401,9 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       data: { kind: 'note', text: '', linkedConceptId } as NoteData,
     };
 
-    let insertionIndex = session.nodes.length;
+    let insertionIndex = liveSession.nodes.length;
     if (linkedConceptId) {
-      const parentAndQuizIndexes = session.nodes.reduce<number[]>((indexes, node, index) => {
+      const parentAndQuizIndexes = liveSession.nodes.reduce<number[]>((indexes, node, index) => {
         const belongsToConcept =
           node.id === linkedConceptId ||
           (node.data.kind === 'quiz' &&
@@ -403,9 +414,9 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
       const lastIndex = parentAndQuizIndexes.at(-1);
       if (lastIndex !== undefined) insertionIndex = lastIndex + 1;
     }
-    const updatedNodes = [...session.nodes];
+    const updatedNodes = [...liveSession.nodes];
     updatedNodes.splice(insertionIndex, 0, noteNode);
-    updateCurrent({ nodes: updatedNodes });
+    updateCurrent({ nodes: updatedNodes }, sessionId);
   }, [currentConcept?.id, session, updateCurrent]);
 
   const handleRetryConcept = useCallback(
@@ -775,7 +786,9 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
         scores[String(i)] = { best: correct ? 1 : 0, attempts: 1 };
       });
       sessionStorage.removeItem(`summary-quiz-${session.id}`);
-      updateCurrent({ scores });
+      // Pin: these scores were migrated from `summary-quiz-${session.id}`, so
+      // they must land on that session, not on whatever `currentId` is now.
+      updateCurrent({ scores }, session.id);
       scoreMigratedRef.current = true;
     } catch {
       scoreMigratedRef.current = true;
@@ -785,7 +798,8 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const handleUpdateScores = useCallback(
     (scores: Record<string, { best: number; attempts: number }>) => {
       if (!session) return;
-      updateCurrent({ scores });
+      // Pin: these scores belong to the session the summary quiz was opened on.
+      updateCurrent({ scores }, session.id);
     },
     [session, updateCurrent],
   );

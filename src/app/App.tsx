@@ -50,7 +50,10 @@ export function App() {
   const abortRef = useRef<AbortController | null>(null);
   const reachedCanvasRef = useRef(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const { load: loadSessions, sessions, currentId, select } = useSessionStore();
+  const loadSessions = useSessionStore((s) => s.load);
+  const sessions = useSessionStore((s) => s.sessions);
+  const currentId = useSessionStore((s) => s.currentId);
+  const select = useSessionStore((s) => s.select);
   const [previewData, setPreviewData] = useState<{
     title: string;
     snippet: string;
@@ -139,9 +142,23 @@ export function App() {
   const handleCancel = goWelcome;
 
   const handleSelectSession = useCallback(
-    (id: string) => {
+    async (id: string) => {
       trackEvent('lesson_resumed', { sessionId: id });
-      select(id);
+      try {
+        await select(id);
+      } catch (err) {
+        console.error('[app] failed to open session %s:', id, err);
+        useToastStore
+          .getState()
+          .add(
+            err instanceof Error ? `Couldn't open lesson: ${err.message}` : "Couldn't open lesson.",
+            'error',
+          );
+        return;
+      }
+      // Typing-completion ids are not session-scoped; a concept id shared with
+      // the previous lesson would otherwise skip its animation entirely.
+      useNotebookStore.getState().resetTypingForSession();
       setPage('canvas');
     },
     [select],
@@ -178,6 +195,35 @@ export function App() {
       const isTest = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
       if (!isTest && src.provenance !== 'fetched') {
         await new Promise<void>((resolve, reject) => {
+          const signal = abortController.signal;
+          const abortError = () => new DOMException('Aborted', 'AbortError');
+
+          // The Toolbar's "Cancel generation" (and unmount) abort the controller
+          // without touching this dialog. Without this listener the promise never
+          // settles: handleGenerate suspends forever, `finally` never runs, and
+          // isGenerating / the beforeunload guard stay armed for the tab's life.
+          if (signal.aborted) {
+            setPreviewData(null);
+            reject(abortError());
+            return;
+          }
+
+          const settle = (finish: () => void) => {
+            signal.removeEventListener('abort', onAbort);
+            setPreviewData(null);
+            finish();
+          };
+
+          const onAbort = () => settle(() => reject(abortError()));
+          const onConfirm = () => settle(resolve);
+          const onCancel = () =>
+            settle(() => {
+              handleCancel();
+              reject(abortError());
+            });
+
+          signal.addEventListener('abort', onAbort, { once: true });
+
           let title = '';
           const lines = src.content.split('\n');
           for (const line of lines) {
@@ -197,16 +243,6 @@ export function App() {
             .trim();
           const sentences = cleanText.split(/[.!?]\s+/);
           const snippet = sentences.slice(0, 3).join('. ') + (sentences.length > 3 ? '...' : '.');
-
-          const onConfirm = () => {
-            setPreviewData(null);
-            resolve();
-          };
-          const onCancel = () => {
-            setPreviewData(null);
-            handleCancel();
-            reject(new DOMException('Aborted', 'AbortError'));
-          };
 
           setPreviewData({
             title,
@@ -251,9 +287,9 @@ export function App() {
         sourceProvenance: src.provenance,
         persona,
       });
-      if (useSessionStore.getState().currentId === session.id) {
-        await select(session.id);
-      }
+      // Invariant (architecture doc): always `await createSession` then
+      // `await select` — unconditionally.
+      await select(session.id);
 
       // Navigate to canvas early so we can stream nodes in real-time
       reachedCanvasRef.current = true;
@@ -266,6 +302,12 @@ export function App() {
         persona,
         src.url,
         (p) => {
+          // PipelineProgress carries `error` for non-fatal concept/summary
+          // failures (pipeline funnels its onNotify('error', …) through here).
+          if (p.error) {
+            console.error('[app] pipeline error at step %s: %s', p.step, p.error);
+            useToastStore.getState().add(`${p.label}: ${p.error}`, 'error');
+          }
           setProgress({ stage: p.step, label: p.label });
           if (p.step !== pipelineStage) {
             if (pipelineStage) latency.endStage(pipelineStage);
@@ -282,12 +324,12 @@ export function App() {
       latency.endStage('done');
 
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
-      if (useSessionStore.getState().currentId === session.id) {
-        await select(session.id);
-      }
+      // Invariant: always `await select` after the pipeline completes.
+      await select(session.id);
       trackEvent('generation_completed', { sessionId: session.id });
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
+        console.error('[app] generation aborted by user', err);
         setPage('welcome');
         return;
       }
@@ -305,7 +347,8 @@ export function App() {
     }
   }, []);
 
-  const { theme, setTheme } = useSettingsStore();
+  const theme = useSettingsStore((s) => s.theme);
+  const setTheme = useSettingsStore((s) => s.setTheme);
   const cycleTheme = () => {
     const next = theme === 'light' ? 'dark' : theme === 'dark' ? 'auto' : 'light';
     setTheme(next);

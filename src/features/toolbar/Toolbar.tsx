@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
-import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { AccessibleDialog } from '@/lib/components/AccessibleDialog';
 import { ChevronDown, X } from 'lucide-react';
 import styles from './Toolbar.module.css';
@@ -16,8 +15,11 @@ export function Toolbar({
   onCancelGeneration,
   onCycleTheme: _onCycleTheme,
 }: ToolbarProps) {
-  const { sessions, currentId, load, select, remove, updateCurrent } = useSessionStore();
-  useSettingsStore();
+  const sessions = useSessionStore((s) => s.sessions);
+  const currentId = useSessionStore((s) => s.currentId);
+  const select = useSessionStore((s) => s.select);
+  const remove = useSessionStore((s) => s.remove);
+  const updateCurrent = useSessionStore((s) => s.updateCurrent);
   const [open, setOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -25,10 +27,6 @@ export function Toolbar({
   const [focusIndex, setFocusIndex] = useState(-1);
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   useEffect(() => {
     if (!open) return;
