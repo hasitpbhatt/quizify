@@ -1,5 +1,12 @@
 import { create } from 'zustand';
-import type { Session, QuizData } from '@/shared/types';
+import type {
+  Session,
+  QuizData,
+  SourceProvenance,
+  Persona,
+  CanvasNode,
+  CanvasEdge,
+} from '@/shared/types';
 import * as sessionsDb from '@/lib/db/sessionsDb';
 
 /**
@@ -17,6 +24,13 @@ function createMutex() {
 }
 const writeMutex = createMutex();
 
+/**
+ * Ids of sessions deleted in this tab. `remove` runs inside `writeMutex`, but a
+ * write queued behind the delete would otherwise read → merge → put a row that
+ * no longer exists and resurrect it. Tab-lifetime only.
+ */
+const tombstones = new Set<string>();
+
 interface SessionState {
   sessions: Session[];
   currentId: string | null;
@@ -27,12 +41,18 @@ interface SessionState {
     url: string;
     hostname: string;
     name?: string;
-    sourceProvenance?: import('@/shared/types').SourceProvenance;
-    persona: import('@/shared/types').Persona;
+    sourceProvenance?: SourceProvenance;
+    persona: Persona;
   }) => Promise<Session>;
   select: (id: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
   updateCurrent: (patch: Partial<Session>, sessionId?: string) => Promise<void>;
+  /**
+   * Full replacement of a session's nodes/edges. Use this for explicit deletes
+   * (omitting a node is intentional), unlike `updateCurrent` which preserves any
+   * node the patch doesn't mention.
+   */
+  replaceNodes: (nodes: CanvasNode[], edges?: CanvasEdge[], sessionId?: string) => Promise<void>;
 }
 
 function generateId(): string {
@@ -47,8 +67,7 @@ function sortByUpdatedDesc(sessions: Session[]): Session[] {
  * Merge a single updated session into whatever the freshest in-memory sessions
  * array is at the time of `set`. This is the durable fix for the race we were
  * seeing: a stale `sessions` snapshot captured *before* an awaited IDB write
- * would otherwise clobber concurrent updates (e.g. `create` running alongside
- * `runPipeline`'s `updateCurrent`).
+ * would otherwise clobber concurrent updates.
  */
 function upsertSession(sessions: Session[], updated: Session): Session[] {
   const idx = sessions.findIndex((s) => s.id === updated.id);
@@ -66,7 +85,29 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   load: async () => {
     try {
       const all = await sessionsDb.getAllSessions();
-      set({ sessions: sortByUpdatedDesc(all), loaded: true });
+      // MERGE, never full-replace. `load()` runs on App mount, on every
+      // `visibilitychange`, and on Toolbar mount (which remounts during
+      // generation). A full-array `set` with a read that started before the
+      // pipeline persisted a brand-new session reverts memory to the
+      // pre-persist snapshot and the session vanishes from the UI.
+      set((state) => {
+        const byId = new Map(state.sessions.map((s) => [s.id, s] as const));
+        for (const loadedSession of all) {
+          // A row from a read that started before a local delete landed must
+          // not undo the delete.
+          if (tombstones.has(loadedSession.id)) continue;
+          const inMemory = byId.get(loadedSession.id);
+          // Loaded wins on equal timestamps; a newer in-memory copy (a write
+          // that hasn't been re-read yet) is kept.
+          byId.set(
+            loadedSession.id,
+            !inMemory || loadedSession.updatedAt >= inMemory.updatedAt ? loadedSession : inMemory,
+          );
+        }
+        // currentId is left untouched — `select` surfaces a stale id far more
+        // honestly than silently repointing it here.
+        return { sessions: sortByUpdatedDesc(Array.from(byId.values())), loaded: true };
+      });
     } catch (err) {
       console.error('[sessionStore] failed to load sessions:', err);
       set({ loaded: true });
@@ -101,53 +142,116 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   select: async (id: string) => {
-    const session = await sessionsDb.getSession(id);
-    // Always pin currentId if the session exists in IDB — even if the
-    // in-memory sessions list doesn't yet contain it (concurrent updates can
-    // briefly leave it out).
-    if (session) {
-      set((state) => ({
-        currentId: id,
-        sessions: upsertSession(state.sessions, session),
-      }));
+    let session: Session | undefined;
+    try {
+      session = await sessionsDb.getSession(id);
+    } catch (err) {
+      console.error(`[sessionStore] select: IDB read failed for ${id}:`, err);
+      throw new Error(
+        `Failed to load session ${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
+
+    // A missing row is a real failure, not a success. Silently no-oping made it
+    // indistinguishable from a successful select and left callers navigating to
+    // a canvas that can never render.
+    if (!session) {
+      console.error(`[sessionStore] select: session ${id} not found in IndexedDB`);
+      throw new Error(`Session not found: ${id}`);
+    }
+
+    const found = session; // const so narrowing survives into the `set` closure
+    set((state) => ({
+      currentId: id,
+      sessions: upsertSession(state.sessions, found),
+    }));
   },
 
   remove: async (id: string) => {
-    await sessionsDb.deleteSession(id);
-    set((state) => {
-      const sessions = state.sessions.filter((s) => s.id !== id);
-      const currentId = state.currentId === id ? (sessions[0]?.id ?? null) : state.currentId;
-      return { sessions: sortByUpdatedDesc(sessions), currentId };
+    // Inside the mutex: an in-flight `updateCurrent` that read `existing` before
+    // the delete and put it back after would otherwise resurrect the row.
+    await writeMutex(async () => {
+      // Tombstone before the await so anything queued behind us is refused.
+      tombstones.add(id);
+      try {
+        await sessionsDb.deleteSession(id);
+      } catch (err) {
+        // The row still exists — don't leave a tombstone blocking live writes.
+        tombstones.delete(id);
+        console.error(`[sessionStore] failed to delete session ${id}:`, err);
+        throw err;
+      }
+
+      set((state) => {
+        const sessions = state.sessions.filter((s) => s.id !== id);
+        const currentId = state.currentId === id ? (sessions[0]?.id ?? null) : state.currentId;
+        return { sessions: sortByUpdatedDesc(sessions), currentId };
+      });
     });
   },
 
   updateCurrent: async (patch, sessionId) => {
     const targetId = sessionId ?? get().currentId;
-    if (!targetId) return;
+    if (!targetId) {
+      // The only legitimate silent drop: there is genuinely no target to write to.
+      console.warn('[sessionStore] updateCurrent: no target session — patch dropped');
+      return;
+    }
+    if (tombstones.has(targetId)) {
+      console.warn(`[sessionStore] updateCurrent: session ${targetId} deleted — patch ignored`);
+      return;
+    }
 
     // Serialize the IDB read → merge → put → set so overlapping writers
-    // (pipeline persist + quiz grading) can't clobber each other. Without
-    // this, two concurrent updateCurrent calls could each read stale data
-    // and the last put wins, silently dropping one write.
+    // (pipeline persist + quiz grading) can't clobber each other.
     await writeMutex(async () => {
-      // Read the authoritative copy from IDB so we never overwrite fields that
-      // a concurrent update (e.g. addNote + quiz grading) just wrote.
-      const existing = await sessionsDb.getSession(targetId);
-      if (!existing) return;
+      // Re-check: a `remove` may have landed while this write sat in the queue.
+      if (tombstones.has(targetId)) {
+        console.warn(`[sessionStore] updateCurrent: session ${targetId} deleted while queued`);
+        return;
+      }
 
-      // When patch replaces nodes, preserve quiz grade data from IDB so the
-      // pipeline's persist() doesn't clobber user-authored attempts/state.
-      let mergedPatch = patch;
-      if (patch.nodes && existing.nodes.length > 0) {
-        const existingNodeMap = new Map(existing.nodes.map((n) => [n.id, n]));
+      let fromDb: Session | undefined;
+      try {
+        // Read the authoritative copy from IDB so we never overwrite fields that
+        // a concurrent update (e.g. addNote + quiz grading) just wrote.
+        fromDb = await sessionsDb.getSession(targetId);
+      } catch (err) {
+        console.error(
+          `[sessionStore] updateCurrent: IDB read failed for ${targetId}, ` +
+            'falling back to in-memory copy:',
+          err,
+        );
+      }
+
+      // Resolve the merge base from IDB *or* memory. A momentarily missing row
+      // (create() not yet visible, deleted in another tab) must never cause us
+      // to throw away generated content.
+      const base = fromDb ?? get().sessions.find((s) => s.id === targetId);
+      if (!base) {
+        throw new Error(
+          `[sessionStore] updateCurrent: ${targetId} not found in IndexedDB or ` +
+            'memory — refusing to silently drop this write',
+        );
+      }
+
+      // --- node merge ----------------------------------------------------
+      // 1. Quiz-grade preservation: the pipeline writes a default
+      //    { attempts: [], state: 'untested' } for every quiz on every persist;
+      //    never let that overwrite a real user attempt.
+      // 2. UNION by node id: nodes in the base that the patch never mentions
+      //    are PRESERVED, not deleted. The pipeline rewrites the whole node
+      //    array every ~200ms from an accumulator that knows nothing about a
+      //    note the user added mid-generation. Explicit deletes must use
+      //    `replaceNodes` instead of omitting the node.
+      let mergedPatch: Partial<Session> = patch;
+      if (patch.nodes) {
+        const baseById = new Map((base.nodes ?? []).map((n) => [n.id, n] as const));
         const mergedNodes = patch.nodes.map((node) => {
-          const existingNode = existingNodeMap.get(node.id);
+          const existingNode = baseById.get(node.id);
           if (existingNode?.data?.kind === 'quiz' && node.data?.kind === 'quiz') {
             const existingQuiz = existingNode.data as QuizData;
             const patchQuiz = node.data as QuizData;
-            // Pipeline writes default { attempts: [], state: 'untested' } — don't
-            // let that overwrite a user's in-progress or completed grade.
             if (
               patchQuiz.attempts.length === 0 &&
               patchQuiz.state === 'untested' &&
@@ -166,15 +270,61 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           }
           return node;
         });
+
+        const patchIds = new Set(patch.nodes.map((n) => n.id));
+        (base.nodes ?? []).forEach((node, idx) => {
+          if (!patchIds.has(node.id)) {
+            mergedNodes.splice(Math.min(idx, mergedNodes.length), 0, node);
+          }
+        });
+
         mergedPatch = { ...patch, nodes: mergedNodes };
       }
 
-      const updated: Session = { ...existing, ...mergedPatch, updatedAt: Date.now() };
-      await sessionsDb.putSession(updated);
+      const updated: Session = { ...base, ...mergedPatch, updatedAt: Date.now() };
+
+      try {
+        await sessionsDb.putSession(updated);
+      } catch (err) {
+        // Do not swallow: the pipeline needs to know the lesson isn't durable.
+        console.error(`[sessionStore] updateCurrent: persist failed ${targetId}:`, err);
+        throw err;
+      }
 
       set((state) => ({
         sessions: upsertSession(state.sessions, updated),
-        currentId: state.currentId ?? targetId,
+        // A background write must never re-pin currentId — that can make a
+        // just-deleted or unrelated session current behind the user's back.
+        currentId: state.currentId,
+      }));
+    });
+  },
+
+  replaceNodes: async (nodes, edges, sessionId) => {
+    const targetId = sessionId ?? get().currentId;
+    if (!targetId) {
+      console.warn('[sessionStore] replaceNodes: no target session — patch dropped');
+      return;
+    }
+    if (tombstones.has(targetId)) return;
+
+    await writeMutex(async () => {
+      if (tombstones.has(targetId)) return;
+      const base =
+        (await sessionsDb.getSession(targetId)) ?? get().sessions.find((s) => s.id === targetId);
+      if (!base) {
+        throw new Error(`[sessionStore] replaceNodes: ${targetId} not found`);
+      }
+      const updated: Session = {
+        ...base,
+        nodes,
+        ...(edges ? { edges } : {}),
+        updatedAt: Date.now(),
+      };
+      await sessionsDb.putSession(updated);
+      set((state) => ({
+        sessions: upsertSession(state.sessions, updated),
+        currentId: state.currentId,
       }));
     });
   },

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useSessionStore } from '@/shared/stores/sessionStore';
 import { useToastStore } from '@/shared/stores/toastStore';
 import { debugLog } from '@/lib/debug';
@@ -28,6 +28,28 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
   const [error, setError] = useState<string | null>(null);
   const [retryInfo, setRetryInfo] = useState<{ attempt: number; maxRetries: number } | null>(null);
   const startedAt = useRef(Date.now());
+  // Attempts we just persisted. Keeps an open modal truthful in the window
+  // before the store round-trip lands (or when there is no session to persist).
+  const [pendingAttempts, setPendingAttempts] = useState<Attempt[] | null>(null);
+
+  // `quiz` is a click-time snapshot from CanvasPage; it goes stale the instant an
+  // attempt is graded. Subscribe to the live node instead.
+  const storeAttempts = useSessionStore((s) => {
+    const session = s.sessions.find((entry) => entry.id === s.currentId);
+    const data = session?.nodes.find((n) => n.id === quizId)?.data;
+    return data?.kind === 'quiz' ? data.attempts : undefined;
+  });
+
+  const attempts = useMemo(() => {
+    const base = storeAttempts ?? quiz.attempts ?? [];
+    return pendingAttempts && pendingAttempts.length > base.length ? pendingAttempts : base;
+  }, [storeAttempts, quiz.attempts, pendingAttempts]);
+
+  // Freshest attempts, readable from `submit` without widening its deps.
+  const attemptsRef = useRef<Attempt[]>(attempts);
+  useEffect(() => {
+    attemptsRef.current = attempts;
+  }, [attempts]);
 
   const submit = useCallback(
     async (given: string | string[]) => {
@@ -55,66 +77,71 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
           gradingModel: result.gradingModel,
         };
 
-        const updatedAttempts = [...quiz.attempts, attempt];
-        const newState = computeState(updatedAttempts);
-
         const { currentId, updateCurrent } = useSessionStore.getState();
-        if (currentId) {
-          const authoritative = await sessionsDb.getSession(currentId);
-          if (authoritative) {
-            const quizIndex = authoritative.nodes.findIndex(
-              (n) => n.id === quizId && n.data?.kind === 'quiz',
-            );
-            if (quizIndex !== -1) {
-              const updatedNodes = [...authoritative.nodes];
-              updatedNodes[quizIndex] = {
-                ...updatedNodes[quizIndex],
-                data: {
-                  ...updatedNodes[quizIndex].data,
-                  attempts: updatedAttempts,
-                  state: newState,
-                } as QuizData,
-              };
+        const authoritative = currentId ? await sessionsDb.getSession(currentId) : undefined;
+        const quizIndex =
+          authoritative?.nodes.findIndex((n) => n.id === quizId && n.data?.kind === 'quiz') ?? -1;
 
-              const conceptId = quiz.parentConceptId;
-              const siblingQuizzes = updatedNodes.filter(
-                (n) => n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === conceptId,
-              );
-              const allComplete = siblingQuizzes.every((n) => {
-                const q = n.data as QuizData;
-                return q.state === 'correct' || q.state === 'mastered';
-              });
+        // DATA-LOSS FIX: append onto the LIVE attempts of this node, never onto
+        // the click-time `quiz.attempts` snapshot. Submitting twice inside one
+        // open modal used to persist [...snapshot, attempt2] and erase attempt 1.
+        const liveAttempts =
+          authoritative && quizIndex !== -1
+            ? ((authoritative.nodes[quizIndex].data as QuizData).attempts ?? [])
+            : attemptsRef.current;
 
-              const prevCompleted = authoritative.completedConceptIds ?? [];
-              const completedConceptIds =
-                allComplete && !prevCompleted.includes(conceptId)
-                  ? [...prevCompleted, conceptId]
-                  : prevCompleted;
+        const updatedAttempts = [...liveAttempts, attempt];
+        const newState = computeState(updatedAttempts);
+        setPendingAttempts(updatedAttempts);
 
-              const nextReviewAtByConceptId = {
-                ...(authoritative.nextReviewAtByConceptId ?? {}),
-                [conceptId]: computeNextReviewAt(newState),
-              };
+        if (authoritative && quizIndex !== -1) {
+          const updatedNodes = [...authoritative.nodes];
+          updatedNodes[quizIndex] = {
+            ...updatedNodes[quizIndex],
+            data: {
+              ...updatedNodes[quizIndex].data,
+              attempts: updatedAttempts,
+              state: newState,
+            } as QuizData,
+          };
 
-              await updateCurrent({
-                nodes: updatedNodes,
-                lastConceptId: conceptId,
-                completedConceptIds,
-                nextReviewAtByConceptId,
-                lastActivityAt: Date.now(),
-              });
-              debugLog(
-                'log',
-                'grade',
-                'grade persist session=%s node=%s state=%s attempts=%d conceptComplete=%s',
-                currentId,
-                quizId,
-                newState,
-                updatedAttempts.length,
-                allComplete ? conceptId : 'no',
-              );
-            }
-          }
+          const conceptId = quiz.parentConceptId;
+          const siblingQuizzes = updatedNodes.filter(
+            (n) => n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === conceptId,
+          );
+          const allComplete = siblingQuizzes.every((n) => {
+            const q = n.data as QuizData;
+            return q.state === 'correct' || q.state === 'mastered';
+          });
+
+          const prevCompleted = authoritative.completedConceptIds ?? [];
+          const completedConceptIds =
+            allComplete && !prevCompleted.includes(conceptId)
+              ? [...prevCompleted, conceptId]
+              : prevCompleted;
+
+          const nextReviewAtByConceptId = {
+            ...(authoritative.nextReviewAtByConceptId ?? {}),
+            [conceptId]: computeNextReviewAt(newState),
+          };
+
+          await updateCurrent({
+            nodes: updatedNodes,
+            lastConceptId: conceptId,
+            completedConceptIds,
+            nextReviewAtByConceptId,
+            lastActivityAt: Date.now(),
+          });
+          debugLog(
+            'log',
+            'grade',
+            'grade persist session=%s node=%s state=%s attempts=%d conceptComplete=%s',
+            currentId,
+            quizId,
+            newState,
+            updatedAttempts.length,
+            allComplete ? conceptId : 'no',
+          );
         }
 
         setRetryInfo(null);
@@ -132,7 +159,6 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
     [quiz, quizId],
   );
 
-  const attempts = quiz.attempts;
   const state = computeState(attempts);
 
   return { submit, submitting, lastResult, error, attempts, state, retryInfo };

@@ -130,7 +130,7 @@ export async function processOneConcept(
       ...nodes[nodeIdx],
       data: { ...nodes[nodeIdx].data, streaming: true } as ConceptData,
     };
-    persist();
+    void persist().catch((e) => debugLog('error', 'pipeline', 'persist rejected: %s', String(e)));
   };
 
   const conceptStart = performance.now();
@@ -193,7 +193,9 @@ export async function processOneConcept(
         };
       }
 
-      persist();
+      await persist().catch((e) =>
+        debugLog('error', 'pipeline', 'persist rejected: %s', String(e)),
+      );
       const conceptElapsed = Math.round(performance.now() - conceptStart);
       debugLog('log', 'pipeline', 'concept done id=%s elapsed=%dms', concept.id, conceptElapsed);
       return concept.id;
@@ -451,6 +453,13 @@ function findConceptTailIndex(nodes: CanvasNode[], conceptId: string): number {
   return idx;
 }
 
+/**
+ * Serializes the agent-conversation read → modify → write. Concepts are
+ * enriched in parallel, so without this two finishers read the same base
+ * `concepts` map and the last writer clobbers the other's conversation id.
+ */
+const agentConversationMutex = createMutex();
+
 async function persistAgentConversation(
   sessionId: string | undefined,
   conceptId: string,
@@ -458,15 +467,20 @@ async function persistAgentConversation(
   conversationId: string,
 ): Promise<void> {
   if (!sessionId || !conversationId) return;
-  const session = await sessionsDb.getSession(sessionId);
-  if (!session) return;
-  const concepts = { ...session.agentConversations?.concepts };
-  const entry = { ...concepts[conceptId] };
-  entry[kind] = conversationId;
-  concepts[conceptId] = entry;
-  await useSessionStore
-    .getState()
-    .updateCurrent({ agentConversations: { ...session.agentConversations, concepts } }, sessionId);
+  await agentConversationMutex(async () => {
+    const session = await sessionsDb.getSession(sessionId);
+    if (!session) return;
+    const concepts = { ...session.agentConversations?.concepts };
+    const entry = { ...concepts[conceptId] };
+    entry[kind] = conversationId;
+    concepts[conceptId] = entry;
+    await useSessionStore
+      .getState()
+      .updateCurrent(
+        { agentConversations: { ...session.agentConversations, concepts } },
+        sessionId,
+      );
+  });
 }
 
 async function getAgentConversationId(
@@ -733,8 +747,16 @@ export async function runPipeline(
 
   const nodes: CanvasNode[] = [];
 
-  const persist = () =>
-    withMutex(() => updateCurrent({ nodes: [...nodes], updatedAt: Date.now() }, sessionId));
+  // persist() must never reject: a failed IDB write (QuotaExceededError, a
+  // rejected getDb) used to escape as an unhandled rejection while the
+  // pipeline marched on and reported "Lesson ready!".
+  const persist = async (): Promise<void> => {
+    try {
+      await withMutex(() => updateCurrent({ nodes: [...nodes], updatedAt: Date.now() }, sessionId));
+    } catch (e) {
+      debugLog('error', 'pipeline', 'persist failed: %s', String(e));
+    }
+  };
 
   const generatedConcepts: ConceptInfo[] = [];
   const conceptLastNodeIds: (string | null)[] = [];
@@ -835,8 +857,8 @@ export async function retryFailedConcept(sessionId: string, conceptId: string): 
         : node,
     );
   const generatedConcepts: ConceptInfo[] = [];
-  const { updateCurrent } = useSessionStore.getState();
-  const persist = () => updateCurrent({ nodes: [...nodes], updatedAt: Date.now() }, sessionId);
+  const { replaceNodes } = useSessionStore.getState();
+  const persist = () => replaceNodes([...nodes], undefined, sessionId);
 
   await persist();
   const success = await processOneConcept(

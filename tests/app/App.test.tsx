@@ -20,7 +20,12 @@ const mockOutlineTask = vi.hoisted(() => ({
   parse: vi.fn(() => ({
     title: 'Test Canvas',
     concepts: [
-      { id: 'c1', title: 'Concept 1', explanation: 'E1', quiz: { format: 'mcq', question: 'Q?', options: ['A', 'B'], answer: 'A', explanation: 'R' } },
+      {
+        id: 'c1',
+        title: 'Concept 1',
+        explanation: 'E1',
+        quiz: { format: 'mcq', question: 'Q?', options: ['A', 'B'], answer: 'A', explanation: 'R' },
+      },
     ],
   })),
 }));
@@ -70,7 +75,9 @@ vi.mock('@/features/welcome/WelcomeModal', () => ({
           Select Session
         </button>
       )}
-      <button data-testid="clear-error" onClick={onClearError}>Clear Error</button>
+      <button data-testid="clear-error" onClick={onClearError}>
+        Clear Error
+      </button>
     </div>
   ),
 }));
@@ -78,7 +85,9 @@ vi.mock('@/features/welcome/WelcomeModal', () => ({
 vi.mock('@/features/toolbar/Toolbar', () => ({
   Toolbar: ({ onNewSession }: { onNewSession: () => void }) => (
     <div data-testid="toolbar">
-      <button data-testid="new-session-btn" onClick={onNewSession}>New</button>
+      <button data-testid="new-session-btn" onClick={onNewSession}>
+        New
+      </button>
     </div>
   ),
 }));
@@ -86,7 +95,9 @@ vi.mock('@/features/toolbar/Toolbar', () => ({
 vi.mock('@/features/canvas/CanvasPage', () => ({
   CanvasPage: ({ onHome }: { onHome: () => void }) => (
     <div data-testid="canvas-page">
-      <button data-testid="home-btn" onClick={onHome}>Home</button>
+      <button data-testid="home-btn" onClick={onHome}>
+        Home
+      </button>
     </div>
   ),
 }));
@@ -94,7 +105,9 @@ vi.mock('@/features/canvas/CanvasPage', () => ({
 vi.mock('@/app/ProgressScreen', () => ({
   ProgressScreen: ({ onCancel }: { onCancel: () => void }) => (
     <div data-testid="progress-screen">
-      <button data-testid="cancel-btn" onClick={onCancel}>Cancel</button>
+      <button data-testid="cancel-btn" onClick={onCancel}>
+        Cancel
+      </button>
     </div>
   ),
 }));
@@ -114,9 +127,24 @@ const mockSessionStore = vi.hoisted(() => {
   let currentId: string | null = null;
   let sessions: unknown[] = [];
   const load = vi.fn().mockResolvedValue(undefined);
-  const select = vi.fn().mockImplementation(async (id: string) => { currentId = id; });
-  const create = vi.fn().mockResolvedValue({ id: 'new-session', name: 'Test', url: 'https://example.com', hostname: 'example.com', persona: 'student', createdAt: Date.now(), updatedAt: Date.now(), nodes: [], edges: [], scores: {} });
-  
+  const select = vi.fn().mockImplementation(async (id: string) => {
+    currentId = id;
+  });
+  const create = vi
+    .fn()
+    .mockResolvedValue({
+      id: 'new-session',
+      name: 'Test',
+      url: 'https://example.com',
+      hostname: 'example.com',
+      persona: 'student',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      nodes: [],
+      edges: [],
+      scores: {},
+    });
+
   const fn = vi.fn().mockImplementation((selector) => {
     const state = { load, select, create, currentId, sessions, loaded: true };
     return selector ? selector(state) : state;
@@ -132,7 +160,17 @@ const mockSessionStore = vi.hoisted(() => {
       if ('sessions' in s) sessions = s.sessions as unknown[];
     },
     subscribe: vi.fn(() => vi.fn()),
-    getInitialState: () => ({ sessions: [], currentId: null, loaded: false, load: vi.fn(), select: vi.fn(), create: vi.fn(), updateCurrent: vi.fn(), remove: vi.fn(), addNote: vi.fn() }),
+    getInitialState: () => ({
+      sessions: [],
+      currentId: null,
+      loaded: false,
+      load: vi.fn(),
+      select: vi.fn(),
+      create: vi.fn(),
+      updateCurrent: vi.fn(),
+      remove: vi.fn(),
+      addNote: vi.fn(),
+    }),
   });
 });
 
@@ -144,6 +182,7 @@ const mockNotebookSetState = vi.hoisted(() => vi.fn());
 vi.mock('@/shared/stores/notebookStore', () => ({
   useNotebookStore: {
     setState: mockNotebookSetState,
+    getState: () => ({ resetTypingForSession: vi.fn() }),
   },
 }));
 
@@ -152,9 +191,15 @@ const sessionStorageMock = (() => {
   let store: Record<string, string> = {};
   return {
     getItem: (key: string) => store[key] ?? null,
-    setItem: (key: string, value: string) => { store[key] = value; },
-    removeItem: (key: string) => { delete store[key]; },
-    clear: () => { store = {}; },
+    setItem: (key: string, value: string) => {
+      store[key] = value;
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    clear: () => {
+      store = {};
+    },
   };
 })();
 Object.defineProperty(window, 'sessionStorage', { value: sessionStorageMock, writable: true });
@@ -187,10 +232,26 @@ describe('App', () => {
   });
 
   it('transitions to progress then canvas on generate', async () => {
-    mockFetchSourceContent.mockResolvedValue({ url: 'https://example.com', content: 'source text' });
+    mockFetchSourceContent.mockResolvedValue({
+      url: 'https://example.com',
+      content: 'source text',
+    });
     mockExecutePromptTask.mockResolvedValue({
       title: 'Test Canvas',
-      concepts: [{ id: 'c1', title: 'C1', explanation: 'E1', quiz: { format: 'mcq', question: 'Q?', options: ['A', 'B'], answer: 'A', explanation: 'R' } }],
+      concepts: [
+        {
+          id: 'c1',
+          title: 'C1',
+          explanation: 'E1',
+          quiz: {
+            format: 'mcq',
+            question: 'Q?',
+            options: ['A', 'B'],
+            answer: 'A',
+            explanation: 'R',
+          },
+        },
+      ],
     });
     mockRunPipeline.mockResolvedValue({ nodes: [], edges: [] });
 
@@ -319,10 +380,20 @@ describe('App', () => {
   });
 
   it('returns to welcome when home button is clicked on canvas', async () => {
-    mockFetchSourceContent.mockResolvedValue({ url: 'https://example.com', content: 'source text' });
+    mockFetchSourceContent.mockResolvedValue({
+      url: 'https://example.com',
+      content: 'source text',
+    });
     mockExecutePromptTask.mockResolvedValue({
       title: 'Test',
-      concepts: [{ id: 'c1', title: 'C1', explanation: 'E1', quiz: { format: 'mcq', question: 'Q?', options: ['A'], answer: 'A', explanation: 'R' } }],
+      concepts: [
+        {
+          id: 'c1',
+          title: 'C1',
+          explanation: 'E1',
+          quiz: { format: 'mcq', question: 'Q?', options: ['A'], answer: 'A', explanation: 'R' },
+        },
+      ],
     });
     mockRunPipeline.mockResolvedValue({ nodes: [], edges: [] });
 
@@ -347,7 +418,10 @@ describe('App', () => {
   it('restores canvas from sessionStorage on mount', async () => {
     sessionStorageMock.setItem('quizify:page', 'canvas');
     sessionStorageMock.setItem('quizify:currentId', 'existing-session');
-    mockSessionStore.setState({ currentId: 'existing-session', sessions: [{ id: 'existing-session' }] });
+    mockSessionStore.setState({
+      currentId: 'existing-session',
+      sessions: [{ id: 'existing-session' }],
+    });
 
     render(<App />);
 
@@ -370,10 +444,26 @@ describe('App', () => {
   });
 
   it('enables notebook mode before createSession during generate', async () => {
-    mockFetchSourceContent.mockResolvedValue({ url: 'https://example.com', content: 'source text' });
+    mockFetchSourceContent.mockResolvedValue({
+      url: 'https://example.com',
+      content: 'source text',
+    });
     mockExecutePromptTask.mockResolvedValue({
       title: 'Test Canvas',
-      concepts: [{ id: 'c1', title: 'C1', explanation: 'E1', quiz: { format: 'mcq', question: 'Q?', options: ['A', 'B'], answer: 'A', explanation: 'R' } }],
+      concepts: [
+        {
+          id: 'c1',
+          title: 'C1',
+          explanation: 'E1',
+          quiz: {
+            format: 'mcq',
+            question: 'Q?',
+            options: ['A', 'B'],
+            answer: 'A',
+            explanation: 'R',
+          },
+        },
+      ],
     });
     mockRunPipeline.mockResolvedValue({ nodes: [], edges: [] });
 
@@ -385,7 +475,10 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.getByTestId('canvas-page')).toBeInTheDocument();
     });
-    expect(mockNotebookSetState).toHaveBeenCalledWith({ notebookMode: true, completedTypingNodeIds: {} });
+    expect(mockNotebookSetState).toHaveBeenCalledWith({
+      notebookMode: true,
+      completedTypingNodeIds: {},
+    });
     expect(mockSessionStore.create).toHaveBeenCalled();
 
     // Notebook mode must be enabled before create resolves so the canvas mounts cleanly.

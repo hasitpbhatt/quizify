@@ -14,6 +14,13 @@ interface NotebookState {
   syncTtsState: (state: TtsState) => void;
   markTypingComplete: (nodeId: string) => void;
   hasTypingCompleted: (nodeId: string) => boolean;
+  /**
+   * Clear the typing-completion cache. Node ids are NOT session-scoped
+   * (concept ids like 'binary-search' repeat across lessons), so this MUST run
+   * on every session switch/generation start — otherwise a shared concept id
+   * makes the new lesson's typewriter/narration silently never start.
+   */
+  resetTypingForSession: () => void;
 }
 
 export const useNotebookStore = create<NotebookState>((set, get) => ({
@@ -41,6 +48,8 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
     ),
 
   hasTypingCompleted: (nodeId) => Boolean(get().completedTypingNodeIds[nodeId]),
+
+  resetTypingForSession: () => set({ completedTypingNodeIds: {} }),
 
   // Single source of truth for TTS state; maps TtsState to dual booleans
   syncTtsState: (state) =>
