@@ -9,10 +9,12 @@ import {
   type NoteData,
   type ConceptData,
   type SummaryData,
+  type ImageData,
 } from '@/shared/types';
 import { QuizInteraction } from '@/features/quiz/QuizInteraction';
 import { SummaryQuizInteraction } from '@/features/quiz/SummaryQuizInteraction';
 import { NoteNode } from './nodes/NoteNode';
+import { ImageNode } from './nodes/ImageNode';
 import { MobileFocusView } from './MobileFocusView';
 import { useIsMobile, useMediaQuery } from '@/shared/useMediaQuery';
 import { useDismissibleCue } from '@/shared/useDismissibleCue';
@@ -92,6 +94,18 @@ function filterVisibleNodes(nodes: CanvasNode[], currentConceptIndex: number): C
       const parentIdx = conceptIndexMap.has(q.parentConceptId)
         ? conceptIndexMap.get(q.parentConceptId)!
         : getConceptIndex(nodes, q.parentConceptId);
+      if (parentIdx < 0) continue;
+
+      if (parentIdx <= currentConceptIndex) {
+        visibleNodeIds.add(n.id);
+      }
+      continue;
+    }
+    if (n.data.kind === 'image') {
+      const img = n.data as ImageData;
+      const parentIdx = conceptIndexMap.has(img.parentConceptId)
+        ? conceptIndexMap.get(img.parentConceptId)!
+        : getConceptIndex(nodes, img.parentConceptId);
       if (parentIdx < 0) continue;
 
       if (parentIdx <= currentConceptIndex) {
@@ -848,7 +862,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
 
   const renderNode = (canvasNode: CanvasNode) => {
     const kind = canvasNode.data.kind;
-    const isActionable = kind !== 'note';
+    const isActionable = kind !== 'note' && kind !== 'image';
     const accessibleLabel =
       kind === 'concept'
         ? `Concept ${(canvasNode.data as ConceptData).index + 1}: ${(canvasNode.data as ConceptData).title}`
@@ -914,6 +928,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
             )}
           />
         )}
+        {kind === 'image' && <ImageNode id={canvasNode.id} data={canvasNode.data as ImageData} />}
       </div>
     );
   };

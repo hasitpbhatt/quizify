@@ -14,6 +14,23 @@ vi.mock('@/shared/stores/sessionStore', () => ({
   },
 }));
 
+const mockGenerateConceptImage = vi.hoisted(() => vi.fn());
+const mockRunCodeWorkbench = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/llm/agents', () => ({
+  generateConceptImage: mockGenerateConceptImage,
+  runCodeWorkbench: mockRunCodeWorkbench,
+}));
+
+const mockPutImage = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/db/imagesDb', () => ({
+  putImage: mockPutImage,
+}));
+
+const mockSessionsDbGetSession = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/db/sessionsDb', () => ({
+  getSession: mockSessionsDbGetSession,
+}));
+
 vi.mock('@/shared/stores/toastStore', () => ({
   useToastStore: {
     getState: () => ({ add: vi.fn() }),
@@ -28,6 +45,9 @@ import {
   processOneConcept,
   runContentPhase,
   generateQuizForConcept,
+  enrichConceptWithCode,
+  enrichConceptWithImage,
+  enrichConceptWithAgents,
   pushSummary,
   runPipeline,
   createRateLimitState,
@@ -42,6 +62,20 @@ beforeEach(() => {
   mockExecute.mockReset();
   mockUpdateCurrent.mockReset();
   mockExecute.mockResolvedValue(makeContentResponse());
+  mockGenerateConceptImage.mockResolvedValue({
+    blob: new Blob(['img'], { type: 'image/jpeg' }),
+    mime: 'image/jpeg',
+    fileName: 'diagram.jpg',
+    conversationId: 'conv_img',
+  });
+  mockRunCodeWorkbench.mockResolvedValue({
+    text: '',
+    code: undefined,
+    codeOutput: undefined,
+    conversationId: 'conv_code',
+  });
+  mockPutImage.mockResolvedValue(undefined);
+  mockSessionsDbGetSession.mockResolvedValue(undefined);
 });
 
 describe('quizItemToQuizData', () => {
@@ -390,6 +424,122 @@ describe('generateQuizForConcept', () => {
     );
 
     expect(nodes).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// enrichConceptWithCode / enrichConceptWithImage / enrichConceptWithAgents
+// ---------------------------------------------------------------------------
+
+describe('enrichConceptWithCode', () => {
+  it('splices a workbench note after the concept when code+output present', async () => {
+    mockRunCodeWorkbench.mockResolvedValue({
+      text: '',
+      code: 'print(6*7)',
+      codeOutput: '42',
+      conversationId: 'conv_code',
+    });
+
+    const nodes = [conceptNode('c1', 0)];
+    await enrichConceptWithCode(nodes, c1Info, 'Topic', 'sess1', undefined);
+
+    expect(nodes.map((n) => n.id)).toEqual(['c1', 'c1-workbench']);
+    expect(nodes[1].type).toBe('note');
+    const note = nodes[1].data as { kind: string; linkedConceptId?: string; text: string };
+    expect(note.kind).toBe('note');
+    expect(note.linkedConceptId).toBe('c1');
+    expect(note.text).toContain('print(6*7)');
+    expect(note.text).toContain('42');
+  });
+
+  it('does not splice when the model did not produce code', async () => {
+    const nodes = [conceptNode('c1', 0)];
+    await enrichConceptWithCode(nodes, c1Info, 'Topic', 'sess1', undefined);
+    expect(nodes).toHaveLength(1);
+  });
+
+  it('is non-fatal on agents failure', async () => {
+    mockRunCodeWorkbench.mockRejectedValue(new Error('agents down'));
+    const nodes = [conceptNode('c1', 0)];
+    await expect(
+      enrichConceptWithCode(nodes, c1Info, 'Topic', 'sess1', undefined),
+    ).resolves.toBeUndefined();
+    expect(nodes).toHaveLength(1);
+  });
+
+  it('skips when concept info is missing', async () => {
+    const nodes = [conceptNode('c1', 0)];
+    await enrichConceptWithCode(nodes, undefined, 'Topic', 'sess1', undefined);
+    expect(mockRunCodeWorkbench).not.toHaveBeenCalled();
+  });
+});
+
+describe('enrichConceptWithImage', () => {
+  it('stores the blob and splices an image node after the concept', async () => {
+    mockGenerateConceptImage.mockResolvedValue({
+      blob: new Blob(['img'], { type: 'image/png' }),
+      mime: 'image/png',
+      fileName: 'diagram.jpg',
+      conversationId: 'conv_img',
+    });
+
+    const nodes = [conceptNode('c1', 0)];
+    await enrichConceptWithImage(nodes, c1Info, 'Topic', 'sess1', undefined);
+
+    expect(mockPutImage).toHaveBeenCalledWith('sess1', 'c1-diagram', expect.any(Blob), 'image/png');
+    expect(nodes.map((n) => n.id)).toEqual(['c1', 'c1-diagram']);
+    const img = nodes[1].data as { kind: string; mime: string; caption?: string; blobKey: string };
+    expect(img.kind).toBe('image');
+    expect(img.mime).toBe('image/png');
+    expect(img.blobKey).toBe('sess1:c1-diagram');
+    expect(img.caption).toContain('One');
+  });
+
+  it('is non-fatal when agents fail', async () => {
+    mockGenerateConceptImage.mockRejectedValue(new Error('agents down'));
+    const nodes = [conceptNode('c1', 0)];
+    await expect(
+      enrichConceptWithImage(nodes, c1Info, 'Topic', 'sess1', undefined),
+    ).resolves.toBeUndefined();
+    expect(nodes).toHaveLength(1);
+    expect(mockPutImage).not.toHaveBeenCalled();
+  });
+
+  it('is non-fatal when blob storage fails (does not splice node)', async () => {
+    mockPutImage.mockRejectedValue(new Error('storage full'));
+    const nodes = [conceptNode('c1', 0)];
+    await enrichConceptWithImage(nodes, c1Info, 'Topic', 'sess1', undefined);
+    expect(nodes).toHaveLength(1);
+  });
+});
+
+describe('enrichConceptWithAgents', () => {
+  it('runs code then image and persists once', async () => {
+    mockRunCodeWorkbench.mockResolvedValue({
+      code: 'print(1)', codeOutput: '1', conversationId: 'conv_code',
+    });
+    mockGenerateConceptImage.mockResolvedValue({
+      blob: new Blob(['x'], { type: 'image/jpeg' }),
+      mime: 'image/jpeg',
+      fileName: 'a.jpg',
+      conversationId: 'conv_img',
+    });
+
+    const nodes = [conceptNode('c1', 0)];
+    const persist = vi.fn().mockResolvedValue(undefined);
+    await enrichConceptWithAgents(nodes, c1Info, 'Topic', 'sess1', undefined, persist);
+
+    // code workbench note + image node spliced after the concept
+    expect(nodes.map((n) => n.id)).toEqual(['c1', 'c1-workbench', 'c1-diagram']);
+    expect(persist).toHaveBeenCalledOnce();
+  });
+
+  it('does nothing when concept info is missing', async () => {
+    const persist = vi.fn().mockResolvedValue(undefined);
+    await enrichConceptWithAgents([], undefined, 'Topic', 'sess1', undefined, persist);
+    expect(mockRunCodeWorkbench).not.toHaveBeenCalled();
+    expect(mockGenerateConceptImage).not.toHaveBeenCalled();
+    expect(persist).not.toHaveBeenCalled();
   });
 });
 

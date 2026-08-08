@@ -1,11 +1,13 @@
 import { getDb, STORES } from './db';
 import type { SourceProvenance } from '@/shared/types';
+import type { AgentCitation } from '@/lib/llm/agents';
 
 export interface SourceCacheEntry {
   url: string;
   content: string;
   cachedAt: number; // ms epoch
   provenance?: SourceProvenance;
+  citations?: AgentCitation[];
 }
 
 export async function getCachedSourceEntry(url: string): Promise<SourceCacheEntry | undefined> {
@@ -28,6 +30,7 @@ export async function setCachedSource(
   url: string,
   content: string,
   provenance: SourceProvenance = 'legacy-unknown',
+  citations?: AgentCitation[],
 ): Promise<void> {
   const db = await getDb();
   await db.put(STORES.SOURCE_CACHE, {
@@ -35,5 +38,6 @@ export async function setCachedSource(
     content,
     cachedAt: Date.now(),
     provenance,
+    ...(citations ? { citations } : {}),
   } satisfies SourceCacheEntry);
 }

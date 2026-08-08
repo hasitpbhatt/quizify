@@ -2,10 +2,11 @@
   "compilerOptions": {
     "composite": true,
     "skipLibCheck": true,
+    "downlevelIteration": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "allowSyntheticDefaultImports": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "functions/_agents-core.ts"]
 }

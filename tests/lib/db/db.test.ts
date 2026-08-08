@@ -6,10 +6,11 @@ describe('getDb', () => {
     // Reset singleton by clearing the module cache isn't possible in vitest,
     // but we can just open/close. fake-indexeddb resets between tests anyway.
     const db = await getDb();
-    const tx = db.transaction([STORES.SESSIONS, STORES.SOURCE_CACHE], 'readwrite');
+    const tx = db.transaction([STORES.SESSIONS, STORES.SOURCE_CACHE, STORES.IMAGES], 'readwrite');
     await Promise.all([
       tx.objectStore(STORES.SESSIONS).clear(),
       tx.objectStore(STORES.SOURCE_CACHE).clear(),
+      tx.objectStore(STORES.IMAGES).clear(),
     ]);
     await tx.done;
   });
@@ -26,21 +27,23 @@ describe('getDb', () => {
     expect(db1).toBe(db2);
   });
 
-  it('creates both object stores', async () => {
+  it('creates all object stores', async () => {
     const db = await getDb();
     expect(db.objectStoreNames).toContain(STORES.SOURCE_CACHE);
     expect(db.objectStoreNames).toContain(STORES.SESSIONS);
+    expect(db.objectStoreNames).toContain(STORES.IMAGES);
   });
 
-  it('has version 2', async () => {
+  it('has version 3', async () => {
     const db = await getDb();
-    expect(db.version).toBe(2);
+    expect(db.version).toBe(3);
   });
 });
 
 describe('STORES', () => {
-  it('has source_cache and sessions', () => {
+  it('has source_cache, sessions and images', () => {
     expect(STORES.SOURCE_CACHE).toBe('source_cache');
     expect(STORES.SESSIONS).toBe('sessions');
+    expect(STORES.IMAGES).toBe('images');
   });
 });

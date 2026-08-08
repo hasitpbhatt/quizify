@@ -1,7 +1,15 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import type { CanvasNode, QuizData, ConceptData, NoteData, SummaryData } from '@/shared/types';
+import type {
+  CanvasNode,
+  QuizData,
+  ConceptData,
+  NoteData,
+  SummaryData,
+  ImageData,
+} from '@/shared/types';
 import { QuizInteraction } from '@/features/quiz/QuizInteraction';
 import { SummaryQuizInteraction } from '@/features/quiz/SummaryQuizInteraction';
+import { ImageNode } from './nodes/ImageNode';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { useSessionStore } from '@/shared/stores/sessionStore';
@@ -45,6 +53,7 @@ function formatKind(node: CanvasNode): string {
       .trim();
   }
   if (d.kind === 'note') return 'Note';
+  if (d.kind === 'image') return 'Diagram';
   if (d.kind === 'summary') return 'Summary';
   return 'Node';
 }
@@ -61,6 +70,9 @@ function renderContent(node: CanvasNode): { title?: string; body: string } {
   }
   if (d.kind === 'note') {
     return { body: d.text };
+  }
+  if (d.kind === 'image') {
+    return { body: '' };
   }
   if (d.kind === 'summary') {
     return { title: d.recap.length + ' recap points', body: d.recap.join('\n') };
@@ -389,6 +401,11 @@ export function MobileFocusView({
                   .map((p, i) => (
                     <p key={i}>{p}</p>
                   ))}
+              </div>
+            )}
+            {node.data.kind === 'image' && (
+              <div className={styles.body}>
+                <ImageNode id={node.id} data={node.data as ImageData} />
               </div>
             )}
             {node.data.kind === 'quiz' && (

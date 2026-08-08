@@ -1,0 +1,33 @@
+.figure {
+  margin: 0;
+  width: 380px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.12));
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  box-shadow: var(--card-shadow, none);
+}
+
+.img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.caption {
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--muted-text, inherit);
+  text-align: center;
+}
+
+.loading,
+.error {
+  padding: var(--space-5);
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--muted-text, inherit);
+}
