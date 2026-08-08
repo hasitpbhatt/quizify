@@ -60,8 +60,8 @@ export function isLikelyHtmlShell(content: string): boolean {
   if (!looksLikeHtmlDocument) return false;
 
   const visibleText = content
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script[^>]*>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style[^>]*>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
