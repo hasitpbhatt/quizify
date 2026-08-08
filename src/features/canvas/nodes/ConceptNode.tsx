@@ -8,6 +8,7 @@ import { ttsManager } from '@/lib/llm/ttsManager';
 import type { ConceptData } from '@/shared/types';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
+import { ConceptExamples } from '@/features/canvas/components/ConceptExamples';
 
 interface ConceptNodeProps {
   id: string;
@@ -19,7 +20,11 @@ interface ConceptNodeProps {
 
 function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNodeProps) {
   const notebookMode = useNotebookStore((s) => s.notebookMode);
-  const textToRead = `${data.title}. ${data.explanation}`;
+  const exampleText =
+    data.example && data.example !== 'Loading...' && data.example !== 'Generating...'
+      ? ` Example: ${data.example}`
+      : '';
+  const textToRead = `${data.title}. ${data.explanation}${exampleText}`;
   const skipTyping = data.index < currentConceptIndex;
   const { revealed, isAnimating, skipAnimation } = useTypingAnimation(id, textToRead, skipTyping);
 
@@ -56,6 +61,18 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
     };
   }, [isPlaying]);
 
+  // Only one audio source should be audible at a time. If the notebook
+  // narration (ttsManager) starts playing, pause this node's standalone
+  // "Listen" audio so the two never overlap.
+  useEffect(() => {
+    return ttsManager.subscribeState((state) => {
+      if (state === 'playing' && audioRef.current && !audioRef.current.paused) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+    });
+  }, []);
+
   const handlePlay = useCallback(async () => {
     if (isPlaying) {
       if (audioRef.current) {
@@ -66,6 +83,12 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
       }
       setIsPlaying(false);
       return;
+    }
+
+    // Stop the notebook narration before playing standalone audio so the two
+    // don't overlap; the state listener above handles the reverse direction.
+    if (ttsManager.isPlaying) {
+      ttsManager.stop();
     }
 
     setIsLoading(true);
@@ -165,6 +188,7 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
           ))
         )}
       </div>
+      <ConceptExamples example={data.example} />
       {hasFailed && (
         <div role="alert" className={styles.generationError}>
           This concept could not be generated. Use Retry or Skip in the lesson recovery panel.

@@ -8,7 +8,7 @@ export type QuizFormat =
 export type QuizState =
   'untested' | 'inProgress' | 'correct' | 'partial' | 'incorrect' | 'mastered';
 
-export type NodeKind = 'concept' | 'quiz' | 'note' | 'summary';
+export type NodeKind = 'concept' | 'quiz' | 'note' | 'image' | 'summary';
 export type SourceProvenance = 'fetched' | 'topic-generated' | 'legacy-unknown';
 export type ConceptGenerationStatus = 'generating' | 'ready' | 'failed' | 'skipped';
 
@@ -63,6 +63,15 @@ export interface NoteData {
   linkedConceptId?: string;
 }
 
+export interface ImageData {
+  kind: 'image';
+  parentConceptId: string;
+  caption?: string;
+  blobKey: string;
+  mime: string;
+  fileName?: string;
+}
+
 export interface SummaryData {
   kind: 'summary';
   recap: string[];
@@ -78,7 +87,7 @@ export interface SummaryResults {
   perConcept: Record<string, QuizState>;
 }
 
-export type NodeData = ConceptData | QuizData | NoteData | SummaryData;
+export type NodeData = ConceptData | QuizData | NoteData | ImageData | SummaryData;
 
 export interface CanvasNode {
   id: string;
@@ -111,6 +120,11 @@ export interface Session {
   nodes: CanvasNode[];
   edges?: CanvasEdge[];
   scores: Record<string, { best: number; attempts: number }>;
+  /** Persisted Mistral conversations v1 conversation ids per capability scope. */
+  agentConversations?: {
+    source?: string;
+    concepts?: Record<string, { image?: string; code?: string }>;
+  };
 }
 
 export interface GenerationProgress {
