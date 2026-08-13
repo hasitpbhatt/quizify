@@ -9,6 +9,7 @@ import { FillBlank } from './formats/FillBlank';
 import { Ordering } from './formats/Ordering';
 import type { SubmitResult } from './useQuizAnswer';
 import { useQuizAnswer } from './useQuizAnswer';
+import { VoiceAnswerInput } from './VoiceAnswerInput';
 import styles from './QuizInteraction.module.css';
 
 const badgeClasses: Record<string, string> = {
@@ -188,6 +189,11 @@ export function QuizInteraction({ quiz, quizId, conceptTitle, onClose, notebookM
             )}
             {quiz.format === 'trueFalse' && (
               <TrueFalse disabled={submitting} onSubmit={handleSubmit} />
+            )}
+            {(quiz.format === 'shortAnswer' || quiz.format === 'freeText') && (
+              <div style={{ marginBottom: 12 }}>
+                <VoiceAnswerInput disabled={submitting} onTranscribed={handleSubmit} />
+              </div>
             )}
             {quiz.format === 'shortAnswer' && (
               <ShortAnswer disabled={submitting} onSubmit={handleSubmit} />

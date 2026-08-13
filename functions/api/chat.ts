@@ -1,3 +1,5 @@
+import { validateChatBody } from '../_shared/validateRequest';
+
 export async function onRequest(context: EventContext): Promise<Response> {
   const { request, env } = context;
 
@@ -6,7 +8,14 @@ export async function onRequest(context: EventContext): Promise<Response> {
   }
 
   const mistralApiKey = env.MISTRAL_API_KEY;
-  const body: Record<string, unknown> = await request.json();
+  const body: unknown = await request.json();
+  const validation = validateChatBody(body);
+  if (!validation.valid) {
+    return new Response(
+      JSON.stringify({ error: `Invalid request payload: ${validation.error}` }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
 
   if (!mistralApiKey) {
     return new Response(

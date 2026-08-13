@@ -25,22 +25,20 @@ export function normalizeLearningProgress(
   };
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export function computeNextReviewAt(
   state: 'correct' | 'partial' | 'incorrect' | 'mastered' | 'untested' | 'inProgress',
   now = Date.now(),
+  successStreak = 0,
 ): number {
-  switch (state) {
-    case 'incorrect':
-      return now;
-    case 'partial':
-      return now + 1 * 24 * 60 * 60 * 1000;
-    case 'correct':
-      return now + 3 * 24 * 60 * 60 * 1000;
-    case 'mastered':
-      return now + 7 * 24 * 60 * 60 * 1000;
-    default:
-      return now;
-  }
+  if (state === 'incorrect' || state === 'untested' || state === 'inProgress') return now;
+  if (state === 'partial') return now + 1 * DAY_MS;
+  if (state === 'mastered') return now + 7 * DAY_MS;
+
+  const intervals = [3, 7, 14, 30];
+  const streakIdx = Math.min(Math.max(0, successStreak), intervals.length - 1);
+  return now + intervals[streakIdx] * DAY_MS;
 }
 
 export function getNextLearningAction(
@@ -50,21 +48,18 @@ export function getNextLearningAction(
   const { lastConceptId, completedConceptIds, nextReviewAtByConceptId } = progress;
   const now = Date.now();
 
-  const completedSet = new Set(completedConceptIds ?? []);
-
-  const remainingConceptIds = orderedConceptIds.filter((id) => !completedSet.has(id));
-
-  if (remainingConceptIds.length === 0) {
-    return { kind: 'complete' };
-  }
-
+  // 1. Check for due reviews first (even if completed in the past!)
   for (const conceptId of orderedConceptIds) {
     const reviewAt = nextReviewAtByConceptId[conceptId];
-    if (reviewAt && reviewAt <= now && !completedSet.has(conceptId)) {
+    if (reviewAt && reviewAt <= now) {
       return { kind: 'review', conceptId };
     }
   }
 
+  const completedSet = new Set(completedConceptIds ?? []);
+  const remainingConceptIds = orderedConceptIds.filter((id) => !completedSet.has(id));
+
+  // 2. Check for in-progress concept continuation
   if (
     lastConceptId &&
     !completedSet.has(lastConceptId) &&
@@ -73,5 +68,10 @@ export function getNextLearningAction(
     return { kind: 'continue', conceptId: lastConceptId };
   }
 
-  return { kind: 'start', conceptId: remainingConceptIds[0] };
+  // 3. Start remaining uncompleted concept
+  if (remainingConceptIds.length > 0) {
+    return { kind: 'start', conceptId: remainingConceptIds[0] };
+  }
+
+  return { kind: 'complete' };
 }

@@ -103,12 +103,36 @@ export interface CanvasEdge {
   type?: string;
 }
 
+export interface LearningGoal {
+  id: string;
+  title: string;
+  subject?: string;
+  examDate?: number;
+  dailyMinutes?: number;
+  confidence: 'low' | 'medium' | 'high';
+  createdAt: number;
+  updatedAt: number;
+  sessionIds: string[];
+}
+
+export interface ConceptMastery {
+  conceptId: string;
+  attemptCount: number;
+  successStreak: number;
+  stabilityScore: number;
+  nextReviewAt: number;
+  lastGrade: 'correct' | 'partial' | 'incorrect';
+  lastContext: 'immediate' | 'delayed';
+}
+
 export interface Session {
   /** Lightweight learner memory used for resume and review decisions. */
   lastConceptId?: string;
   completedConceptIds?: string[];
   nextReviewAtByConceptId?: Record<string, number>;
   lastActivityAt?: number;
+  goalId?: string;
+  masteryByConceptId?: Record<string, ConceptMastery>;
   id: string;
   name: string;
   url: string;

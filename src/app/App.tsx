@@ -19,6 +19,9 @@ import { useLatencyStore } from '@/shared/stores/latencyStore';
 import { LatencyPanel } from './LatencyPanel';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { trackEvent } from '@/lib/analytics/events';
+import { GoalSetupModal } from '@/features/goal/GoalSetupModal';
+import { TodayPage } from '@/features/today/TodayPage';
+import { useGoalStore } from '@/shared/stores/goalStore';
 import type { SourceProvenance } from '@/shared/types';
 import '@/styles/global.css';
 
@@ -41,7 +44,8 @@ function extractHostname(url: string): string {
 
 export function App() {
   useTheme();
-  const [page, setPage] = useState<'welcome' | 'progress' | 'canvas'>('welcome');
+  const [page, setPage] = useState<'welcome' | 'today' | 'progress' | 'canvas'>('welcome');
+  const [showGoalModal, setShowGoalModal] = useState(false);
   const [progress, setProgress] = useState<JourneyProgress>({
     stage: 'fetch',
     label: 'Reading the source\u2026',
@@ -51,7 +55,10 @@ export function App() {
   const reachedCanvasRef = useRef(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const loadSessions = useSessionStore((s) => s.load);
+  const loadGoals = useGoalStore((s) => s.load);
   const sessions = useSessionStore((s) => s.sessions);
+  const activeGoalId = useGoalStore((s) => s.activeGoalId);
+  const addSessionToGoal = useGoalStore((s) => s.addSessionToGoal);
   const currentId = useSessionStore((s) => s.currentId);
   const select = useSessionStore((s) => s.select);
   const [previewData, setPreviewData] = useState<{
@@ -63,30 +70,32 @@ export function App() {
     onCancel: () => void;
   } | null>(null);
 
-  // Restore canvas page on tab reload, and always load sessions on mount
+  // Restore canvas or today page on tab reload, and always load sessions & goals on mount
   useEffect(() => {
     const savedPage = sessionStorage.getItem('quizify:page');
     const savedId = sessionStorage.getItem('quizify:currentId');
-    const needsRestore = savedPage === 'canvas' && savedId;
+    const needsRestoreCanvas = savedPage === 'canvas' && savedId;
 
     (async () => {
-      await loadSessions();
-      if (needsRestore) {
+      await Promise.all([loadSessions(), loadGoals()]);
+      if (needsRestoreCanvas) {
         if (!savedId) return;
         const { select } = useSessionStore.getState();
         await select(savedId);
         if (useSessionStore.getState().currentId) {
           setPage('canvas');
         }
+      } else if (savedPage === 'today') {
+        setPage('today');
       }
     })();
-  }, [loadSessions]);
+  }, [loadSessions, loadGoals]);
 
   // Persist page to sessionStorage (skip 'progress' — can't resume mid-flight)
   useEffect(() => {
     if (page === 'progress') return;
-    if (page === 'canvas') {
-      sessionStorage.setItem('quizify:page', 'canvas');
+    if (page === 'canvas' || page === 'today') {
+      sessionStorage.setItem('quizify:page', page);
     } else {
       sessionStorage.removeItem('quizify:page');
     }
@@ -287,6 +296,9 @@ export function App() {
         sourceProvenance: src.provenance,
         persona,
       });
+      if (activeGoalId) {
+        await addSessionToGoal(activeGoalId, session.id);
+      }
       // Invariant (architecture doc): always `await createSession` then
       // `await select` — unconditionally.
       await select(session.id);
@@ -377,6 +389,19 @@ export function App() {
         />
         <CanvasPage progress={progress} isGenerating={isGenerating} onHome={goWelcome} />
       </div>
+    ) : page === 'today' ? (
+      <div key="today" className="pageEnter">
+        <Toolbar
+          isGenerating={isGenerating}
+          onCancelGeneration={handleCancel}
+          onCycleTheme={cycleTheme}
+        />
+        <TodayPage
+          onSelectSession={handleSelectSession}
+          onNewGoal={() => setShowGoalModal(true)}
+          onNewSource={() => setPage('welcome')}
+        />
+      </div>
     ) : (
       <div key="welcome" className="pageEnter">
         <WelcomeModal
@@ -417,6 +442,15 @@ export function App() {
       )}
     >
       {main}
+      {showGoalModal && (
+        <GoalSetupModal
+          onComplete={() => {
+            setShowGoalModal(false);
+            setPage('welcome');
+          }}
+          onSkip={() => setShowGoalModal(false)}
+        />
+      )}
       {import.meta.env.DEV && <LatencyPanel />}
       <Toaster />
     </ErrorBoundary>

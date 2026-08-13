@@ -31,6 +31,9 @@ export function getDb(): Promise<IDBPDatabase<unknown>> {
       if (!db.objectStoreNames.contains('images')) {
         db.createObjectStore('images', { keyPath: 'key' });
       }
+      if (!db.objectStoreNames.contains('goals')) {
+        db.createObjectStore('goals', { keyPath: 'id' });
+      }
     },
     blocked(currentVersion, blockedVersion) {
       console.error(
@@ -71,4 +74,5 @@ export const STORES = {
   SOURCE_CACHE: 'source_cache',
   SESSIONS: 'sessions',
   IMAGES: 'images',
+  GOALS: 'goals',
 } as const;

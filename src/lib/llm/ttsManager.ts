@@ -1,4 +1,5 @@
 import { debugLog } from '@/lib/debug';
+import { fetchTtsBlob } from './tts';
 
 export interface TtsSegment {
   nodeId: string;
@@ -32,6 +33,8 @@ class TtsManagerSingleton {
 
   private charCount = 0;
   private utterance: SpeechSynthesisUtterance | null = null;
+  private audioElement: HTMLAudioElement | null = null;
+  private voiceId: string = 'gb_jane_neutral';
   private currentText: string = '';
   /** Speech rate (0.5–2) applied to each utterance. */
   private rate = 1;
@@ -150,6 +153,10 @@ class TtsManagerSingleton {
     this.rate = Math.min(2, Math.max(0.5, rate));
   }
 
+  setVoiceId(voiceId: string): void {
+    this.voiceId = voiceId;
+  }
+
   subscribe(
     nodeId: string,
     cb: {
@@ -231,7 +238,7 @@ class TtsManagerSingleton {
     this.callbacks.onSegmentEnd?.(nodeId);
   }
 
-  private playNext(): void {
+  private async playNext(): Promise<void> {
     this.currentIdx++;
     if (this.currentIdx >= this.queue.length) {
       this.state = 'idle';
@@ -256,6 +263,10 @@ class TtsManagerSingleton {
     );
     this.notifySegmentStart(segment.nodeId);
 
+    // Try Mistral Voxtral audio first
+    const voxtralSuccess = await this.playVoxtral(segment);
+    if (voxtralSuccess) return;
+
     if (!this.speechSynthesisAvailable) {
       // Simulate completion when browser speech synthesis is unavailable
       setTimeout(() => {
@@ -267,6 +278,47 @@ class TtsManagerSingleton {
     }
 
     this.playSpeechSynthesis(segment);
+  }
+
+  private async playVoxtral(segment: TtsSegment): Promise<boolean> {
+    try {
+      const blob = await fetchTtsBlob(segment.text, this.voiceId);
+      if (!blob) return false;
+
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.playbackRate = this.rate;
+      this.audioElement = audio;
+
+      const totalLen = segment.text.length;
+
+      audio.ontimeupdate = () => {
+        if (!audio.duration) return;
+        const pct = audio.currentTime / audio.duration;
+        const charIdx = Math.floor(pct * totalLen);
+        this.notifyCharProgress(segment.nodeId, Math.min(charIdx, totalLen));
+      };
+
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        this.notifyCharProgress(segment.nodeId, totalLen);
+        this.notifySegmentEnd(segment.nodeId);
+        this.cleanupAudio();
+        this.playNext();
+      };
+
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        this.cleanupAudio();
+        return false;
+      };
+
+      await audio.play();
+      return true;
+    } catch (err) {
+      debugLog('warn', 'tts', 'Voxtral playback failed → browser fallback: %s', String(err));
+      return false;
+    }
   }
 
   private playSpeechSynthesis(segment: TtsSegment): void {
@@ -298,6 +350,16 @@ class TtsManagerSingleton {
     window.speechSynthesis.speak(utterance);
   }
 
+  private cleanupAudio(): void {
+    if (this.audioElement) {
+      this.audioElement.ontimeupdate = null;
+      this.audioElement.onended = null;
+      this.audioElement.onerror = null;
+      this.audioElement.pause();
+      this.audioElement = null;
+    }
+  }
+
   private cleanupSpeech(): void {
     if (this.utterance) {
       this.utterance.onboundary = null;
@@ -308,6 +370,7 @@ class TtsManagerSingleton {
   }
 
   private cleanup(): void {
+    this.cleanupAudio();
     this.cleanupSpeech();
     if (this.speechSynthesisAvailable) {
       window.speechSynthesis.cancel();

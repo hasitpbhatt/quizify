@@ -69,3 +69,14 @@ export function getSummaryModel(): string {
 export function getApiBase(): string {
   return PROVIDER.apiBase;
 }
+
+export const PERSONA_VOICE_MAP: Record<string, string> = {
+  curious: 'gb_jane_neutral',
+  student: 'gb_jane_neutral',
+  professional: 'en_alex_neutral',
+  expert: 'en_michael_calm',
+};
+
+export function getVoiceIdForPersona(persona: string): string {
+  return PERSONA_VOICE_MAP[persona] ?? 'gb_jane_neutral';
+}

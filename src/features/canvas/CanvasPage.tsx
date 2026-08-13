@@ -34,7 +34,9 @@ import {
   Plus,
   Sun,
   Download,
+  Mic,
 } from 'lucide-react';
+import { VoiceTutorMode } from '@/features/voice/VoiceTutorMode';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
@@ -155,6 +157,7 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
   const totalSegments = useNotebookStore((s) => s.totalSegments);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const [showVoiceTutor, setShowVoiceTutor] = useState(false);
 
   useEffect(() => {
     containerRef.current?.focus({ preventScroll: true });
@@ -1222,6 +1225,15 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
                 {ttsEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
               </button>
               <button
+                onClick={() => setShowVoiceTutor(true)}
+                title="Start Voice Tutor mode"
+                aria-label="Start Voice Tutor mode"
+                type="button"
+                style={{ color: '#89b4fa' }}
+              >
+                <Mic size={14} />
+              </button>
+              <button
                 onClick={() => ttsManager.skip()}
                 title="Skip segment"
                 aria-label="Skip narration segment"
@@ -1403,6 +1415,14 @@ export function CanvasPage({ progress, isGenerating = false, onHome }: CanvasPag
               onUpdateScores={handleUpdateScores}
             />
           </ErrorBoundary>
+        )}
+        {showVoiceTutor && session && (
+          <VoiceTutorMode
+            nodes={session.nodes}
+            sessionId={session.id}
+            persona={session.persona}
+            onClose={() => setShowVoiceTutor(false)}
+          />
         )}
       </main>
     </ErrorBoundary>
