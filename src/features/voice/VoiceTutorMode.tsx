@@ -16,6 +16,10 @@ interface VoiceTutorModeProps {
 type Step =
   'narrating_concept' | 'asking_quiz' | 'listening' | 'transcribing' | 'grading' | 'feedback';
 
+// If TTS is blocked/stalled, advance anyway so the user is never trapped on a
+// silent screen.
+const SAFETY_ADVANCE_MS = 12000;
+
 export function VoiceTutorMode({ nodes, sessionId, persona, onClose }: VoiceTutorModeProps) {
   const conceptNodes = nodes.filter((n) => n.data.kind === 'concept');
   const [conceptIndex, setConceptIndex] = useState(0);
@@ -24,8 +28,20 @@ export function VoiceTutorMode({ nodes, sessionId, persona, onClose }: VoiceTuto
   const [feedbackText, setFeedbackText] = useState('');
   const [gradeResult, setGradeResult] = useState<'correct' | 'partial' | 'incorrect' | null>(null);
 
+  const stepRef = useRef(step);
+  stepRef.current = step;
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const clearTimers = () => {
+    timersRef.current.forEach((t) => clearTimeout(t));
+    timersRef.current = [];
+  };
+  const later = (fn: () => void, ms: number) => {
+    const t = setTimeout(fn, ms);
+    timersRef.current.push(t);
+  };
 
   const currentConcept = conceptNodes[conceptIndex]?.data as ConceptData | undefined;
   const currentQuiz = currentConcept
@@ -35,53 +51,86 @@ export function VoiceTutorMode({ nodes, sessionId, persona, onClose }: VoiceTuto
           (n.data as QuizData).parentConceptId === conceptNodes[conceptIndex].id,
       )?.data as QuizData | undefined)
     : undefined;
+  // Keep latest quiz/concept available to async callbacks without stale closures.
+  const currentQuizRef = useRef<QuizData | undefined>(undefined);
+  currentQuizRef.current = currentQuiz;
+  const currentConceptRef = useRef<ConceptData | undefined>(undefined);
+  currentConceptRef.current = currentConcept;
+  const conceptIndexRef = useRef(conceptIndex);
+  conceptIndexRef.current = conceptIndex;
 
-  // Step 1: Speak Concept Explanation
+  const advanceConcept = () => {
+    if (conceptIndexRef.current + 1 < conceptNodes.length) {
+      setConceptIndex((i) => i + 1);
+    } else {
+      onClose();
+    }
+  };
+
+  const proceedFromConcept = () => {
+    if (stepRef.current !== 'narrating_concept') return;
+    if (currentQuizRef.current) setStep('asking_quiz');
+    else advanceConcept();
+  };
+
+  const advanceAfterFeedback = () => {
+    if (stepRef.current !== 'feedback') return;
+    advanceConcept();
+  };
+
+  // Step 1: Speak Concept Explanation (best-effort; never blocks progression)
   useEffect(() => {
-    if (!currentConcept) return;
+    const concept = conceptNodes[conceptIndex]?.data as ConceptData | undefined;
+    if (!concept) return;
 
     setStep('narrating_concept');
     setTranscript('');
     setFeedbackText('');
     setGradeResult(null);
 
-    const textToSpeak = `${currentConcept.title}. ${currentConcept.explanation}`;
+    const quiz = conceptNodes[conceptIndex]
+      ? (nodes.find(
+          (n) =>
+            n.data.kind === 'quiz' &&
+            (n.data as QuizData).parentConceptId === conceptNodes[conceptIndex].id,
+        )?.data as QuizData | undefined)
+      : undefined;
+
+    const advance = () => {
+      if (stepRef.current !== 'narrating_concept') return;
+      if (quiz) setStep('asking_quiz');
+      else advanceConcept();
+    };
+
+    const textToSpeak = `${concept.title}. ${concept.explanation}`;
     ttsManager.clearQueue();
     ttsManager.enqueue({ nodeId: 'vt_concept', text: textToSpeak });
-
-    ttsManager.setCallbacks({
-      onQueueEnd: () => {
-        if (currentQuiz) {
-          setStep('asking_quiz');
-        } else {
-          // Advance concept if no quiz
-          if (conceptIndex + 1 < conceptNodes.length) {
-            setConceptIndex((i) => i + 1);
-          }
-        }
-      },
-    });
-
+    ttsManager.setCallbacks({ onQueueEnd: advance });
     ttsManager.start();
+
+    // Safety net: if TTS is blocked (autoplay policy, no audio device, etc.)
+    // the window must still advance to the question. The user can also tap
+    // "Skip intro" to continue immediately.
+    later(advance, SAFETY_ADVANCE_MS);
 
     return () => {
+      clearTimers();
       ttsManager.stop();
     };
-  }, [conceptIndex, currentConcept]);
+  }, [conceptIndex]);
 
-  // Step 2: Speak Quiz Prompt
+  // Step 2: Speak Quiz Prompt (best-effort; mic is started via user gesture)
   useEffect(() => {
-    if (step !== 'asking_quiz' || !currentQuiz) return;
+    if (step !== 'asking_quiz' || !currentQuizRef.current) return;
 
     ttsManager.clearQueue();
-    ttsManager.enqueue({ nodeId: 'vt_quiz', text: `Here is a question: ${currentQuiz.prompt}` });
-    ttsManager.setCallbacks({
-      onQueueEnd: () => {
-        startListening();
-      },
+    ttsManager.enqueue({
+      nodeId: 'vt_quiz',
+      text: `Here is a question: ${currentQuizRef.current.prompt}`,
     });
+    ttsManager.setCallbacks({});
     ttsManager.start();
-  }, [step, currentQuiz]);
+  }, [step]);
 
   const startListening = async () => {
     try {
@@ -112,6 +161,7 @@ export function VoiceTutorMode({ nodes, sessionId, persona, onClose }: VoiceTuto
       mediaRecorder.start(200);
       setStep('listening');
     } catch {
+      // Mic unavailable / denied — let the user retry from the question screen.
       setStep('asking_quiz');
     }
   };
@@ -123,25 +173,32 @@ export function VoiceTutorMode({ nodes, sessionId, persona, onClose }: VoiceTuto
   };
 
   const processAnswer = async (givenText: string) => {
-    if (!currentQuiz || !currentConcept) return;
+    const quiz = currentQuizRef.current;
+    const concept = currentConceptRef.current;
+    if (!quiz || !concept) return;
 
     setStep('grading');
-    const grade = localGrade(currentQuiz, givenText).grade;
+    const grade = localGrade(quiz, givenText).grade;
 
     setGradeResult(grade);
 
     // Save concept mastery in goal store
     await useGoalStore
       .getState()
-      .updateConceptMastery(sessionId, conceptNodes[conceptIndex].id, grade, 'immediate');
+      .updateConceptMastery(
+        sessionId,
+        conceptNodes[conceptIndexRef.current].id,
+        grade,
+        'immediate',
+      );
 
     // Generate spoken feedback
     const feedback = await fetchVoiceFeedback({
-      conceptTitle: currentConcept.title,
-      question: currentQuiz.prompt,
+      conceptTitle: concept.title,
+      question: quiz.prompt,
       answer: givenText,
       grade,
-      rationale: currentQuiz.rationale,
+      rationale: quiz.rationale,
       persona,
     });
 
@@ -151,20 +208,19 @@ export function VoiceTutorMode({ nodes, sessionId, persona, onClose }: VoiceTuto
     // Speak feedback
     ttsManager.clearQueue();
     ttsManager.enqueue({ nodeId: 'vt_feedback', text: feedback });
-    ttsManager.setCallbacks({
-      onQueueEnd: () => {
-        // Advance to next concept after 2s
-        setTimeout(() => {
-          if (conceptIndex + 1 < conceptNodes.length) {
-            setConceptIndex((i) => i + 1);
-          } else {
-            onClose();
-          }
-        }, 2000);
-      },
-    });
+    ttsManager.setCallbacks({ onQueueEnd: advanceAfterFeedback });
     ttsManager.start();
+
+    // Safety net in case feedback TTS never completes.
+    later(advanceAfterFeedback, SAFETY_ADVANCE_MS);
   };
+
+  useEffect(() => {
+    return () => {
+      clearTimers();
+      ttsManager.stop();
+    };
+  }, []);
 
   return (
     <div
@@ -307,7 +363,58 @@ export function VoiceTutorMode({ nodes, sessionId, persona, onClose }: VoiceTuto
       </div>
 
       {/* Action Controls */}
-      <div>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {step === 'narrating_concept' && (
+          <button
+            onClick={proceedFromConcept}
+            style={{
+              padding: '12px 28px',
+              borderRadius: 24,
+              border: '1px solid rgba(255,255,255,0.2)',
+              background: 'transparent',
+              color: '#cdd6f4',
+              cursor: 'pointer',
+              fontSize: 15,
+            }}
+          >
+            Skip intro ▶
+          </button>
+        )}
+
+        {step === 'asking_quiz' && (
+          <>
+            <button
+              onClick={startListening}
+              style={{
+                padding: '12px 28px',
+                borderRadius: 24,
+                border: 'none',
+                background: '#89b4fa',
+                color: '#11111b',
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontSize: 15,
+              }}
+            >
+              🎙️ Speak your answer
+            </button>
+            <button
+              onClick={advanceConcept}
+              style={{
+                padding: '12px 28px',
+                borderRadius: 24,
+                border: '1px solid rgba(255,255,255,0.2)',
+                background: 'transparent',
+                color: '#a6adc8',
+                cursor: 'pointer',
+                fontSize: 15,
+              }}
+            >
+              Skip question
+            </button>
+          </>
+        )}
+
         {step === 'listening' && (
           <button
             onClick={stopListening}
@@ -324,6 +431,10 @@ export function VoiceTutorMode({ nodes, sessionId, persona, onClose }: VoiceTuto
           >
             ⏹ Done Speaking
           </button>
+        )}
+
+        {step === 'transcribing' && (
+          <div style={{ color: '#a6adc8', fontSize: 15 }}>Listening… transcribing your answer</div>
         )}
       </div>
     </div>
