@@ -14,12 +14,7 @@ interface VoiceTutorModeProps {
 }
 
 type Step =
-  | 'narrating_concept'
-  | 'asking_quiz'
-  | 'listening'
-  | 'transcribing'
-  | 'grading'
-  | 'feedback';
+  'narrating_concept' | 'asking_quiz' | 'listening' | 'transcribing' | 'grading' | 'feedback';
 
 // If TTS is blocked/stalled, advance anyway so the user is never trapped on a
 // silent screen.
@@ -190,7 +185,12 @@ export function VoiceTutorMode({ nodes, sessionId, persona, onClose }: VoiceTuto
     // Save concept mastery in goal store
     await useGoalStore
       .getState()
-      .updateConceptMastery(sessionId, conceptNodes[conceptIndexRef.current].id, grade, 'immediate');
+      .updateConceptMastery(
+        sessionId,
+        conceptNodes[conceptIndexRef.current].id,
+        grade,
+        'immediate',
+      );
 
     // Generate spoken feedback
     const feedback = await fetchVoiceFeedback({
