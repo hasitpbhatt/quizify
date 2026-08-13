@@ -97,7 +97,7 @@ describe('getNextLearningAction', () => {
     expect(action).toEqual({ kind: 'review', conceptId: 'c1' });
   });
 
-  it('does not return due review for completed concepts', () => {
+  it('returns due review for completed concepts when nextReviewAt is past', () => {
     const now = Date.now();
     const progress: LearningProgress = {
       lastConceptId: null,
@@ -106,7 +106,7 @@ describe('getNextLearningAction', () => {
       lastActivityAt: now,
     };
     const action = getNextLearningAction(progress, conceptIds);
-    expect(action.kind).not.toBe('review');
+    expect(action).toEqual({ kind: 'review', conceptId: 'c1' });
   });
 
   it('returns continue with lastConceptId when not due', () => {
