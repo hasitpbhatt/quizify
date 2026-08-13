@@ -310,7 +310,12 @@ class TtsManagerSingleton {
       audio.onerror = () => {
         URL.revokeObjectURL(url);
         this.cleanupAudio();
-        return false;
+        // Voxtral audio failed mid-playback: never leave the queue stalled.
+        // End the current segment and advance so downstream steps (e.g. the
+        // Voice Tutor mic prompt) can still proceed.
+        this.notifyCharProgress(segment.nodeId, totalLen);
+        this.notifySegmentEnd(segment.nodeId);
+        this.playNext();
       };
 
       await audio.play();

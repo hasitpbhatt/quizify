@@ -37,7 +37,7 @@ export async function onRequest(context: EventContext<Env, string, unknown>): Pr
 
     const formData = new FormData();
     formData.append('file', new Blob([binary], { type: mimeType }), `recording.${format || 'webm'}`);
-    formData.append('model', 'voxtral-mini-transcribe-2602');
+    formData.append('model', 'voxtral-mini-2602');
 
     const mistralResponse = await fetch('https://api.mistral.ai/v1/audio/transcriptions', {
       method: 'POST',
