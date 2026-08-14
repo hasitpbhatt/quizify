@@ -1,10 +1,10 @@
 import { memo, useState, useRef, useEffect, useCallback } from 'react';
 import { Volume2, Loader2, Square } from 'lucide-react';
 import styles from './ConceptNode.module.css';
-import { fetchTtsBlob } from '@/lib/llm/tts';
 import { useTypingAnimation } from '@/features/canvas/useTypingAnimation';
 import { useNotebookStore } from '@/shared/stores/notebookStore';
 import { ttsManager } from '@/lib/llm/ttsManager';
+import { useMediaQuery } from '@/shared/useMediaQuery';
 import type { ConceptData } from '@/shared/types';
 import { ErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { NodeErrorFallback } from '@/lib/components/NodeErrorFallback';
@@ -31,9 +31,8 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [entered, setEntered] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const currentBlobUrlRef = useRef<string | null>(null);
   const prevExample = useRef(data.example);
+  const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
   useEffect(() => {
     if (prevExample.current === 'Loading...' && data.example !== 'Loading...') {
@@ -48,36 +47,18 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
 
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        if (currentBlobUrlRef.current) {
-          URL.revokeObjectURL(currentBlobUrlRef.current);
-          currentBlobUrlRef.current = null;
-        }
-      }
       if (isPlaying && !ttsManager.isPlaying) {
         window.speechSynthesis.cancel();
       }
     };
   }, [isPlaying]);
 
-  // Only one audio source should be audible at a time. If the notebook
-  // narration (ttsManager) starts playing, pause this node's standalone
-  // "Listen" audio so the two never overlap.
-  useEffect(() => {
-    return ttsManager.subscribeState((state) => {
-      if (state === 'playing' && audioRef.current && !audioRef.current.paused) {
-        audioRef.current.pause();
-        setIsPlaying(false);
-      }
-    });
-  }, []);
-
   const handlePlay = useCallback(async () => {
+    // Respect reduced-motion: never auto-start audio narration for users who
+    // opted out of motion. The button is also disabled in the UI below.
+    if (prefersReducedMotion) return;
+
     if (isPlaying) {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
       if (!ttsManager.isPlaying) {
         window.speechSynthesis.cancel();
       }
@@ -87,6 +68,9 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
 
     // Stop the notebook narration before playing standalone audio so the two
     // don't overlap; the state listener above handles the reverse direction.
+    // ttsManager is the single audio source — it tries the server Voxtral audio
+    // and falls back to the Web Speech API, so no separate audio element is
+    // needed and we never claim server TTS that may be unavailable.
     if (ttsManager.isPlaying) {
       ttsManager.stop();
     }
@@ -94,32 +78,22 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
     setIsLoading(true);
 
     try {
-      const blob = await fetchTtsBlob(textToRead);
-      if (blob) {
-        if (currentBlobUrlRef.current) {
-          URL.revokeObjectURL(currentBlobUrlRef.current);
-        }
-        const url = URL.createObjectURL(blob);
-        currentBlobUrlRef.current = url;
-        const audio = new Audio(url);
-        audioRef.current = audio;
-        audio.onended = () => setIsPlaying(false);
-        audio.onerror = () => setIsPlaying(false);
-        await audio.play();
-        setIsPlaying(true);
-      } else {
-        const utterance = new SpeechSynthesisUtterance(textToRead);
-        utterance.onend = () => setIsPlaying(false);
-        utterance.onerror = () => setIsPlaying(false);
-        window.speechSynthesis.speak(utterance);
-        setIsPlaying(true);
+      if (!ttsManager.speechSynthesisAvailable) {
+        setIsPlaying(false);
+        return;
       }
+      ttsManager.setRate(1);
+      ttsManager.clearQueue();
+      ttsManager.enqueue({ nodeId: id, text: textToRead });
+      ttsManager.start();
+      setIsPlaying(true);
     } catch (err) {
       console.error(err);
+      setIsPlaying(false);
     } finally {
       setIsLoading(false);
     }
-  }, [isPlaying, textToRead]);
+  }, [isPlaying, textToRead, id, prefersReducedMotion]);
 
   const titleText = data.title;
   const explanationText = data.explanation;
@@ -210,8 +184,8 @@ function ConceptNodeInner({ id, data, currentConceptIndex, onClick }: ConceptNod
             handlePlay();
           }}
           className={styles.playButton}
-          disabled={isLoading}
-          title="Listen"
+          disabled={isLoading || prefersReducedMotion}
+          title={prefersReducedMotion ? 'Audio narration disabled (reduced motion)' : 'Listen'}
         >
           {isLoading ? (
             <Loader2 size={14} className={styles.spin} />

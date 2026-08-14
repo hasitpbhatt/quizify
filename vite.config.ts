@@ -306,7 +306,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
-    exclude: ['node_modules/**', '.opencode/**', 'tests/e2e/**'],
+    exclude: ['node_modules/**', '.kilo/**', '.opencode/**', 'tests/e2e/**'],
   },
 });
 
