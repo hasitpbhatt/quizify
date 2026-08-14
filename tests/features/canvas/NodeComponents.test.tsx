@@ -137,7 +137,33 @@ describe('ConceptNode', () => {
 
 // ── ConceptNode TTS ────────────────────────────────────
 
+// Control the TTS singleton so the standalone Listen button's routing is
+// inspectable without touching the network or the real speech engine.
+const ttsMock = vi.hoisted(() => ({
+  speechSynthesisAvailable: true,
+  isPlaying: false,
+  setRate: vi.fn(),
+  clearQueue: vi.fn(),
+  enqueue: vi.fn(),
+  start: vi.fn(),
+  stop: vi.fn(),
+  subscribeState: vi.fn(() => () => {}),
+}));
+vi.mock('@/lib/llm/ttsManager', () => ({ ttsManager: ttsMock }));
+
 describe('ConceptNode TTS', () => {
+  beforeEach(() => {
+    ttsMock.speechSynthesisAvailable = true;
+    ttsMock.isPlaying = false;
+    ttsMock.setRate.mockClear();
+    ttsMock.clearQueue.mockClear();
+    ttsMock.enqueue.mockClear();
+    ttsMock.start.mockClear();
+    ttsMock.stop.mockClear();
+    ttsMock.subscribeState.mockClear();
+    ttsMock.subscribeState.mockReturnValue(() => {});
+  });
+
   it('renders the Listen button', () => {
     const node = factories.mockConceptNode();
     render(
@@ -152,35 +178,9 @@ describe('ConceptNode TTS', () => {
     expect(screen.getByText('Listen')).toBeInTheDocument();
   });
 
-  it('falls back to Web Speech when server TTS is unavailable', async () => {
-    const speakSpy = vi.spyOn(window.speechSynthesis, 'speak');
+  it('routes standalone playback through ttsManager (single audio source)', () => {
     const node = factories.mockConceptNode();
 
-    render(
-      <ConceptNode
-        id={node.id}
-        data={node.data as import('@/shared/types').ConceptData}
-        currentConceptIndex={0}
-        isGenerating={false}
-        onClick={() => {}}
-      />,
-    );
-
-    // The fetch to /api/tts will fail (no server), triggering the Web Speech fallback
-    const btn = screen.getByText('Listen');
-    fireEvent.click(btn);
-
-    await vi.waitFor(() => {
-      expect(speakSpy).toHaveBeenCalled();
-    }, { timeout: 3000 });
-  });
-
-  it('disables the button while loading (before response)', async () => {
-    // Stub fetch to hang so we can observe the loading state
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn(() => new Promise<never>(() => {}));
-
-    const node = factories.mockConceptNode();
     render(
       <ConceptNode
         id={node.id}
@@ -193,8 +193,40 @@ describe('ConceptNode TTS', () => {
 
     fireEvent.click(screen.getByText('Listen'));
 
-    expect(screen.getByTitle('Listen')).toBeDisabled();
-    globalThis.fetch = originalFetch;
+    expect(ttsMock.clearQueue).toHaveBeenCalled();
+    expect(ttsMock.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ nodeId: node.id }),
+    );
+    expect(ttsMock.start).toHaveBeenCalled();
+  });
+
+  it('disables the Listen button and never starts audio under reduced motion', () => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('reduced-motion'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    const node = factories.mockConceptNode();
+    render(
+      <ConceptNode
+        id={node.id}
+        data={node.data as import('@/shared/types').ConceptData}
+        currentConceptIndex={0}
+        isGenerating={false}
+        onClick={() => {}}
+      />,
+    );
+
+    const btn = screen.getByTitle('Audio narration disabled (reduced motion)');
+    expect(btn).toBeDisabled();
+    fireEvent.click(btn);
+    expect(ttsMock.start).not.toHaveBeenCalled();
   });
 });
 
