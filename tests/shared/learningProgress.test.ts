@@ -41,14 +41,24 @@ describe('computeNextReviewAt', () => {
     expect(computeNextReviewAt('partial', now)).toBe(now + 86400000);
   });
 
-  it('returns now + 3 days for correct', () => {
+  it('returns now + 1 day for correct (first success, streak 0)', () => {
     const now = 1000;
-    expect(computeNextReviewAt('correct', now)).toBe(now + 259200000);
+    expect(computeNextReviewAt('correct', now)).toBe(now + 86400000);
   });
 
-  it('returns now + 7 days for mastered', () => {
+  it('expands correct interval with success streak (1/3/7/14/30)', () => {
     const now = 1000;
-    expect(computeNextReviewAt('mastered', now)).toBe(now + 604800000);
+    expect(computeNextReviewAt('correct', now, 0)).toBe(now + 1 * 86400000);
+    expect(computeNextReviewAt('correct', now, 1)).toBe(now + 3 * 86400000);
+    expect(computeNextReviewAt('correct', now, 2)).toBe(now + 7 * 86400000);
+    expect(computeNextReviewAt('correct', now, 3)).toBe(now + 14 * 86400000);
+    expect(computeNextReviewAt('correct', now, 4)).toBe(now + 30 * 86400000);
+    expect(computeNextReviewAt('correct', now, 99)).toBe(now + 30 * 86400000);
+  });
+
+  it('returns now + 30 days for mastered', () => {
+    const now = 1000;
+    expect(computeNextReviewAt('mastered', now)).toBe(now + 30 * 86400000);
   });
 
   it('returns now for untested', () => {

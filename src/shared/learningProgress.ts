@@ -27,6 +27,12 @@ export function normalizeLearningProgress(
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Spaced-review baseline (roadmap §6.3): a correct answer advances the interval
+// through 1 → 3 → 7 → 14 → 30 days as the success streak grows. `mastered` is
+// the cap of the schedule. Incorrect/partial/untested keep the concept in the
+// near-term review pool so nothing silently drops out of rotation.
+const CORRECT_INTERVALS_DAYS = [1, 3, 7, 14, 30];
+
 export function computeNextReviewAt(
   state: 'correct' | 'partial' | 'incorrect' | 'mastered' | 'untested' | 'inProgress',
   now = Date.now(),
@@ -34,11 +40,11 @@ export function computeNextReviewAt(
 ): number {
   if (state === 'incorrect' || state === 'untested' || state === 'inProgress') return now;
   if (state === 'partial') return now + 1 * DAY_MS;
-  if (state === 'mastered') return now + 7 * DAY_MS;
+  if (state === 'mastered') return now + 30 * DAY_MS;
 
-  const intervals = [3, 7, 14, 30];
-  const streakIdx = Math.min(Math.max(0, successStreak), intervals.length - 1);
-  return now + intervals[streakIdx] * DAY_MS;
+  // Clamp streak into the interval table; streak 0 = first success → 1 day.
+  const streakIdx = Math.min(Math.max(0, successStreak), CORRECT_INTERVALS_DAYS.length - 1);
+  return now + CORRECT_INTERVALS_DAYS[streakIdx] * DAY_MS;
 }
 
 export function getNextLearningAction(

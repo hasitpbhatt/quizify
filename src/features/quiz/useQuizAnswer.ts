@@ -22,6 +22,32 @@ export function computeState(attempts: Attempt[]): QuizState {
   return 'incorrect';
 }
 
+/**
+ * Counts the number of trailing fully-correct quizzes for a concept, used to
+ * drive spaced-review interval expansion. A concept is only "fully correct"
+ * when its sibling quiz reports `correct`/`mastered` (not merely `partial`).
+ * The streak is the run of such quizzes at the end of the concept's quiz list,
+ * so an older slip doesn't reset progress that has since been recovered.
+ */
+export function computeConceptSuccessStreak(
+  nodes: { data: { kind: string } }[],
+  conceptId: string,
+): number {
+  const siblingQuizzes = nodes
+    .filter((n) => n.data.kind === 'quiz' && (n.data as QuizData).parentConceptId === conceptId)
+    .map((n) => n.data as QuizData);
+
+  let streak = 0;
+  for (let i = siblingQuizzes.length - 1; i >= 0; i--) {
+    if (siblingQuizzes[i].state === 'correct' || siblingQuizzes[i].state === 'mastered') {
+      streak++;
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
 export function useQuizAnswer(quiz: QuizData, quizId: string) {
   const [submitting, setSubmitting] = useState(false);
   const [lastResult, setLastResult] = useState<SubmitResult | null>(null);
@@ -122,7 +148,11 @@ export function useQuizAnswer(quiz: QuizData, quizId: string) {
 
           const nextReviewAtByConceptId = {
             ...(authoritative.nextReviewAtByConceptId ?? {}),
-            [conceptId]: computeNextReviewAt(newState),
+            [conceptId]: computeNextReviewAt(
+              newState,
+              Date.now(),
+              computeConceptSuccessStreak(updatedNodes, conceptId),
+            ),
           };
 
           await updateCurrent({
